@@ -128,3 +128,30 @@ npm run lint:arch   # OK
 - Gateway WebSocket con grants firmados de vida corta.
 - Captura y reproduccion push-to-talk en un development build de Expo.
 - Primer adaptador real detras de variable de entorno.
+
+## 2026-09-17 (quinta entrada) — Control de versiones y limpieza de nombre
+
+**Que cambio**
+- Repositorio git unico en la raiz del proyecto: `docs/` y el codigo se versionan juntos.
+  El commit de Sprint 1 que ya existia dentro de `kotaru/` se conservo; git reconocio los
+  32 archivos como renombrados, no como borrados y recreados.
+- El nombre anterior desaparecio de toda la documentacion: docs locales, los once
+  documentos del proyecto en claude.ai, el espejo local de esos documentos y el
+  documento de Fase 0 (18 menciones reescritas).
+- Las menciones historicas se conservaron como razonamiento sin repetir la grafia
+  descartada. Importa que quede registrado POR QUE se rechazo, o alguien lo vuelve a
+  proponer en seis meses.
+- Carpetas renombradas: `Kotaru_Claude_Project/` y `Kotaru_Claude_Project_original.zip`.
+  El .zip conserva su contenido original congelado: es el paquete tal como se subio.
+
+**Verificacion**
+- Busqueda insensible a mayusculas del nombre anterior en todo el arbol, excluyendo
+  node_modules y el .zip original: cero resultados.
+- Busqueda del nombre anterior dentro del documento de Fase 0: cero resultados.
+- 37 pruebas en verde despues de mover el repositorio.
+
+**Pendiente**
+- La carpeta raiz sigue llamandose con el nombre anterior. Renombrarla rompe el enlace
+  de la sesion, asi que se hace con la sesion cerrada y luego se reconecta.
+- La descripcion del proyecto en claude.ai todavia menciona que se usarian soluciones
+  chinas de menor costo. Esa hipotesis quedo refutada el 17 de septiembre (D-010).
