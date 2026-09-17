@@ -1,9 +1,23 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/ai-contracts" },
-    { "path": "packages/telemetry" },
-    { "path": "packages/ai-adapters-mock" },
-    { "path": "packages/ai-router" }
+    {
+      "path": "packages/ai-contracts"
+    },
+    {
+      "path": "packages/telemetry"
+    },
+    {
+      "path": "packages/ai-adapters-mock"
+    },
+    {
+      "path": "packages/ai-router"
+    },
+    {
+      "path": "packages/orchestrator"
+    },
+    {
+      "path": "packages/gateway"
+    }
   ]
 }

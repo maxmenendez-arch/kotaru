@@ -155,3 +155,33 @@ npm run lint:arch   # OK
   de la sesion, asi que se hace con la sesion cerrada y luego se reconecta.
 - La descripcion del proyecto en claude.ai todavia menciona que se usarian soluciones
   chinas de menor costo. Esa hipotesis quedo refutada el 17 de septiembre (D-010).
+
+## 2026-09-17 (sexta entrada) — Sprint 2: orquestador y gateway
+
+**Que cambio**
+- `@kotaru/orchestrator`: ciclo completo del turno con generacion y sintesis en
+  paralelo, fallback de proveedor, cancelacion, corte de seguridad ante senal de
+  crisis y metrica de costo por turno.
+- `@kotaru/gateway`: grants de sesion firmados con HMAC-SHA256, de vida corta, con
+  audiencia, proteccion de reuso y rotacion de claves; protocolo de mensajes de
+  control y politica de backpressure.
+
+**Archivos creados**
+- `kotaru/packages/orchestrator/` — queue.ts, sentences.ts, events.ts, turn.ts + 10 pruebas
+- `kotaru/packages/gateway/` — grants.ts, protocol.ts + 10 pruebas
+
+**Como se verifico**
+```
+npm run typecheck   # exit 0
+npm test            # 57 pruebas, 6 archivos, todas en verde
+npm run lint:arch   # OK
+```
+
+**Defecto corregido**
+- El buffer de oraciones cortaba en un terminador al final del buffer. Lo encontro una
+  prueba que yo mismo habia escrito esperando el comportamiento correcto. Con los
+  tokens "3", "." y "5" habria mandado "3." al TTS.
+
+**Riesgos abiertos**
+- El ReplayGuard es en memoria: con varias instancias de gateway debe ir a Redis.
+- Sigue pendiente la prueba de calidad ciega de Kokoro contra Polly (D-011).

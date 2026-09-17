@@ -1,0 +1,19 @@
+{
+  "name": "@kotaru/orchestrator",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@kotaru/ai-contracts": "0.0.1",
+    "@kotaru/telemetry": "0.0.1"
+  },
+  "devDependencies": {
+    "@kotaru/ai-router": "0.0.1",
+    "@kotaru/ai-adapters-mock": "0.0.1"
+  }
+}

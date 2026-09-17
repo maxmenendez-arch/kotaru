@@ -2,8 +2,9 @@
 
 Compañero de IA con personajes manga originales, voz y memoria. Monorepo TypeScript.
 
-Estado: **Sprint 1 en curso.** Contratos de proveedor, router multiproveedor,
-adaptadores simulados y telemetría de costo. Todavía no hay app móvil ni backend.
+Estado: **Sprint 2 en curso.** Contratos de proveedor, router multiproveedor,
+adaptadores simulados, telemetría de costo, orquestador del turno y grants de sesión
+firmados. Todavía no hay app móvil ni servidor desplegado.
 
 ## Requisitos
 
@@ -15,7 +16,7 @@ adaptadores simulados y telemetría de costo. Todavía no hay app móvil ni back
 ```bash
 npm install
 npm run typecheck     # tsc --build en modo estricto sobre los cuatro paquetes
-npm test              # 37 pruebas
+npm test              # 57 pruebas
 npm run lint:arch     # verifica la regla de dependencias
 ```
 
@@ -29,6 +30,8 @@ Las tres deben pasar antes de cualquier commit.
 | `@kotaru/ai-adapters-mock` | Simuladores deterministas de STT, LLM, TTS, moderación y embeddings | solo contratos |
 | `@kotaru/ai-router` | Restricciones duras, puntuación, circuit breaker, presupuesto | solo contratos |
 | `@kotaru/telemetry` | Eventos de costo y latencia, sin contenido de conversación | solo contratos |
+| `@kotaru/orchestrator` | Ciclo del turno: transcripción, moderación, generación y síntesis en paralelo | contratos y telemetría |
+| `@kotaru/gateway` | Grants de sesión firmados y protocolo de tiempo real | solo contratos |
 
 ## Reglas que el código hace cumplir
 
@@ -51,6 +54,11 @@ Estas no son convenciones: hay una prueba o un lint que falla si se rompen.
    cuenta como fallo para el circuit breaker.
 7. **Toda estimación de costo declara si es supuesto o tarifa verificada**, con
    fecha. Ver `../docs/PROVIDER_REGISTRY.yaml`.
+8. **El fallback de proveedor solo actúa antes del primer evento emitido.** Una vez
+   que el usuario oye la primera sílaba no se cambia de voz a mitad de frase: un
+   fallo posterior termina el turno en vez de disimularlo.
+9. **El grant de sesión no lleva identidad.** Solo un seudónimo estable. Hay una
+   prueba que falla si aparece un correo o un campo de nombre en el payload.
 
 ## Tarifas incorporadas
 
@@ -73,7 +81,18 @@ bajaría a **$0.23**, pendiente de la prueba de calidad ciega (D-011).
 proveedor viven en el gestor de secretos del servidor: jamás en el código, en los
 prompts, en el bundle móvil, en los logs ni en la analítica.
 
+## El turno, de principio a fin
+
+`runTurn()` en `@kotaru/orchestrator` ejecuta: transcripción con fallback y repetición
+del audio grabado, moderación de entrada, y después **generación y síntesis en
+paralelo**. El modelo emite tokens mientras el búfer de oraciones va entregando frases
+completas al TTS, así que el primer byte de audio sale antes de que termine la
+respuesta. Hay una prueba que lo verifica comparando índices de eventos.
+
+El turno termina siempre con una métrica de costo atribuida a las tres etapas más
+infraestructura, que pasa por el guardia de contenido antes de guardarse.
+
 ## Siguiente
 
-Gateway WebSocket con grants firmados, captura push-to-talk en Expo, y el primer
-adaptador real detrás de variable de entorno.
+Captura push-to-talk en un development build de Expo, servidor WebSocket que hable el
+protocolo de `@kotaru/gateway`, y el primer adaptador real detrás de variable de entorno.

@@ -177,3 +177,43 @@ Ver `docs/adr/ADR-002-realtime-transport.md`.
 - Las tarjetas de tarifas incorporan las tarifas verificadas del 17 de septiembre, con
   `basis: verified` y `verifiedAt`, de modo que el costo por turno es real aunque el
   audio sea simulado.
+
+### D-013 — Sprint 2: orquestador del turno y grants de sesion
+- Estado: accepted, en curso
+- Entregado: `@kotaru/orchestrator` (ciclo completo del turno) y `@kotaru/gateway`
+  (grants firmados y protocolo de tiempo real). 57 pruebas en verde, typecheck
+  estricto sin errores, lint de arquitectura en verde.
+
+- **Generacion y sintesis corren en paralelo.** El LLM emite tokens mientras un buffer
+  de oraciones entrega frases completas al TTS. Esperar la respuesta entera antes de
+  sintetizar dispararia el tiempo al primer byte de audio, que es la metrica que decide
+  si una conversacion se siente viva.
+
+- **El fallback de proveedor solo actua antes del primer evento emitido.** Decision
+  deliberada: una vez que el usuario oye la primera silaba, cambiar de voz a mitad de
+  frase suena a otra persona. Un fallo posterior termina el turno en vez de disimularlo.
+
+- **El audio se graba mientras se consume.** Si el STT falla despues del primer chunk,
+  el segundo proveedor recibe el audio completo. Sin esto se perderia la frase del
+  usuario, y no se le puede pedir que la repita porque fallo un proveedor.
+
+- **El corte de oracion exige espacio despues del terminador.** Una prueba fallo
+  mostrando que el codigo cortaba en un terminador al final del buffer: con los tokens
+  "3", "." y "5" mandaria "3." al TTS y sonaria "tres punto". Esperar un token cuesta
+  decenas de milisegundos; partir un numero se oye. La ultima oracion la recoge flush().
+
+- **El grant de sesion autoriza abrir la conexion, no consumir sin limite.** Vida corta
+  (120 s por defecto), audiencia explicita para que un grant de staging no abra
+  produccion, proteccion contra reuso por jti, rotacion de claves por kid, comparacion
+  de firma en tiempo constante, y rechazo de claves de menos de 32 bytes.
+
+- **El grant no lleva identidad de la persona**, solo un seudonimo estable. Hay una
+  prueba que falla si aparece un correo o un campo de nombre en el payload.
+
+- El medidor de uso se envia al cliente en segundos, no en dolares: el usuario compra
+  tiempo de conversacion, y mostrarle el costo de proveedor seria confuso y ademas una
+  filtracion de margen.
+
+- Pendiente de este bloque: servidor WebSocket real que hable el protocolo, captura
+  push-to-talk en Expo, y el ReplayGuard en Redis cuando haya mas de una instancia
+  de gateway (hoy es en memoria, con la interfaz ya reducida a una operacion atomica).
