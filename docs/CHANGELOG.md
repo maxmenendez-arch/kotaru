@@ -213,3 +213,29 @@ npm run lint:arch   # OK
 
 **Riesgos abiertos**
 - Sin cambios: prueba ciega de Kokoro (D-011) y ReplayGuard en Redis.
+
+## 2026-09-17 (octava entrada) — Memoria
+
+**Que cambio**
+- `@kotaru/memory`: recuerdos con aprobacion explicita del usuario, guardia de
+  contenido, recuperacion determinista, fijado, edicion, exportacion y borrado real.
+
+**Archivos creados**
+- `kotaru/packages/memory/` — types.ts, guard.ts, extractor.ts, store.ts + 24 pruebas
+
+**Como se verifico**
+```
+npm run typecheck   # exit 0
+npm test            # 104 pruebas, 9 archivos, todas en verde
+npm run lint:arch   # OK
+```
+
+**Cambio de diseno provocado por una prueba**
+- La version inicial desalojaba en silencio el recuerdo aprobado menos usado al llegar
+  al tope. La prueba fallo porque el recuerdo desaparecia antes de que el usuario
+  pudiera fijarlo. Borrar en silencio algo que la persona aprobo contradice la promesa
+  de un centro de memoria transparente, asi que ahora se rechaza aprobar y se le pide
+  al usuario que elija que soltar.
+
+**Riesgos abiertos**
+- Sin cambios: prueba ciega de Kokoro (D-011) y ReplayGuard en Redis.

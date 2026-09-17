@@ -248,3 +248,37 @@ Ver `docs/adr/ADR-002-realtime-transport.md`.
 
 - Al 90%, un usuario de Always conserva la voz pero por la ruta economica: el corte de
   gasto manda sobre el plan, y degradar es mejor que negar.
+
+### D-015 — Sprint 2: memoria con aprobacion explicita
+- Estado: accepted, en curso
+- Entregado: `@kotaru/memory`. 104 pruebas en verde, typecheck estricto, lint en verde.
+
+- **Nada entra en la memoria a largo plazo sin que el usuario lo apruebe.** Lo
+  propuesto no se recupera nunca: el companion no puede usar lo que todavia no le
+  autorizaron recordar. Es la diferencia entre un centro de memoria transparente y una
+  libreta secreta que el producto lleva sobre la persona.
+
+- **Nunca se borra un recuerdo aprobado sin decirselo al usuario.** La primera version
+  desalojaba el menos usado al llegar al tope. Una prueba lo destapo: el usuario ve
+  algo en la lista, va a fijarlo y ya no esta. Ahora al llegar al tope se rechaza
+  aprobar mas y la interfaz pide elegir que soltar. Olvidar es decision de la persona,
+  no del recolector de basura.
+
+- **Guardia de contenido como ultima linea de defensa**, no como control principal: la
+  deteccion seria corre en el ModerationProvider. Bloquea tarjetas validadas con Luhn,
+  documentos de identidad, credenciales y senales de crisis.
+
+- **Las senales de crisis no se archivan.** Persistir "quiere morir" y devolverselo al
+  usuario semanas despues, en boca de un personaje que le cae bien, es exactamente el
+  dano que un companion emocional puede causar. La crisis se atiende en el momento, con
+  recursos reales.
+
+- Los recuerdos se acotan por usuario Y companion: que Nova sepa algo no significa que
+  Sage lo sepa. Cada companion recuerda lo que le contaron a el.
+
+- El extractor es una interfaz. En produccion lo hace un modelo; el implementado es
+  determinista, para que las pruebas del resto no dependan de un LLM.
+
+- Borrado real, no marcado: si el usuario dice que lo olvides, se olvida. `forgetAll`
+  cubre el borrado de cuenta y `exportFor` la exportacion de datos, ambos requisitos
+  del documento de privacidad.

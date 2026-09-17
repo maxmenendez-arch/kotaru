@@ -4,7 +4,7 @@ Compañero de IA con personajes manga originales, voz y memoria. Monorepo TypeSc
 
 Estado: **Sprint 2 en curso.** Contratos de proveedor, router multiproveedor,
 adaptadores simulados, telemetría de costo, orquestador del turno, grants de sesión
-firmados y control de gasto. Todavía no hay app móvil ni servidor desplegado.
+firmados, control de gasto y memoria con aprobación del usuario. Todavía no hay app móvil ni servidor desplegado.
 
 ## Requisitos
 
@@ -16,7 +16,7 @@ firmados y control de gasto. Todavía no hay app móvil ni servidor desplegado.
 ```bash
 npm install
 npm run typecheck     # tsc --build en modo estricto sobre los cuatro paquetes
-npm test              # 80 pruebas
+npm test              # 104 pruebas
 npm run lint:arch     # verifica la regla de dependencias
 ```
 
@@ -33,6 +33,7 @@ Las tres deben pasar antes de cualquier commit.
 | `@kotaru/orchestrator` | Ciclo del turno: transcripción, moderación, generación y síntesis en paralelo | contratos y telemetría |
 | `@kotaru/gateway` | Grants de sesión firmados y protocolo de tiempo real | solo contratos |
 | `@kotaru/billing` | Planes, márgenes, medidor idempotente, escalera de corte de gasto | solo contratos |
+| `@kotaru/memory` | Recuerdos con aprobación explícita, guardia de contenido, exportación y borrado | solo contratos |
 
 ## Reglas que el código hace cumplir
 
@@ -65,6 +66,11 @@ Estas no son convenciones: hay una prueba o un lint que falla si se rompen.
     infraestructura que no tomó él.
 11. **Un tope que nunca se ha disparado no es un tope.** La escalera de gasto tiene
     una prueba por escalón que simula gasto acumulado.
+12. **Nada entra en la memoria sin que el usuario lo apruebe.** Lo propuesto no se
+    recupera jamás: el companion no puede usar lo que todavía no le autorizaron.
+13. **Nunca se borra un recuerdo aprobado sin decírselo al usuario.** Al llegar al
+    tope se rechaza aprobar más y la interfaz pide elegir qué soltar. Olvidar es
+    siempre decisión de la persona.
 
 ## Tarifas incorporadas
 
@@ -109,6 +115,18 @@ p95 — bajo comisión del 15% **y** del 30%. Otra prueba confirma por qué Alwa
 La escalera de corte de gasto va del aviso al 50% hasta el interruptor general al 100%,
 pasando por el 90%, donde todas las rutas se degradan a la económica y el plan gratuito
 pierde la voz pero conserva el texto.
+
+## Memoria
+
+`@kotaru/memory` implementa el centro de memoria transparente: extracción, aprobación
+explícita, edición, fijado, exportación y borrado real. Un guardia bloquea lo que nunca
+debe quedar en disco —tarjetas validadas con Luhn, documentos de identidad, credenciales
+y señales de crisis— como última línea de defensa detrás del `ModerationProvider`.
+
+La señal de crisis se bloquea por una razón concreta: persistir "quiere morir" y
+devolvérselo al usuario semanas después, en boca de un personaje que le cae bien, es
+exactamente el daño que un companion emocional puede causar. Eso se atiende en el
+momento, con recursos reales; no se archiva.
 
 ## Siguiente
 
