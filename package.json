@@ -1,0 +1,19 @@
+{
+  "name": "kotaru",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Kotaru — AI companion. Monorepo root.",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "typecheck": "tsc --build --force",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint:arch": "node tools/check-architecture.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": { "node": ">=22" }
+}

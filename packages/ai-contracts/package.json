@@ -1,0 +1,11 @@
+{
+  "name": "@kotaru/ai-contracts",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": "./src/index.ts" },
+  "comment": "Cero dependencias, a proposito. Este paquete define el limite con los proveedores.",
+  "dependencies": {}
+}
