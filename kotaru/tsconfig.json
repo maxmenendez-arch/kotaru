@@ -18,6 +18,9 @@
     },
     {
       "path": "packages/gateway"
+    },
+    {
+      "path": "packages/billing"
     }
   ]
 }

@@ -185,3 +185,31 @@ npm run lint:arch   # OK
 **Riesgos abiertos**
 - El ReplayGuard es en memoria: con varias instancias de gateway debe ir a Redis.
 - Sigue pendiente la prueba de calidad ciega de Kokoro contra Polly (D-011).
+
+## 2026-09-17 (septima entrada) — Economia y control de gasto
+
+**Que cambio**
+- `@kotaru/billing`: catalogo de planes con las asignaciones de D-008, modelo de margen,
+  medidor de consumo idempotente por turnId, escalera de corte de gasto y entitlements.
+
+**Archivos creados**
+- `kotaru/packages/billing/` — plans.ts, margin.ts, meter.ts, spend-breaker.ts,
+  entitlements.ts + 23 pruebas
+
+**Como se verifico**
+```
+npm run typecheck   # exit 0
+npm test            # 80 pruebas, 7 archivos, todas en verde
+npm run lint:arch   # OK
+```
+
+**Lo que las pruebas confirman, no solo ejercitan**
+- Los tres planes de pago mantienen 50% o mas de margen en el p95 al 15% de comision,
+  y mas del 40% al 30%.
+- A 50 horas, Always pierde dinero. Por eso bajo a 20.
+- Si el costo cae a la tarifa de Kokoro, el techo de Always pasa de ~23 h a mas de 50.
+- El subsidio del plan gratuito son 0.39 USD por usuario al mes.
+- Cada escalon del corte de gasto dispara lo que debe, y ninguno corta el texto.
+
+**Riesgos abiertos**
+- Sin cambios: prueba ciega de Kokoro (D-011) y ReplayGuard en Redis.

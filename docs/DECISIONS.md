@@ -217,3 +217,34 @@ Ver `docs/adr/ADR-002-realtime-transport.md`.
 - Pendiente de este bloque: servidor WebSocket real que hable el protocolo, captura
   push-to-talk en Expo, y el ReplayGuard en Redis cuando haya mas de una instancia
   de gateway (hoy es en memoria, con la interfaz ya reducida a una operacion atomica).
+
+### D-014 — Sprint 2: economia y control de gasto en codigo
+- Estado: accepted, en curso
+- Entregado: `@kotaru/billing`. 80 pruebas en verde, typecheck estricto, lint en verde.
+
+- **El catalogo de planes y el modelo de margen viven en el codigo, no en una hoja de
+  calculo.** Si una asignacion deja de cumplir el 50% de margen en el usuario p95, una
+  prueba falla antes de que el precio llegue a la tienda. Se verifica bajo comision del
+  15% y del 30%.
+
+- Una prueba confirma por que Always bajo de 50 horas a 20: a 50 horas, con comision
+  del 30%, el margen es negativo.
+
+- Nota de precision: el techo de horas de Always a la tarifa de Kokoro sale 50.9 usando
+  0.232 USD/hora (la cifra exacta) y 51.3 usando 0.23 (la redondeada del titular). Las
+  pruebas usan 0.23. La conclusion no cambia: por encima de 50 horas.
+
+- **El medidor es idempotente por turnId.** Un reintento del cliente, una reconexion o
+  un webhook duplicado no pueden cobrar dos veces el mismo turno ni inflar el gasto del
+  mes. Es la misma propiedad que exige la conciliacion de compras.
+
+- **Escalera de corte de gasto con una prueba por escalon**, simulando gasto acumulado:
+  50% avisa, 75% apaga benchmarks y staging y congela invitaciones, 90% degrada todas
+  las rutas a la economica y el plan gratuito pierde voz, 100% interruptor general.
+
+- **El texto nunca se corta.** En ningun escalon, para ningun plan. Cuando el
+  presupuesto apaga la voz, la app sigue siendo util y el aviso es honesto. Dejar al
+  usuario sin nada seria castigarlo por una decision de infraestructura que no tomo el.
+
+- Al 90%, un usuario de Always conserva la voz pero por la ruta economica: el corte de
+  gasto manda sobre el plan, y degradar es mejor que negar.

@@ -3,8 +3,8 @@
 Compañero de IA con personajes manga originales, voz y memoria. Monorepo TypeScript.
 
 Estado: **Sprint 2 en curso.** Contratos de proveedor, router multiproveedor,
-adaptadores simulados, telemetría de costo, orquestador del turno y grants de sesión
-firmados. Todavía no hay app móvil ni servidor desplegado.
+adaptadores simulados, telemetría de costo, orquestador del turno, grants de sesión
+firmados y control de gasto. Todavía no hay app móvil ni servidor desplegado.
 
 ## Requisitos
 
@@ -16,7 +16,7 @@ firmados. Todavía no hay app móvil ni servidor desplegado.
 ```bash
 npm install
 npm run typecheck     # tsc --build en modo estricto sobre los cuatro paquetes
-npm test              # 57 pruebas
+npm test              # 80 pruebas
 npm run lint:arch     # verifica la regla de dependencias
 ```
 
@@ -32,6 +32,7 @@ Las tres deben pasar antes de cualquier commit.
 | `@kotaru/telemetry` | Eventos de costo y latencia, sin contenido de conversación | solo contratos |
 | `@kotaru/orchestrator` | Ciclo del turno: transcripción, moderación, generación y síntesis en paralelo | contratos y telemetría |
 | `@kotaru/gateway` | Grants de sesión firmados y protocolo de tiempo real | solo contratos |
+| `@kotaru/billing` | Planes, márgenes, medidor idempotente, escalera de corte de gasto | solo contratos |
 
 ## Reglas que el código hace cumplir
 
@@ -59,6 +60,11 @@ Estas no son convenciones: hay una prueba o un lint que falla si se rompen.
    fallo posterior termina el turno en vez de disimularlo.
 9. **El grant de sesión no lleva identidad.** Solo un seudónimo estable. Hay una
    prueba que falla si aparece un correo o un campo de nombre en el payload.
+10. **El texto nunca se corta.** Cuando el presupuesto apaga la voz, la app sigue
+    siendo útil. Dejar al usuario sin nada sería castigarlo por una decisión de
+    infraestructura que no tomó él.
+11. **Un tope que nunca se ha disparado no es un tope.** La escalera de gasto tiene
+    una prueba por escalón que simula gasto acumulado.
 
 ## Tarifas incorporadas
 
@@ -91,6 +97,18 @@ respuesta. Hay una prueba que lo verifica comparando índices de eventos.
 
 El turno termina siempre con una métrica de costo atribuida a las tres etapas más
 infraestructura, que pasa por el guardia de contenido antes de guardarse.
+
+## Economía, en el código
+
+`@kotaru/billing` no es un módulo de facturación: es la restricción comercial escrita
+como código verificable. El catálogo de planes lleva las asignaciones de D-008, y hay
+pruebas que fallan si una asignación deja de cumplir el 50% de margen en el usuario
+p95 — bajo comisión del 15% **y** del 30%. Otra prueba confirma por qué Always bajó de
+50 horas a 20: a 50 horas el margen es negativo.
+
+La escalera de corte de gasto va del aviso al 50% hasta el interruptor general al 100%,
+pasando por el 90%, donde todas las rutas se degradan a la económica y el plan gratuito
+pierde la voz pero conserva el texto.
 
 ## Siguiente
 
