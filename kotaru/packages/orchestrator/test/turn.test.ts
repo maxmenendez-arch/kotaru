@@ -205,7 +205,7 @@ describe('seguridad', () => {
     );
 
     const safety = events.find((e) => e.type === 'safety');
-    expect(safety).toMatchObject({ type: 'safety', action: 'crisis_handoff' });
+    expect(safety).toMatchObject({ type: 'safety', verdict: { action: 'crisis_handoff' } });
     expect(events.some((e) => e.type === 'token')).toBe(false);
     expect(events.some((e) => e.type === 'audio')).toBe(false);
     expect(events.at(-1)?.type).toBe('done');

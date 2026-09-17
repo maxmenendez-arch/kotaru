@@ -243,7 +243,7 @@ async function drive(
       ctx,
     );
     if (!verdict.allowed) {
-      out.push({ type: 'safety', action: verdict.action, policyVersion: verdict.policyVersion });
+      out.push({ type: 'safety', verdict });
       finish(false);
       return;
     }

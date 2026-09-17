@@ -268,3 +268,29 @@ npm run lint:arch   # OK
 - Solo Estados Unidos tiene recursos de apoyo configurados. Cualquier otra region lanza
   excepcion al evaluar una crisis: es intencional, y es requisito de lanzamiento.
 - Sin cambios: prueba ciega de Kokoro (D-011) y ReplayGuard en Redis.
+
+## 2026-09-17 (decima entrada) — Slice vertical ejecutable
+
+**Que cambio**
+- `kotaru.app` comprado. `kotaru.ai` y `getkotaru.com` descartados por ahora, con el
+  riesgo asumido registrado en D-006.
+- `apps/gateway`: servidor WebSocket real. Verificacion de grant, sesiones de voz,
+  turnos, interrupcion, limites de plan y de gasto, propuestas de memoria.
+- `npm run demo`: conversacion completa de punta a punta contra los simuladores.
+- El lint de arquitectura cubre `apps/` y separa infraestructura de SDK de IA.
+
+**Archivos creados**
+- `kotaru/apps/gateway/` — session.ts, server.ts, demo.ts + 5 pruebas de extremo a extremo
+- `kotaru/tools/check-architecture.mjs` reescrito
+
+**Como se verifico**
+```
+npm run typecheck   # exit 0
+npm test            # 132 pruebas, 11 archivos, todas en verde
+npm run lint:arch   # OK, y se comprobo que falla al meter un SDK prohibido
+npm run demo        # dos turnos completos, con costo y memoria
+```
+
+**Riesgos abiertos**
+- No hay persistencia: todo vive en memoria y se pierde al reiniciar.
+- Sin cambios: prueba ciega de Kokoro (D-011), ReplayGuard en Redis, spike de avatar.

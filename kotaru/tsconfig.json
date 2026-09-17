@@ -27,6 +27,9 @@
     },
     {
       "path": "packages/safety"
+    },
+    {
+      "path": "apps/gateway"
     }
   ]
 }

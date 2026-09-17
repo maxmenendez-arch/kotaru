@@ -6,7 +6,22 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const PACKAGES_DIR = 'packages';
+/**
+ * SDK de proveedores de IA. Solo packages/ai-adapters-* puede declararlos.
+ *
+ * Esta es la regla que hace real la independencia de proveedor: si la logica de
+ * negocio puede importar el SDK de un proveedor, en seis meses lo importa, y cambiar
+ * de proveedor deja de ser una linea de configuracion.
+ */
+const AI_VENDOR_SDKS = [
+  'openai', '@anthropic-ai/sdk', '@google/generative-ai', '@google/genai',
+  '@google-cloud/text-to-speech', '@google-cloud/speech',
+  '@aws-sdk/client-polly', '@aws-sdk/client-transcribe',
+  'assemblyai', '@deepgram/sdk', 'deepgram', 'elevenlabs', '@elevenlabs/elevenlabs-js',
+  '@cartesia/cartesia-js', 'together-ai', 'minimax', 'groq-sdk',
+  '@alicloud/openapi-client', '@volcengine/openapi', 'microsoft-cognitiveservices-speech-sdk',
+];
+
 const violations = [];
 
 function sourceFiles(dir) {
@@ -19,12 +34,26 @@ function sourceFiles(dir) {
   return out;
 }
 
-for (const pkg of readdirSync(PACKAGES_DIR)) {
-  const pkgPath = join(PACKAGES_DIR, pkg);
-  if (!statSync(pkgPath).isDirectory()) continue;
+function workspaces(root) {
+  try {
+    return readdirSync(root)
+      .map((name) => join(root, name))
+      .filter((path) => statSync(path).isDirectory());
+  } catch {
+    return [];
+  }
+}
 
-  const manifest = JSON.parse(readFileSync(join(pkgPath, 'package.json'), 'utf8'));
+for (const path of [...workspaces('packages'), ...workspaces('apps')]) {
+  const isApp = path.startsWith('apps');
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(join(path, 'package.json'), 'utf8'));
+  } catch {
+    continue;
+  }
   const deps = Object.keys(manifest.dependencies ?? {});
+  const isAdapter = manifest.name.startsWith('@kotaru/ai-adapters');
 
   // Regla 1: ai-contracts define el limite con proveedores. Cero dependencias.
   if (manifest.name === '@kotaru/ai-contracts' && deps.length > 0) {
@@ -33,22 +62,32 @@ for (const pkg of readdirSync(PACKAGES_DIR)) {
     );
   }
 
-  // Regla 2: solo los adaptadores pueden declarar un SDK de proveedor.
-  const isAdapter = manifest.name.startsWith('@kotaru/ai-adapters');
+  // Regla 2: solo los adaptadores pueden declarar un SDK de proveedor de IA.
   if (!isAdapter) {
-    const vendor = deps.filter((d) => !d.startsWith('@kotaru/'));
+    const vendor = deps.filter((dep) => AI_VENDOR_SDKS.includes(dep));
     if (vendor.length > 0) {
       violations.push(
-        `${manifest.name} declara dependencias de terceros (${vendor.join(', ')}). Solo packages/ai-adapters-* puede hacerlo.`,
+        `${manifest.name} declara un SDK de proveedor de IA (${vendor.join(', ')}). Solo packages/ai-adapters-* puede hacerlo.`,
       );
     }
   }
 
-  // Regla 3: ningun paquete importa desde apps/ ni cruza el limite de otro paquete por ruta relativa.
-  const srcDir = join(pkgPath, 'src');
+  // Regla 3: un paquete de logica no toma dependencias de terceros; una app si puede
+  // (necesita servidor, sockets, base de datos), pero nunca un SDK de IA.
+  if (!isApp && !isAdapter) {
+    const external = deps.filter((dep) => !dep.startsWith('@kotaru/'));
+    if (external.length > 0) {
+      violations.push(
+        `${manifest.name} declara dependencias de terceros (${external.join(', ')}). Los paquetes de logica solo dependen de @kotaru/*.`,
+      );
+    }
+  }
+
+  // Regla 4: las dependencias van en un solo sentido y nadie cruza el limite de otro
+  // paquete por ruta relativa.
   let files = [];
   try {
-    files = sourceFiles(srcDir);
+    files = sourceFiles(join(path, 'src'));
   } catch {
     continue;
   }
@@ -56,7 +95,7 @@ for (const pkg of readdirSync(PACKAGES_DIR)) {
     const text = readFileSync(file, 'utf8');
     for (const match of text.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
       const specifier = match[1];
-      if (specifier.includes('apps/')) {
+      if (!isApp && specifier.includes('apps/')) {
         violations.push(`${file} importa desde apps/ ('${specifier}'). Las dependencias van en un solo sentido.`);
       }
       if (specifier.startsWith('../../')) {

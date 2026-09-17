@@ -156,7 +156,16 @@ Ver `docs/adr/ADR-002-realtime-transport.md`.
   `kotaru.app` y `kotaru.ai` disponibles, pronunciacion inequivoca, raiz *koto* (palabra)
   que sugiere conversacion sin describirla. Alternativas: Mikora, Hoshira.
 - Orden final: Kotaru > Mikora > Hoshira > Tomira > Amiluna > Ainion > AI Listener.
-- Accion barata de hoy: reservar kotaru.app, kotaru.ai y getkotaru.com (~USD 183).
+- **kotaru.app comprado el 17 de septiembre de 2026.** Es el dominio del producto: URL
+  de soporte y de politica de privacidad (ambas exigidas por Apple y Google), correo y
+  enlaces profundos. Lo opera Google con HTTPS obligatorio por HSTS preload.
+- `kotaru.ai` y `getkotaru.com` descartados por ahora. El `.ai` cuesta unas ocho veces
+  mas y su unico valor hoy es defensivo, con riesgo bajo para un nombre acunado sin
+  presencia publica. `getkotaru.com` no captura el reflejo de teclear `.com`, porque lo
+  que la gente teclearia es `kotaru.com`, que es de un tercero desde hace anos.
+- Revision del `.ai`: cuando haya ingresos, o justo antes de gastar en identidad visual
+  y marketing. Riesgo asumido conscientemente: si alguien lo registra mientras tanto,
+  recomprarlo puede costar miles en vez de ochenta.
 
 ### D-012 — Arranque del Sprint 1
 - Estado: accepted, en curso
@@ -326,3 +335,37 @@ Ver `docs/adr/ADR-002-realtime-transport.md`.
 - La divulgacion de identidad se repite por tiempo, por numero de sesiones, siempre que
   el usuario pregunte y despues de cualquier derivacion a recursos. El riesgo esta en
   quien conversa a diario durante meses, no en quien acaba de instalar la app.
+
+### D-017 — Slice vertical ejecutable
+- Estado: accepted, en curso
+- Entregado: `apps/gateway`, servidor WebSocket real que ata orquestador, seguridad,
+  entitlements, memoria y telemetria. 132 pruebas en verde, cinco de ellas de extremo a
+  extremo contra un socket abierto.
+
+- **La maquina de estados de la sesion es independiente del transporte.** El WebSocket
+  vive en `server.ts`; `session.ts` solo tiene reglas y recibe callbacks de envio. Asi
+  se prueba sin abrir un socket y cambiar a WebRTC mas adelante no toca la logica.
+
+- **El audio va en frames binarios, los mensajes de control en JSON.** Meter PCM en
+  JSON lo infla un tercio en base64 y anade una copia por chunk, que en voz se paga en
+  latencia.
+
+- **Todo mensaje antes del saludo es error de protocolo.** El grant autoriza la sesion;
+  sin el no hay nada que hacer con lo que venga. Hay prueba.
+
+- El evento de seguridad del orquestador ahora lleva el veredicto completo de
+  moderacion, no solo la accion. La politica lo necesita entero, y reconstruirlo desde
+  la accion seria perder informacion a proposito.
+
+- **Los recuerdos que extrae un turno quedan en `proposed`.** La demo lo hace visible:
+  termina la conversacion y el centro de memoria muestra dos propuestas que el
+  companion todavia no puede usar.
+
+- **El lint de arquitectura ahora cubre `apps/` y distingue dos reglas.** Una app puede
+  declarar dependencias de infraestructura (necesita servidor y sockets); ningun paquete
+  ni app fuera de `ai-adapters-*` puede declarar un SDK de proveedor de IA. Se verifico
+  metiendo `openai` en `ai-router` a proposito: el lint falla y nombra la regla.
+
+- `npm run demo` levanta el gateway y ejecuta dos turnos completos. Las latencias que
+  imprime no significan nada —los simuladores responden en microsegundos—; lo que
+  demuestra es que las piezas encajan y que el dinero se contabiliza.

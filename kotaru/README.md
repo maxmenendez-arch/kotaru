@@ -4,7 +4,8 @@ Compañero de IA con personajes manga originales, voz y memoria. Monorepo TypeSc
 
 Estado: **Sprint 2 en curso.** Contratos de proveedor, router multiproveedor,
 adaptadores simulados, telemetría de costo, orquestador del turno, grants de sesión
-firmados, control de gasto, memoria con aprobación del usuario y política de seguridad. Todavía no hay app móvil ni servidor desplegado.
+firmados, control de gasto, memoria con aprobación del usuario, política de seguridad y un
+gateway WebSocket que ata todo. Todavía no hay app móvil. Todavía no hay app móvil ni servidor desplegado.
 
 ## Requisitos
 
@@ -16,8 +17,9 @@ firmados, control de gasto, memoria con aprobación del usuario y política de s
 ```bash
 npm install
 npm run typecheck     # tsc --build en modo estricto sobre los cuatro paquetes
-npm test              # 127 pruebas
+npm test              # 132 pruebas
 npm run lint:arch     # verifica la regla de dependencias
+npm run demo          # una conversación completa, de punta a punta
 ```
 
 Las tres deben pasar antes de cualquier commit.
@@ -35,6 +37,12 @@ Las tres deben pasar antes de cualquier commit.
 | `@kotaru/billing` | Planes, márgenes, medidor idempotente, escalera de corte de gasto | solo contratos |
 | `@kotaru/memory` | Recuerdos con aprobación explícita, guardia de contenido, exportación y borrado | solo contratos |
 | `@kotaru/safety` | Política versionada, recursos de apoyo, divulgación de IA, guardia contra dependencia | solo contratos |
+
+## Aplicaciones
+
+| App | Responsabilidad | Dependencias permitidas |
+|---|---|---|
+| `@kotaru/app-gateway` | Servidor WebSocket: sesiones de voz, VAD, interrupción, backpressure | paquetes `@kotaru/*` e infraestructura (`ws`), **nunca** un SDK de IA |
 
 ## Reglas que el código hace cumplir
 
@@ -150,7 +158,21 @@ celos ni presión para seguir conectado o pagar— en algo que una prueba puede 
 está acotado con cuidado: marca que el companion *se atribuya* una credencial, nunca que
 recomiende a un profesional de verdad.
 
+## La demostración
+
+`npm run demo` levanta el gateway de verdad, se conecta por WebSocket como lo haría la
+app, y ejecuta dos turnos completos contra los simuladores. Imprime la transcripción, la
+respuesta, la emoción, los frames de audio, el costo atribuido a cada etapa, los minutos
+restantes del plan y el centro de memoria con sus propuestas sin aprobar.
+
+Sirve para ver el sistema entero funcionando sin teléfono, sin nube y sin gastar un
+centavo. **Las latencias que imprime no significan nada**: los simuladores responden en
+microsegundos. Lo que la demo demuestra es que las piezas encajan y que el dinero se
+contabiliza, no que el producto sea rápido.
+
 ## Siguiente
 
-Captura push-to-talk en un development build de Expo, servidor WebSocket que hable el
-protocolo de `@kotaru/gateway`, y el primer adaptador real detrás de variable de entorno.
+Captura push-to-talk en un development build de Expo, persistencia en PostgreSQL con
+pgvector, y los adaptadores reales de AssemblyAI, Gemini y Polly detrás de variables de
+entorno — estos últimos cuando existan las cuentas, porque escribir código que no se
+puede ejecutar va contra la regla de evidencia del proyecto.

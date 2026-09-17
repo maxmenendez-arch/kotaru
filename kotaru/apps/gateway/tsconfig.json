@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "dist", "rootDir": "src", "types": ["node"] },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../../packages/ai-contracts" },
+    { "path": "../../packages/gateway" },
+    { "path": "../../packages/orchestrator" },
+    { "path": "../../packages/billing" },
+    { "path": "../../packages/safety" },
+    { "path": "../../packages/memory" },
+    { "path": "../../packages/telemetry" }
+  ]
+}
