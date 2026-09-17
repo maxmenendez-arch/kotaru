@@ -239,3 +239,32 @@ npm run lint:arch   # OK
 
 **Riesgos abiertos**
 - Sin cambios: prueba ciega de Kokoro (D-011) y ReplayGuard en Redis.
+
+## 2026-09-17 (novena entrada) — Politica de seguridad
+
+**Que cambio**
+- `@kotaru/safety`: politica versionada, recursos de apoyo por region, divulgacion de
+  identidad de IA, deteccion de edad y guardia contra patrones de dependencia.
+
+**Archivos creados**
+- `kotaru/packages/safety/` — resources.ts, manipulation.ts, disclosure.ts, policy.ts
+  + 23 pruebas
+
+**Como se verifico**
+```
+npm run typecheck   # exit 0
+npm test            # 127 pruebas, 10 archivos, todas en verde
+npm run lint:arch   # OK
+```
+
+**Fallo de diseno corregido al escribir las pruebas**
+- Un menor que expresaba una senal de crisis quedaba cortado sin recursos, porque la
+  regla de edad se aplicaba antes que la de crisis. Ahora la crisis se atiende primero
+  y la restriccion de cuenta espera al final de la sesion.
+- El patron de credenciales falsas se acoto para no marcar el caso en que el companion
+  recomienda a un profesional real, que es justo lo que debe poder hacer.
+
+**Riesgos abiertos**
+- Solo Estados Unidos tiene recursos de apoyo configurados. Cualquier otra region lanza
+  excepcion al evaluar una crisis: es intencional, y es requisito de lanzamiento.
+- Sin cambios: prueba ciega de Kokoro (D-011) y ReplayGuard en Redis.

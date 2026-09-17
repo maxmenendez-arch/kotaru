@@ -282,3 +282,47 @@ Ver `docs/adr/ADR-002-realtime-transport.md`.
 - Borrado real, no marcado: si el usuario dice que lo olvides, se olvida. `forgetAll`
   cubre el borrado de cuenta y `exportFor` la exportacion de datos, ambos requisitos
   del documento de privacidad.
+
+### D-016 — Sprint 2: politica de seguridad
+- Estado: accepted, en curso
+- Entregado: `@kotaru/safety`. 127 pruebas en verde, typecheck estricto, lint en verde.
+
+- **La politica esta versionada y su version viaja en la telemetria de cada turno.**
+  Despues de un incidente la pregunta es "que politica estaba vigente cuando paso
+  esto", y no se puede reconstruir a posteriori.
+
+- **Ante una crisis se aparta el personaje, no al usuario.** Superficie sobria, sin
+  animacion, sin voz de companion, con recursos verificados, y sin cerrar la sesion.
+  Un avatar animado y carinoso entregando un numero de crisis convierte un momento
+  serio en parte del juego; y cortar la sesion dejaria a la persona sola justo ahi.
+
+- **Corregido durante las pruebas: un menor en crisis quedaba cortado sin recursos.**
+  La primera version aplicaba la regla de edad antes que todo lo demas, asi que un
+  menor que expresaba una senal de crisis recibia "esta app no es para ti" con la
+  sesion cerrada y cero recursos. Es el peor resultado posible del producto. Ahora la
+  crisis se atiende primero y la restriccion de cuenta se aplica al terminar la sesion,
+  no encima de la persona en ese momento. Por eso `restrictAccountAfterSession` existe
+  separado de `endSession`.
+
+- **Una region sin recursos de apoyo configurados lanza una excepcion.** El fallo tiene
+  que ser ruidoso en el despliegue, no silencioso frente al usuario: una pantalla vacia
+  para alguien en crisis es peor que no lanzar en esa region. Hoy solo esta configurado
+  Estados Unidos, con recursos verificados el 17 de septiembre de 2026.
+
+- **Los mensajes de seguridad no los redacta el modelo.** La politica devuelve una
+  clave de copia y la interfaz renderiza texto localizado y revisado. Son justo los
+  mensajes que no pueden salir distintos cada vez.
+
+- **El guardia contra dependencia hace ejecutable la regla de tono.** Culpa,
+  exclusividad, celos, presion para seguir conectado o pagar, credenciales falsas y la
+  afirmacion de ser humano. Estaba escrito en un documento, que es donde las reglas se
+  incumplen sin que nadie se entere.
+
+- El patron de credenciales falsas esta acotado a proposito: marca que el companion SE
+  ATRIBUYA la credencial, nunca que recomiende a un profesional. "Quiza ayude hablar
+  con tu terapeuta" es exactamente lo que el producto debe poder decir, y un patron
+  demasiado ancho lo prohibiria. Hay una prueba que lo fija.
+
+- La divulgacion de identidad se repite por tiempo, por numero de sesiones, siempre que
+  el usuario pregunte y despues de cualquier derivacion a recursos. El riesgo esta en
+  quien conversa a diario durante meses, no en quien acaba de instalar la app.

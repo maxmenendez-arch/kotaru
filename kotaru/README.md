@@ -4,7 +4,7 @@ Compañero de IA con personajes manga originales, voz y memoria. Monorepo TypeSc
 
 Estado: **Sprint 2 en curso.** Contratos de proveedor, router multiproveedor,
 adaptadores simulados, telemetría de costo, orquestador del turno, grants de sesión
-firmados, control de gasto y memoria con aprobación del usuario. Todavía no hay app móvil ni servidor desplegado.
+firmados, control de gasto, memoria con aprobación del usuario y política de seguridad. Todavía no hay app móvil ni servidor desplegado.
 
 ## Requisitos
 
@@ -16,7 +16,7 @@ firmados, control de gasto y memoria con aprobación del usuario. Todavía no ha
 ```bash
 npm install
 npm run typecheck     # tsc --build en modo estricto sobre los cuatro paquetes
-npm test              # 104 pruebas
+npm test              # 127 pruebas
 npm run lint:arch     # verifica la regla de dependencias
 ```
 
@@ -34,6 +34,7 @@ Las tres deben pasar antes de cualquier commit.
 | `@kotaru/gateway` | Grants de sesión firmados y protocolo de tiempo real | solo contratos |
 | `@kotaru/billing` | Planes, márgenes, medidor idempotente, escalera de corte de gasto | solo contratos |
 | `@kotaru/memory` | Recuerdos con aprobación explícita, guardia de contenido, exportación y borrado | solo contratos |
+| `@kotaru/safety` | Política versionada, recursos de apoyo, divulgación de IA, guardia contra dependencia | solo contratos |
 
 ## Reglas que el código hace cumplir
 
@@ -71,6 +72,11 @@ Estas no son convenciones: hay una prueba o un lint que falla si se rompen.
 13. **Nunca se borra un recuerdo aprobado sin decírselo al usuario.** Al llegar al
     tope se rechaza aprobar más y la interfaz pide elegir qué soltar. Olvidar es
     siempre decisión de la persona.
+14. **Una región sin recursos de apoyo configurados lanza una excepción.** Mostrarle
+    una pantalla vacía a alguien en crisis es peor que no lanzar ahí.
+15. **Los mensajes de seguridad no los redacta el modelo.** La política devuelve una
+    clave de copia; la interfaz renderiza texto revisado. Son justo los mensajes que
+    no pueden salir distintos cada vez.
 
 ## Tarifas incorporadas
 
@@ -127,6 +133,22 @@ La señal de crisis se bloquea por una razón concreta: persistir "quiere morir"
 devolvérselo al usuario semanas después, en boca de un personaje que le cae bien, es
 exactamente el daño que un companion emocional puede causar. Eso se atiende en el
 momento, con recursos reales; no se archiva.
+
+## Seguridad
+
+`@kotaru/safety` define qué pasa cuando la moderación levanta la mano. La política está
+versionada y su versión viaja en la telemetría de cada turno, para poder responder
+"qué política estaba vigente cuando pasó esto" — la pregunta que se hace después de un
+incidente y que no se puede reconstruir a posteriori.
+
+Ante una crisis se aparta el personaje, no al usuario: superficie sobria, sin animación,
+sin voz de companion, con recursos verificados, y **sin cerrar la sesión**. Dejar a
+alguien solo justo ahí sería lo peor que puede hacer el producto.
+
+El guardia contra dependencia convierte la regla de tono —nada de culpa, exclusividad,
+celos ni presión para seguir conectado o pagar— en algo que una prueba puede romper. Y
+está acotado con cuidado: marca que el companion *se atribuya* una credencial, nunca que
+recomiende a un profesional de verdad.
 
 ## Siguiente
 

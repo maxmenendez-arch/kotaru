@@ -24,6 +24,9 @@
     },
     {
       "path": "packages/memory"
+    },
+    {
+      "path": "packages/safety"
     }
   ]
 }
