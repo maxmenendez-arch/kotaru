@@ -1,0 +1,295 @@
+# PROVIDER_REGISTRY.yaml — Kotaru
+# Regla: una entrada nace enabled: false. Nada se habilita sin verified_at,
+# pricing_source oficial y commercial_audio_rights distinto de UNKNOWN.
+# Entidad contratante: Estados Unidos (D-001).
+
+meta:
+  contracting_entity: US
+  last_review: 2026-09-17
+  currency: USD
+
+# ---------------------------------------------------------------- STT
+- provider: assemblyai
+  capability: stt
+  model: universal-streaming
+  region: us
+  price: 0.15
+  unit: hora de audio
+  spanish: true
+  streaming: true
+  verified_at: 2026-09-17
+  pricing_source: https://www.assemblyai.com/pricing
+  data_retention: UNKNOWN
+  training_opt_out: UNKNOWN
+  free_tier: 333 horas de streaming sin tarjeta
+  enabled: false
+  role: primaria propuesta
+
+- provider: deepgram
+  capability: stt
+  model: nova-3-monolingual-streaming
+  region: us
+  price_promo: 0.288
+  price_regular: 0.462
+  unit: hora de audio
+  spanish: true
+  streaming: true
+  verified_at: 2026-09-17
+  pricing_source: https://deepgram.com/pricing
+  data_retention: sin plazo especificado en los terminos
+  training_opt_out: "por parametro en cada peticion — riesgo operativo alto"
+  enabled: false
+  role: secundaria
+  warning: >
+    Entrena con el contenido del cliente por defecto. El opt-out es por peticion,
+    asi que debe vivir en el adaptador tipado con un test que falle si alguna
+    peticion sale sin el flag. Las tarifas publicadas son promocionales.
+
+- provider: google
+  capability: stt
+  model: cloud-stt-v2-standard
+  region: us
+  price: 0.96
+  unit: hora de audio
+  volume_discount: "0.60 (500K-1M min), 0.48 (1M-2M), 0.24 (2M+)"
+  spanish: true
+  streaming: true
+  verified_at: 2026-09-17
+  pricing_source: https://cloud.google.com/speech-to-text/pricing
+  data_retention: "no registra audio ni transcripciones por defecto"
+  training_opt_out: "no aplica por defecto; el data logging es opt-in a cambio de descuento"
+  enabled: false
+  role: terciaria
+  warning: >
+    Si alguna vez se activa el data logging por el descuento, los datos
+    registrados NO se borran al borrar el proyecto. Incompatible con el
+    compromiso de borrado del usuario.
+
+# ---------------------------------------------------------------- LLM
+- provider: google
+  capability: llm
+  model: gemini-3.1-flash-lite
+  region: us
+  price_input: 0.25
+  price_output: 1.50
+  unit: millon de tokens
+  verified_at: 2026-09-17
+  pricing_source: https://ai.google.dev/gemini-api/docs/pricing
+  cache_discount: NO ENCONTRADO para el nivel flash-lite
+  enabled: false
+  role: primaria propuesta
+
+- provider: openai
+  capability: llm
+  model: gpt-5.6-luna
+  region: us
+  price_input: 0.20
+  price_output: 1.20
+  unit: millon de tokens
+  cache_read: 0.02
+  verified_at: 2026-09-17
+  pricing_source: https://openai.com/api/pricing/
+  enabled: false
+  role: secundaria
+  warning: >
+    Dos paginas oficiales de OpenAI se contradicen: developers.openai.com
+    muestra 0.10/0.60 con la nota "short context rates" y no documenta el
+    umbral. Se modela con la tarifa alta.
+
+- provider: minimax
+  capability: llm
+  model: MiniMax-M3
+  region: singapore
+  price_input: 0.30
+  price_output: 1.20
+  cache_read: 0.06
+  unit: millon de tokens
+  verified_at: 2026-09-17
+  pricing_source: https://platform.minimax.io/docs/guides/pricing-paygo.md
+  enabled: false
+  role: candidata
+
+# ---------------------------------------------------------------- TTS
+- provider: aws
+  capability: tts
+  model: polly-neural
+  region: us
+  price: 16.00
+  unit: millon de caracteres
+  spanish: "si — 6 voces (es-ES, es-MX, es-US)"
+  streaming: true
+  verified_at: 2026-09-17
+  pricing_source: https://aws.amazon.com/polly/pricing/
+  commercial_audio_rights: "SI — la documentacion oficial dice que la salida pertenece al cliente"
+  data_retention: "hasta 126 caracteres de entrada, cifrado en reposo en la region"
+  training_opt_out: "si — AI services opt-out policy a nivel de organizacion, declarativo y auditable"
+  enabled: false
+  role: primaria propuesta
+  note: el mas limpio en terminos de todos los evaluados
+
+- provider: google
+  capability: tts
+  model: gemini-2.5-flash-tts
+  region: us
+  price_effective: 16.79
+  unit: millon de caracteres (efectivo, derivado)
+  price_basis: "10.00 USD por millon de tokens de audio; 25 tokens de audio por segundo (dato oficial); 15 caracteres por segundo (ASSUMPTION)"
+  spanish: true
+  streaming: true
+  verified_at: 2026-09-17
+  pricing_source: https://cloud.google.com/text-to-speech/pricing
+  commercial_audio_rights: "sin prohibicion localizada; no hay clausula afirmativa citable"
+  enabled: false
+  role: secundaria
+  warning: >
+    El precio efectivo depende de la tasa de caracteres por segundo del habla
+    real. A 12 car/s sube a 20.99. Medir en espanol e ingles antes de fijar.
+
+- provider: deepgram
+  capability: tts
+  model: aura-2
+  region: us
+  price: 30.00
+  unit: millon de caracteres
+  spanish: "si — 17 voces, 5 acentos, 5 con codeswitching EN-ES"
+  streaming: true
+  verified_at: 2026-09-17
+  pricing_source: https://deepgram.com/pricing
+  enabled: false
+  role: "opcion premium para practica de idiomas"
+
+- provider: minimax
+  capability: tts
+  model: speech-2.8-turbo
+  region: singapore
+  price: 60.00
+  unit: millon de caracteres
+  spanish: "si — 40 idiomas"
+  streaming: true
+  verified_at: 2026-09-17
+  pricing_source: https://platform.minimax.io/docs/guides/pricing-paygo.md
+  commercial_audio_rights: UNKNOWN
+  data_retention: UNKNOWN
+  training_opt_out: UNKNOWN
+  enabled: false
+  role: descartada por precio
+  note: >
+    Cuatro veces mas caro que Polly Neural en el componente que domina el costo.
+    Ademas sus Terminos de Open Platform no fueron legibles.
+
+# ---------------------------------------------------------------- REALTIME
+- provider: google
+  capability: realtime
+  model: gemini-3.8-live
+  region: us
+  price_audio_in: 0.005
+  price_audio_out: 0.018
+  unit: minuto
+  verified_at: 2026-09-17
+  pricing_source: https://ai.google.dev/gemini-api/docs/pricing
+  enabled: false
+  role: "candidata para el plan superior; ~0.72 USD/hora"
+
+# ---------------------------------------------------------------- BLOQUEADOS
+- provider: byteplus-volcengine-doubao
+  capability: [llm, tts, stt]
+  status: BLOCKED
+  verified_at: 2026-09-17
+  evidence:
+    - "Estados Unidos no figura en la lista oficial de ~195 paises donde BytePlus declara disponible su Model Service: https://docs.byteplus.com/en/docs/ModelArk/availability"
+    - "Estados Unidos no figura en la tabla de metodos de pago soportados: https://docs.byteplus.com/en/docs/legal/docs-payment-terms"
+    - "La alternativa Volcengine/Ark es plataforma de China continental, sin via documentada de alta ni facturacion para una entidad estadounidense"
+  enabled: false
+  reopen_if: "se constituye una filial en Singapur o Reino Unido"
+
+- provider: alibaba-model-studio
+  capability: [llm, stt, tts, realtime]
+  status: UNVERIFIABLE
+  region: singapore
+  verified_at: 2026-09-17
+  llm_pricing_source: https://docs.modelstudio.console.alibabacloud.com/en/model-studio/model-pricing
+  blockers:
+    - "Precios de STT y TTS no publicados en ninguna pagina oficial en ingles"
+    - "Soporte de espanol no confirmado en STT ni en TTS; evidencia contradictoria"
+    - "Derechos comerciales sobre el audio TTS en el Articulo 4.48 de los Product Terms, no legible"
+    - "La documentacion lista 'The United States (accounts created before March 20, 2026)' sin explicar que entidad contrata con cuentas estadounidenses posteriores"
+  enabled: false
+  next_step: "activar cuenta y leer precios de audio en la consola, o pedirlos por escrito a ventas"
+
+# ---------------------------------------------------------------- PENDIENTE
+- provider: azure
+  capability: [stt, tts]
+  status: NOT_QUOTED
+  verified_at: 2026-09-17
+  note: >
+    La pagina de precios de Azure AI Speech no renderiza valores sin sesion
+    iniciada. Es el unico proveedor grande sin cotizar y tiene de los catalogos
+    mas amplios de voces neurales en espanol. Obtener cifras desde la
+    calculadora autenticada antes de descartarlo.
+  enabled: false
+
+# ------------------------------------------------- ANADIDOS 2026-09-17 (2a ronda)
+- provider: together-ai
+  capability: tts
+  model: kokoro-82m
+  region: us
+  price: 4.00
+  unit: millon de caracteres
+  spanish: "si — 3 voces (frente a 28 en ingles); fonemizador de respaldo, no nativo"
+  streaming: NO DOCUMENTADO
+  model_license: Apache-2.0
+  watermark: no
+  verified_at: 2026-09-17
+  pricing_source: https://www.together.ai/models/kokoro-82m
+  enabled: false
+  role: "candidata a primaria — 0.232 USD/hora, 55% menos que Polly Neural"
+  blocker: >
+    Sin comparacion ciega de calidad frente a Polly Neural en ninguna fuente oficial.
+    Prueba A/B con usuarios reales antes de cualquier decision. Verificar tambien
+    si soporta streaming de baja latencia.
+
+- provider: groq
+  capability: stt
+  model: whisper-large-v3-turbo
+  region: us
+  price: 0.04
+  unit: hora de audio procesado
+  spanish: true
+  verified_at: 2026-09-17
+  pricing_source: https://console.groq.com/docs/speech-to-text
+  enabled: false
+  role: "candidata — 0.0153 USD/hora de conversacion"
+  note: >
+    Factura audio procesado, no stream abierto. Exige trocear con VAD en cliente
+    y anade 150-300 ms de latencia por chunk.
+
+- provider: supertonic-3
+  capability: tts
+  model: supertonic-3
+  deployment: autoalojado CPU
+  price_estimated: 0.80
+  unit: millon de caracteres (derivado, utilizacion 35%)
+  spanish: "si — 31 idiomas"
+  model_license: OpenRAIL-M
+  code_license: MIT
+  verified_at: 2026-09-17
+  enabled: false
+  role: "opcion de maximo ahorro — 0.156 USD/hora"
+  blockers:
+    - "OpenRAIL-M impone restricciones de uso que hay que propagar a integradores y usuarios"
+    - "Soporte de streaming no documentado"
+    - "Punto de equilibrio en ~1.200 h/mes contando operacion e ingenieria"
+    - "Obliga a mantener un proveedor comercial como respaldo: no sustituye la integracion, la anade"
+
+# ------------------------------------------------- JURISDICCION
+- topic: entidad-panamena
+  status: DESCARTADA
+  verified_at: 2026-09-17
+  findings:
+    - "BytePlus SI lista a Panama en disponibilidad pero NO en su tabla de metodos de pago"
+    - "Alibaba y MiniMax ya son contratables desde una entidad estadounidense"
+    - "No existe tratado fiscal EE. UU.-Panama (lista oficial del IRS): retencion del 30% sobre ingresos de fuente estadounidense bajo IRC 1441-1443"
+    - "Stripe no opera en Panama"
+    - "La apertura de cuenta bancaria exige presencia fisica en Panama"
+    - "Panama sigue en la lista de jurisdicciones fiscales no cooperativas de la UE (17 feb 2026)"
+  conclusion: "No desbloquea ningun proveedor. Se mantiene la entidad estadounidense."

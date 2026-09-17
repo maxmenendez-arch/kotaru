@@ -1,5 +1,14 @@
+# Dependencias y artefactos de compilacion
 node_modules/
 dist/
 *.tsbuildinfo
+
+# Secretos: .env.example SI se versiona, .env NUNCA
 .env
 .env.local
+.env.*.local
+
+# Sistema operativo
+Thumbs.db
+desktop.ini
+.DS_Store
