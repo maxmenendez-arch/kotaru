@@ -4,10 +4,11 @@ import type { AudioChunk, SampleRate } from '@kotaru/ai-contracts';
 import {
   ReplayGuard,
   isClientMessage,
+  type GrantClaimStore,
   PROTOCOL_VERSION,
   type ServerMessage,
   type SigningKey,
-  verifyGrant,
+  verifyAndClaimGrant,
 } from '@kotaru/gateway';
 import { GatewaySession, type SessionDeps } from './session.js';
 
@@ -19,6 +20,11 @@ export interface GatewayServerOptions {
   /** Frecuencia de muestreo que el cliente promete enviar. */
   readonly sampleRate?: SampleRate;
   readonly deadlineCheckMs?: number;
+  /**
+   * Donde se reclaman los grants. Por defecto en memoria, que se olvida al reiniciar:
+   * en produccion va la tabla, para que un grant no sirva dos veces tras un despliegue.
+   */
+  readonly grantClaims?: GrantClaimStore;
 }
 
 export interface GatewayServerHandle {
@@ -39,7 +45,7 @@ export async function startGatewayServer(
   const http: Server = createServer();
   const wss = new WebSocketServer({ server: http });
   const sampleRate = options.sampleRate ?? 24000;
-  const replayGuard = new ReplayGuard();
+  const grantClaims = options.grantClaims ?? new ReplayGuard();
 
   wss.on('connection', (socket: WebSocket) => {
     let session: GatewaySession | null = null;
@@ -57,7 +63,17 @@ export async function startGatewayServer(
     };
 
     socket.on('message', (data: Buffer, isBinary: boolean) => {
-      void (async () => {
+      // Un fallo de la base (o de cualquier dependencia) no puede quedar como promesa
+      // rechazada sin dueno: cerraria el proceso o dejaria al cliente colgado. Se cierra
+      // la sesion con un motivo que el cliente entiende.
+      void handleMessage(data, isBinary).catch(() => {
+        send({ type: 'closing', reason: 'server_error' });
+        shutdown();
+      });
+    });
+
+    const handleMessage = async (data: Buffer, isBinary: boolean): Promise<void> => {
+      {
         if (isBinary) {
           if (!session) return;
           const chunk: AudioChunk = {
@@ -91,10 +107,10 @@ export async function startGatewayServer(
             return;
           }
 
-          const verification = verifyGrant(parsed.grant, options.keys, {
+          const verification = await verifyAndClaimGrant(parsed.grant, options.keys, {
             nowSeconds: Math.floor(options.deps.now() / 1000),
             audience: options.audience,
-            replayGuard,
+            claims: grantClaims,
           });
           if (!verification.ok) {
             send({ type: 'rejected', reason: verification.reason });
@@ -116,7 +132,7 @@ export async function startGatewayServer(
             },
             options.deps,
           );
-          session.start();
+          await session.start();
 
           deadlineTimer = setInterval(() => {
             const reason = session?.checkDeadlines();
@@ -137,8 +153,8 @@ export async function startGatewayServer(
           return;
         }
         await session.handle(parsed);
-      })();
-    });
+      }
+    };
 
     socket.on('close', () => {
       if (deadlineTimer) clearInterval(deadlineTimer);

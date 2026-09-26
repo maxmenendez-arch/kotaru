@@ -45,6 +45,8 @@ export type CloseReason =
   | 'plan_limit'
   | 'spend_cap'
   | 'server_shutdown'
+  /** Fallo interno, por ejemplo la base de datos. El cliente puede reintentar. */
+  | 'server_error'
   | 'protocol_error';
 
 /**

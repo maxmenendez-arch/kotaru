@@ -142,6 +142,33 @@ export function verifyGrant(
 }
 
 /**
+ * Donde se reclama un jti. `ReplayGuard` lo cumple en memoria; en produccion lo cumple
+ * una tabla (`GrantRepository` de @kotaru/persistence), que sobrevive a un reinicio y es
+ * correcta con varias instancias de gateway. La operacion es una sola y atomica.
+ */
+export interface GrantClaimStore {
+  claim(jti: string, expSeconds: number): boolean | Promise<boolean>;
+}
+
+/**
+ * Verifica el grant y, solo si es valido, reclama su jti en el almacen.
+ *
+ * El orden importa: reclamar antes de verificar dejaria que un token falsificado gastara
+ * el jti de uno legitimo.
+ */
+export async function verifyAndClaimGrant(
+  token: string,
+  keys: readonly SigningKey[],
+  options: Omit<VerifyOptions, 'replayGuard'> & { readonly claims: GrantClaimStore },
+): Promise<GrantVerification> {
+  const { claims, ...verifyOptions } = options;
+  const verification = verifyGrant(token, keys, verifyOptions);
+  if (!verification.ok) return verification;
+  const claimed = await claims.claim(verification.grant.jti, verification.grant.exp);
+  return claimed ? verification : { ok: false, reason: 'replayed' };
+}
+
+/**
  * Impide que un grant se use dos veces. En memoria a proposito: con varias instancias
  * de gateway esto debe vivir en Redis, y el reemplazo es directo porque la interfaz
  * es una sola operacion atomica de "reclamar".

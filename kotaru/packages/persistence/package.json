@@ -5,7 +5,10 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./test/pglite-client.ts"
+  },
   "comment": "Sin dependencias en tiempo de ejecucion: los repositorios hablan con la interfaz SqlClient, no con un driver. PGlite es solo para pruebas.",
   "dependencies": {},
   "devDependencies": {

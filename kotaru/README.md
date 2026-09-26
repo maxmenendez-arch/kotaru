@@ -17,7 +17,7 @@ gateway WebSocket que ata todo. Todavía no hay app móvil. Todavía no hay app 
 ```bash
 npm install
 npm run typecheck     # tsc --build en modo estricto sobre los cuatro paquetes
-npm test              # 150 pruebas
+npm test              # 154 pruebas
 npm run lint:arch     # verifica la regla de dependencias
 npm run demo          # una conversación completa, de punta a punta
 ```

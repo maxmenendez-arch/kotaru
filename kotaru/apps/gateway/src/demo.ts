@@ -17,7 +17,7 @@ import {
   MockSttProvider,
   MockTtsProvider,
 } from '@kotaru/ai-adapters-mock';
-import { UsageMeter, evaluateSpend, entitlementFor } from '@kotaru/billing';
+import { InMemoryUsageLedger, UsageMeter, evaluateSpend, entitlementFor } from '@kotaru/billing';
 import { MemoryStore } from '@kotaru/memory';
 import { InMemorySink } from '@kotaru/telemetry';
 import { PROTOCOL_VERSION, signGrant, type ServerMessage, type SigningKey } from '@kotaru/gateway';
@@ -79,7 +79,7 @@ const server = await startGatewayServer({
     },
     moderation: new MockModerationProvider(),
     memory,
-    meter,
+    usage: new InMemoryUsageLedger(meter),
     sink,
     budget,
     now,

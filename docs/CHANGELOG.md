@@ -313,3 +313,30 @@ npm run demo        # dos turnos completos, con costo y memoria
 **Pendiente**
 - Repositorio SQL de memoria (requiere separar política y almacenamiento en `MemoryStore`).
 - Enchufar `UsageRepository` y `GrantRepository` al gateway en lugar de las versiones en memoria.
+
+## 2026-09-26 — El gateway guarda consumo y grants en PostgreSQL
+
+**Qué cambió**
+- `UsageLedger` (billing): interfaz asíncrona del libro de consumo. `InMemoryUsageLedger` para
+  pruebas y demo; `UsageRepository` de persistencia la cumple en producción.
+- `GrantClaimStore` y `verifyAndClaimGrant` (gateway): el jti se reclama solo después de
+  verificar el grant, así que un token falsificado no gasta el jti de uno legítimo.
+- `durableStores(sql)` en `apps/gateway`: conecta consumo y grants a PostgreSQL.
+- La sesión lee el consumo al abrirse y al cerrar cada turno, no en cada evento.
+- Nuevo motivo de cierre `server_error`: si la base falla, el cliente recibe un cierre con
+  motivo en vez de quedarse colgado.
+- Ayudantes de prueba del gateway movidos a `apps/gateway/test/helpers.ts`.
+
+**Defecto encontrado en el camino**
+- Refrescar el consumo con `await` al empezar el turno abría una carrera: los primeros frames
+  de audio llegaban antes de que existiera la cola y se perdían. Se quitó ese `await`.
+
+**Cómo se verificó**
+- typecheck y lint de arquitectura: OK. Demo: OK.
+- 154 pruebas en verde. Las nuevas prueban, contra PostgreSQL real, que el consumo y los grants
+  usados sobreviven a un reinicio del gateway, que un grant inválido no gasta ningún jti y que
+  una base caída cierra la sesión con `server_error`.
+
+**Pendiente**
+- Cliente PostgreSQL de producción (node-postgres) detrás de `SqlClient`, y configuración.
+- Repositorio SQL de memoria.

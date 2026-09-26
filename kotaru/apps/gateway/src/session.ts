@@ -7,7 +7,8 @@ import {
 import {
   entitlementFor,
   evaluateSpend,
-  UsageMeter,
+  type MeterSnapshot,
+  type UsageLedger,
   type SpendBudget,
   type PlanId,
 } from '@kotaru/billing';
@@ -27,7 +28,8 @@ export interface SessionDeps {
   readonly resolve: ProviderResolver;
   readonly moderation: ModerationProvider;
   readonly memory: MemoryStore;
-  readonly meter: UsageMeter;
+  /** Libro de consumo. En produccion, PostgreSQL; nunca se lee en cada evento. */
+  readonly usage: UsageLedger;
   readonly sink: MetricSink;
   readonly budget: SpendBudget;
   readonly now: () => number;
@@ -60,6 +62,15 @@ export class GatewaySession {
   #lastActivityMs: number;
   #closed = false;
   #turnsCompleted = 0;
+  /**
+   * Consumo leido del libro. Se refresca al abrir la sesion, al empezar cada turno y al
+   * terminarlo: ahi es donde puede haber cambiado (otro dispositivo, el turno recien
+   * cobrado). Los chequeos intermedios, como los plazos, leen esta copia y no la base.
+   */
+  #usage: { subject: MeterSnapshot; totalCostUsd: number } = {
+    subject: { voiceSeconds: 0, costUsd: 0, turns: 0 },
+    totalCostUsd: 0,
+  };
 
   constructor(grant: SessionGrant, transport: SessionTransport, deps: SessionDeps) {
     this.#grant = grant;
@@ -78,7 +89,8 @@ export class GatewaySession {
     return this.#turnsCompleted;
   }
 
-  start(): void {
+  async start(): Promise<void> {
+    await this.#refreshUsage();
     const entitlement = this.#entitlement();
     this.#transport.send({
       type: 'ready',
@@ -102,6 +114,9 @@ export class GatewaySession {
         return;
 
       case 'turn_start': {
+        // Sin await aqui a proposito: el audio del turno llega en los frames siguientes y
+        // tiene que encontrar la cola ya abierta. La copia del consumo se refresco al
+        // cerrar el turno anterior, que es donde cambia.
         const entitlement = this.#entitlement();
         if (!entitlement.canStartVoice) {
           this.#transport.send({ type: 'limit', kind: this.#limitKind() });
@@ -245,7 +260,7 @@ export class GatewaySession {
         }
 
         case 'done':
-          this.#deps.meter.record({
+          await this.#deps.usage.record({
             turnId,
             subjectId: this.#grant.subjectId,
             voiceSeconds,
@@ -269,6 +284,7 @@ export class GatewaySession {
       if (!suppressMemory) this.#proposeMemories(transcript, reply, turnId);
     }
 
+    await this.#refreshUsage();
     this.#sendUsage();
 
     const entitlement = this.#entitlement();
@@ -317,8 +333,16 @@ export class GatewaySession {
     ];
   }
 
+  async #refreshUsage(): Promise<void> {
+    const [subject, totalCostUsd] = await Promise.all([
+      this.#deps.usage.forSubject(this.#grant.subjectId),
+      this.#deps.usage.totalCostUsd(),
+    ]);
+    this.#usage = { subject, totalCostUsd };
+  }
+
   #context(): ProviderContext {
-    const used = this.#deps.meter.forSubject(this.#grant.subjectId);
+    const used = this.#usage.subject;
     return {
       requestId: `${this.#grant.jti}:${this.#turnsCompleted}`,
       subjectId: this.#grant.subjectId,
@@ -329,7 +353,7 @@ export class GatewaySession {
         sessionRemainingUsd: Math.max(0, this.#grant.budget.sessionRemainingUsd - used.costUsd),
         monthlyRemainingUsd: Math.max(
           0,
-          this.#deps.budget.hardCapUsd - this.#deps.meter.totalCostUsd(),
+          this.#deps.budget.hardCapUsd - this.#usage.totalCostUsd,
         ),
         hardCapUsd: this.#deps.budget.hardCapUsd,
       },
@@ -339,16 +363,16 @@ export class GatewaySession {
   }
 
   #entitlement() {
-    const used = this.#deps.meter.forSubject(this.#grant.subjectId);
+    const used = this.#usage.subject;
     return entitlementFor({
       planId: this.#grant.plan as PlanId,
       usedVoiceSeconds: used.voiceSeconds,
-      spend: evaluateSpend(this.#deps.meter.totalCostUsd(), this.#deps.budget),
+      spend: evaluateSpend(this.#usage.totalCostUsd, this.#deps.budget),
     });
   }
 
   #limitKind(): 'plan' | 'session' | 'spend' {
-    const spend = evaluateSpend(this.#deps.meter.totalCostUsd(), this.#deps.budget);
+    const spend = evaluateSpend(this.#usage.totalCostUsd, this.#deps.budget);
     if (spend.voiceKillSwitch || spend.disableFreeVoice) return 'spend';
     return 'plan';
   }
@@ -359,7 +383,7 @@ export class GatewaySession {
       type: 'usage',
       remainingSeconds: Math.round(entitlement.remainingVoiceSeconds),
       planSeconds: Math.round(
-        entitlement.remainingVoiceSeconds + this.#deps.meter.forSubject(this.#grant.subjectId).voiceSeconds,
+        entitlement.remainingVoiceSeconds + this.#usage.subject.voiceSeconds,
       ),
     });
   }
