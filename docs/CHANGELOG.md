@@ -294,3 +294,22 @@ npm run demo        # dos turnos completos, con costo y memoria
 **Riesgos abiertos**
 - No hay persistencia: todo vive en memoria y se pierde al reiniciar.
 - Sin cambios: prueba ciega de Kokoro (D-011), ReplayGuard en Redis, spike de avatar.
+
+## 2026-09-26 — Persistencia integrada
+
+**Qué cambió**
+- Nuevo paquete `@kotaru/persistence`: migraciones SQL (`identity` y `app` separados, sin
+  ninguna clave foránea entre ambos), `SqlClient` sin driver, libro de consumo idempotente,
+  ReplayGuard duradero y borrado de cuenta transaccional.
+- Construido el 17 fuera de la máquina (puente caído); hoy se integró al monorepo.
+- Ajuste al integrar: las pruebas resolvían la carpeta de migraciones con `URL.pathname`, que
+  falla en Windows; ahora usan `fileURLToPath`.
+- `@electric-sql/pglite` añadido solo como devDependency (pruebas contra PostgreSQL real).
+
+**Cómo se verificó**
+- `npm run typecheck`: OK. `npm run lint:arch`: OK.
+- `npm test`: 13 archivos, 150 pruebas en verde (132 anteriores + 18 de persistencia).
+
+**Pendiente**
+- Repositorio SQL de memoria (requiere separar política y almacenamiento en `MemoryStore`).
+- Enchufar `UsageRepository` y `GrantRepository` al gateway en lugar de las versiones en memoria.

@@ -29,6 +29,9 @@
       "path": "packages/safety"
     },
     {
+      "path": "packages/persistence"
+    },
+    {
       "path": "apps/gateway"
     }
   ]

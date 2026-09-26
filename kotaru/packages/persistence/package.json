@@ -1,0 +1,14 @@
+{
+  "name": "@kotaru/persistence",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": "./src/index.ts" },
+  "comment": "Sin dependencias en tiempo de ejecucion: los repositorios hablan con la interfaz SqlClient, no con un driver. PGlite es solo para pruebas.",
+  "dependencies": {},
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
+  }
+}
