@@ -85,4 +85,27 @@ describe('proveedores del gateway', () => {
     expect(select(set, 'stt').providerId).toBe('mock-stt');
     expect(select(set, 'tts').providerId).toBe('mock-tts');
   });
+
+  it('kokoro (Together): con sus confirmaciones es la voz, y mock-voice ya no pone un TTS simulado', () => {
+    const config = loadConfig({
+      ...base,
+      KOTARU_PROVIDERS: 'gemini,kokoro,mock-voice',
+      GEMINI_API_KEY: 'k2',
+      KOTARU_GEMINI_PAID_TIER_CONFIRMED: 'true',
+      TOGETHER_API_KEY: 'k3',
+      KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED: 'true',
+      KOTARU_TOGETHER_COMMERCIAL_TERMS_REVIEWED: 'true',
+    });
+    const set = buildProviders(config.providers, config.providerSettings, Date.now);
+    expect(set.registered).toEqual(['mock-stt', 'gemini-3.1-flash-lite', 'together-kokoro']);
+    expect(select(set, 'tts').providerId).toBe('together-kokoro');
+    expect(select(set, 'tts').estimate).toMatchObject({ basis: 'verified', verifiedAt: '2026-09-27' });
+  });
+
+  it('kokoro sin clave es un error; sin confirmaciones queda bloqueado', () => {
+    expect(() => loadConfig({ ...base, KOTARU_PROVIDERS: 'kokoro' })).toThrow(/falta TOGETHER_API_KEY/);
+    const config = loadConfig({ ...base, KOTARU_PROVIDERS: 'kokoro', TOGETHER_API_KEY: 'k3' });
+    const set = buildProviders(config.providers, config.providerSettings, Date.now);
+    expect(set.blocked.map((b) => b.id)).toEqual(['together-kokoro']);
+  });
 });

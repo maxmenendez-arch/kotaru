@@ -20,6 +20,9 @@
       "path": "packages/ai-adapters-polly"
     },
     {
+      "path": "packages/ai-adapters-together"
+    },
+    {
       "path": "packages/ai-router"
     },
     {

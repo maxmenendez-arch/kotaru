@@ -47,9 +47,15 @@ export interface ProviderSettings {
     readonly aiOptOutConfirmed: boolean;
     readonly commercialTermsReviewed: boolean;
   };
+  /** Kokoro-82M servido por Together AI (voz barata, pendiente de la prueba a ciegas D-011). */
+  readonly kokoro?: {
+    readonly apiKey: string;
+    readonly zeroRetentionConfirmed: boolean;
+    readonly commercialTermsReviewed: boolean;
+  };
 }
 
-const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly']);
+const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly', 'kokoro']);
 
 export class ConfigError extends Error {
   constructor(readonly problems: readonly string[]) {
@@ -145,6 +151,15 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
             region: env.AWS_REGION?.trim() || 'us-east-1',
             aiOptOutConfirmed: flag('KOTARU_POLLY_AI_OPT_OUT_CONFIRMED'),
             commercialTermsReviewed: flag('KOTARU_POLLY_COMMERCIAL_TERMS_REVIEWED'),
+          },
+        }
+      : {}),
+    ...(providers.includes('kokoro')
+      ? {
+          kokoro: {
+            apiKey: required('TOGETHER_API_KEY'),
+            zeroRetentionConfirmed: flag('KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED'),
+            commercialTermsReviewed: flag('KOTARU_TOGETHER_COMMERCIAL_TERMS_REVIEWED'),
           },
         }
       : {}),

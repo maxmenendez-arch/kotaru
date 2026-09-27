@@ -87,6 +87,24 @@ turno de voz real se prueba desde la app (paso 5), porque la prueba de humo env�
    voz sigue simulada (`KOTARU_PROVIDERS=gemini,mock-voice`) hasta tener AssemblyAI y Polly.
    Coste orientativo del texto: menos de 0,1 céntimos por mensaje.
 
+### Together AI — Kokoro-82M (voz barata, prueba D-011) — 4 USD por millón de caracteres
+
+Opcional y más barato que Polly (16 USD): la hora de voz bajaría de ~0,52 a ~0,23 USD, si
+la calidad aguanta. Solo tiene 3 voces en español; hay que escucharla antes de decidir.
+Requiere tener Gemini activo.
+
+1. Crear cuenta: <https://api.together.ai> y añadir crédito (mínimo que pida la cuenta).
+2. **Settings → Privacy & Security → Zero Data Retention: activarlo.** Sin eso Together
+   guarda el texto un tiempo que no publica.
+3. Leer los términos de uso comercial del audio generado.
+4. Crear una clave de API.
+5. En el servidor:
+   ```bash
+   cd ~/Kotaru/kotaru && bash deploy/kokoro.sh
+   ```
+   Igual que el de Gemini: pregunta, pide la clave sin mostrarla, la valida gratis y, si
+   algo falla, deja todo como estaba.
+
 ### AWS Polly (texto a voz) — 16 USD por millón de caracteres
 
 1. Crear cuenta de AWS: <https://portal.aws.amazon.com/billing/signup>.

@@ -846,3 +846,23 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   y camino bueno (arranca con `mock-stt, gemini-3.1-flash-lite, mock-tts`).
 - El id `gemini-3.1-flash-lite` se comprobó estable en https://ai.google.dev/gemini-api/docs/models
   el 2026-09-27.
+
+## 2026-09-27 (tarde) — Adaptador de Kokoro-82M (Together AI) para la prueba D-011
+
+- Paquete nuevo `@kotaru/ai-adapters-together`: `KokoroTtsProvider`, API REST
+  `POST /v1/audio/speech` sin SDK, PCM 16 bits a 24 kHz, una petición por oración, trozos de
+  100 ms. Voces: `ef_dora`/`em_alex` en español, `af_heart`/`am_michael` en inglés.
+- Tarifa verificada el 2026-09-27: 4 USD por millón de caracteres
+  (https://docs.together.ai/docs/text-to-speech). Retención: Together no entrena sin
+  consentimiento y ofrece Zero Data Retention (https://www.together.ai/privacy); el router
+  solo lo elige con `KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED` y
+  `KOTARU_TOGETHER_COMMERCIAL_TERMS_REVIEWED`. Calidad declarada 0,6 (`ASSUMPTION` hasta la
+  prueba a ciegas).
+- Gateway: proveedor `kokoro` (`TOGETHER_API_KEY`). `mock-voice` ahora solo añade el
+  simulado que falte, para que un TTS gratis no le gane por precio a uno real.
+- `deploy/kokoro.sh`: exige Gemini activo, confirma retención cero y términos, valida la
+  clave gratis (lista de modelos) sin ponerla en la línea de comandos, guarda y reinicia con
+  vuelta atrás.
+- Verificado: 9 pruebas del adaptador, 2 nuevas del gateway (354 en total); simulación del
+  script: sin Gemini se niega; con Gemini arranca con `mock-stt, gemini-3.1-flash-lite,
+  together-kokoro`. Sin clave real no se ha oído todavía la voz: eso es la prueba D-011.
