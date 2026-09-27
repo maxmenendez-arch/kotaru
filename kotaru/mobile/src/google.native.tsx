@@ -44,12 +44,24 @@ export async function googleIdToken(rawNonce: string): Promise<GoogleResult> {
   }
 }
 
-/** Boton oficial de Google (marca exigida por Google); el flujo lo lleva `googleIdToken`. */
-export function GoogleButton({ onPress, disabled }: { onPress: () => void; disabled?: boolean }) {
+export interface GoogleButtonProps {
+  /** Nonce en claro: va tal cual dentro del token y tal cual al servidor. */
+  readonly nonce: string;
+  readonly onIdToken: (idToken: string) => void;
+  readonly onCancel: () => void;
+  readonly onError: (error: unknown) => void;
+  readonly disabled?: boolean;
+}
+
+/** Boton oficial de Google (marca exigida por Google). */
+export function GoogleButton({ nonce, onIdToken, onCancel, onError, disabled }: GoogleButtonProps) {
+  const press = () => {
+    googleIdToken(nonce).then((r) => (r.type === 'success' ? onIdToken(r.idToken) : onCancel()), onError);
+  };
   return (
     <GoogleSignInButton
       signInBehavior="none"
-      onPress={onPress}
+      onPress={press}
       disabled={disabled ?? false}
       size="wide"
       colorScheme="light"

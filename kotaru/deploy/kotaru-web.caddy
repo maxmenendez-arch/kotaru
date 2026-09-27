@@ -1,0 +1,31 @@
+# Webapp de Kotaru (https://app.kotaru.app) para el Caddy compartido de srv1987174.
+# deploy/web.sh la compila, deja los archivos en /etc/caddy/otros-sitios/kotaru-web (la
+# unica carpeta del servidor que ese contenedor ve y que RapiMula no reescribe) y copia
+# este archivo junto a ellos.
+app.kotaru.app {
+	root * /etc/caddy/otros-sitios/kotaru-web
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		# El microfono solo para esta pagina; nada de camara ni ubicacion.
+		Permissions-Policy "microphone=(self), camera=(), geolocation=()"
+		# Solo scripts propios y los de login de Google y Apple. El token de sesion vive en
+		# sessionStorage: esta politica es lo que impide que un script ajeno lo lea.
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client https://appleid.cdn-apple.com; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; connect-src 'self' https://api.kotaru.app wss://api.kotaru.app https://accounts.google.com/gsi/ https://appleid.apple.com; frame-src https://accounts.google.com/gsi/ https://appleid.apple.com; img-src 'self' data: https://*.googleusercontent.com; font-src 'self' data:; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		-Server
+	}
+
+	# Los archivos de /_expo llevan un hash en el nombre: se pueden guardar para siempre.
+	@hashed path /_expo/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@page path / /index.html
+	header @page Cache-Control "no-cache"
+
+	# Cualquier otra ruta es la app (una sola pagina).
+	try_files {path} /index.html
+	file_server
+}

@@ -179,3 +179,31 @@ que el despliegue de RapiMula no reescribe, así que Kotaru se añade como un si
 
 Si la red `rapimula_default` cambiara de IP, habría que actualizar `HOST` y `kotaru.caddy`
 (`docker network inspect rapimula_default` muestra la actual).
+
+### Webapp en `app.kotaru.app`
+
+La misma app de `mobile/` compilada para el navegador: voz real (micrófono con cancelación de
+eco del navegador) y login con Google y Apple en su versión web. La sirve el mismo Caddy
+compartido como archivos estáticos.
+
+```bash
+cd ~/Kotaru && git pull && cd kotaru && bash deploy/web.sh
+```
+
+`web.sh` crea `/etc/kotaru/web.env` la primera vez (dirección del servidor y client id de
+login; nada secreto, va dentro de la página), compila, deja los archivos en
+`/etc/caddy/otros-sitios/kotaru-web` con cambio atómico, copia `deploy/kotaru-web.caddy`,
+añade `https://app.kotaru.app` a `KOTARU_CORS_ORIGINS` del gateway, valida y recarga Caddy
+(si no valida, deja todo como estaba) y comprueba la página y el CORS. Para actualizar la
+webapp, se vuelve a correr.
+
+La página lleva una política de seguridad de contenidos estricta: solo scripts propios y los
+de login de Google (`accounts.google.com/gsi`) y Apple (`appleid.cdn-apple.com`), conexiones
+solo a `api.kotaru.app`, y micrófono solo para ella misma. El token de sesión vive en
+`sessionStorage` (se pierde al cerrar la pestaña); esa política es lo que impide que un
+script ajeno lo lea.
+
+Login en la web: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (el client id web, con
+`https://app.kotaru.app` en sus orígenes autorizados) y `EXPO_PUBLIC_APPLE_WEB_SERVICE_ID`
+(un Services ID de Apple, que también va en `KOTARU_APPLE_CLIENT_IDS`). Pasos en
+`docs/PASOS_DEL_PROPIETARIO.md`.

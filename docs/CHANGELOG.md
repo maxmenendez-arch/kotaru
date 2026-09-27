@@ -670,3 +670,32 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - El VPS caduca el 2026-10-17. Reinicio del sistema pendiente.
 - Nota: las conexiones por IPv6 pasan por `docker-proxy`, que oculta la IP real; el límite por
   IP las contaría juntas. Afecta también a los otros sitios de ese Caddy.
+
+## 2026-09-27 — Webapp en app.kotaru.app
+
+**Qué cambió**
+- La app de `mobile/` funciona también en el navegador con voz real: `audio.web.ts` captura el
+  micrófono con cancelación de eco, ruido y ganancia del navegador (AudioWorklet servido desde
+  `public/`, con ScriptProcessor de respaldo), lo remuestrea a 24 kHz en trozos de 20 ms y
+  reproduce la respuesta con Web Audio. La pista del micrófono se cierra al soltar el botón.
+- Login web: Google Identity Services (botón oficial de Google, nonce en claro) y Sign in with
+  Apple JS en ventana emergente (SHA-256 del nonce). Módulos por plataforma: `apple.*.tsx` y
+  `google.*.tsx`. La sesión web vive en `sessionStorage`.
+- Publicación: `deploy/web.sh` compila la webapp en el servidor, la deja en
+  `/etc/caddy/otros-sitios/kotaru-web` (cambio atómico), añade `deploy/kotaru-web.caddy` al
+  Caddy compartido con una política de seguridad de contenidos estricta, permite el origen en
+  el CORS del gateway, valida y recarga Caddy (si no valida, deja todo como estaba) y lo
+  comprueba. DNS: registro A `app.kotaru.app` → `2.25.230.90`.
+
+**Cómo se verificó**
+- `tsc --noEmit` OK; 7 pruebas de PCM, incluida la de trozos exactos a partir de 48 kHz.
+- Playwright con el micrófono falso de Chromium contra el gateway y PostgreSQL reales, detrás
+  de Caddy 2.10 con la configuración y la política de seguridad de producción: 60 trozos de
+  audio enviados (con señal), respuesta de Rio con subtítulos y audio, centro de memoria y
+  descarga de datos, sin errores en la consola.
+- `web.sh` ejecutado con Docker y systemd simulados hasta la recarga de Caddy; shellcheck OK.
+
+**Pendiente**
+- Correr `deploy/web.sh` en el servidor.
+- Client id web de Google (con el origen `https://app.kotaru.app`) y Services ID de Apple:
+  sin ellos la página carga pero no deja entrar.

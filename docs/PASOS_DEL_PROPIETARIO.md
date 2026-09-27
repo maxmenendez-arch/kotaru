@@ -23,6 +23,15 @@ otros sitios (`rapimula-caddy-1`), con `/etc/caddy/otros-sitios/kotaru.caddy`. D
 Hostinger. También tiene un reinicio pendiente del sistema (`apt upgrade -y && reboot` en un
 momento tranquilo: el gateway y Caddy vuelven solos).
 
+**Webapp (`https://app.kotaru.app`)**: el DNS ya está (registro A `app`). Para publicarla,
+en el servidor:
+
+```bash
+cd ~/Kotaru && git pull && cd kotaru && bash deploy/web.sh
+```
+
+Sin los client id de Google o Apple (pasos 3 y 4) la página carga, pero no deja entrar.
+
 Aparte: `kotaru.ai` y `getkotaru.com` siguen **sin registrar** (comprobado el 2026-09-27).
 La guía de marca recomendaba reservarlos junto a `kotaru.app`.
 
@@ -114,7 +123,14 @@ al acercarse baja la calidad y al llegar corta la voz.
    entidad de EE. UU. (D-001), no a título personal: cambiarlo después es lento.
 2. <https://developer.apple.com/account/resources/identifiers/list> → **+** → *App IDs* →
    Bundle ID **`app.kotaru.mobile`** → marcar **Sign In with Apple**.
-3. Servidor: `KOTARU_APPLE_CLIENT_IDS=app.kotaru.mobile` (ya viene así).
+3. Para la webapp: **+** → *Services IDs* → identificador **`app.kotaru.web`**, descripción
+   "Kotaru web" → marcar **Sign In with Apple** → *Configure*: App ID principal
+   `app.kotaru.mobile`, dominio **`app.kotaru.app`**, Return URL **`https://app.kotaru.app/`**.
+4. Servidor, en `/etc/kotaru/gateway.env`:
+   `KOTARU_APPLE_CLIENT_IDS=app.kotaru.mobile,app.kotaru.web` y reiniciar
+   (`systemctl restart kotaru-gateway`).
+5. Webapp, en `/etc/kotaru/web.env`: `EXPO_PUBLIC_APPLE_WEB_SERVICE_ID=app.kotaru.web` y
+   volver a correr `bash deploy/web.sh`.
 
 La app ya declara el permiso (`usesAppleSignIn`).
 
@@ -127,7 +143,9 @@ En <https://console.cloud.google.com> (puede ser el mismo proyecto de Gemini):
 1. **Google Auth Platform → Branding / Audience**: tipo *External*, nombre "Kotaru", correo
    de soporte. Sin permisos extra: solo el perfil básico del login.
 2. **Clients → Create client**, tres veces:
-   - **Web application**, nombre "Kotaru servidor". Sin URIs. → este es el **WEB_CLIENT_ID**.
+   - **Web application**, nombre "Kotaru web". En *Authorized JavaScript origins*:
+     **`https://app.kotaru.app`**. Sin redirect URIs. → este es el **WEB_CLIENT_ID** (lo usan
+     la webapp y Android).
    - **iOS**, bundle id `app.kotaru.mobile`. → **IOS_CLIENT_ID**.
    - **Android**, paquete `app.kotaru.mobile` y la huella **SHA-1** del certificado con que
      se firma la app. Hay una por cada firma: la de desarrollo (sale de
@@ -137,6 +155,11 @@ En <https://console.cloud.google.com> (puede ser el mismo proyecto de Gemini):
 3. Servidor: `KOTARU_GOOGLE_CLIENT_IDS=WEB_CLIENT_ID,IOS_CLIENT_ID`.
 4. App (al compilar): `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=WEB_CLIENT_ID` y
    `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=IOS_CLIENT_ID`.
+5. Webapp, en `/etc/kotaru/web.env`: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=WEB_CLIENT_ID` y volver
+   a correr `bash deploy/web.sh`.
+
+Con el paso 5 de Google (o el de Apple) la webapp ya deja entrar: es la forma más rápida de
+probar Kotaru con voz de verdad, sin compilar nada para el teléfono.
 
 ---
 

@@ -14,6 +14,8 @@ export interface AudioOutput {
   play(pcm: Uint8Array, sampleRate: number): void;
   /** Barge-in: corta en seco lo que este sonando. */
   stopNow(): void;
+  /** Se llama dentro de un gesto del usuario: los navegadores solo dejan sonar audio despues de uno. */
+  unlock?(): void;
   dispose(): void;
 }
 

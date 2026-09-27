@@ -18,18 +18,27 @@ dependencias del servidor. Comparte con el monorepo solo `@kotaru/client`
   (`src/audio.native.ts`): PCM 16 bits a 24 kHz en trozos de 20 ms hacia el gateway, y
   reproducción en cola de lo que responde Rio. Una sola librería gobierna la sesión de audio
   (`playAndRecord` + `voiceChat`, con cancelación de eco en iOS). Pulsar mientras Rio habla
-  lo corta al instante. No se guarda audio. En la web el micrófono sigue simulado.
+  lo corta al instante. No se guarda audio. En la web (`src/audio.web.ts`), micrófono del
+  navegador con cancelación de eco (AudioWorklet servido desde `public/`) y reproducción con
+  Web Audio.
 - **Cuenta:** si la app se compila con `EXPO_PUBLIC_KOTARU_SERVER_URL`, tras la bienvenida
-  pide entrar con Apple (iPhone/iPad) o con Google (iOS y Android, si se compila con sus
-  client id). El nonce se genera en el dispositivo; a Apple va su
+  pide entrar con Apple o con Google, en iOS, Android y la web (`apple.*.tsx`,
+  `google.*.tsx`; cada botón aparece solo si se compila con su identificador). El nonce se genera en el dispositivo; a Apple va su
   SHA-256 y al servidor el valor original. No se piden nombre ni correo. El token de
   renovación se guarda solo en Keychain/Keystore (`expo-secure-store`, solo este
-  dispositivo); en la web no se guarda. Cada sesión de voz pide su propio grant y las
+  dispositivo); en la web, en `sessionStorage` (dura lo que la pestaña). Cada sesión de voz pide su propio grant y las
   reconexiones retoman la misma conversación.
 - **Ajustes:** cuánto se guardan las conversaciones, descarga de datos, cerrar sesión y
   borrar la cuenta (con confirmación). La conexión de desarrollo (grant y token pegados a
   mano, de `bin/token.mjs`) solo aparece en builds de desarrollo o sin servidor de cuentas.
 - Español e inglés; tokens de color y tipografía de `09_BRAND_AND_ART_DIRECTION.md`.
+
+## Webapp
+
+La misma app se publica en `https://app.kotaru.app` con `deploy/web.sh` (ver
+`deploy/README.md`). Verificado el 2026-09-27 detrás de Caddy con su política de seguridad
+real: micrófono falso de Chromium → 60 trozos de 20 ms enviados, respuesta de Rio con
+subtítulos y audio, centro de memoria y descarga de datos, sin errores en la consola.
 
 ## Lo que falta (y por qué)
 

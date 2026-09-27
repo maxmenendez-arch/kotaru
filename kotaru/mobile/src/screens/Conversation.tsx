@@ -80,6 +80,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const connect = async () => {
     if (!connection) return;
     setError(null);
+    speaker.current.unlock?.();
     client.current?.close();
     client.current = createConversation(connection, lang, onEvent);
     try {
@@ -95,6 +96,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     setReply('');
     // Barge-in: Rio calla en cuanto se pulsa, sin esperar al servidor.
     speaker.current.stopNow();
+    speaker.current.unlock?.();
     client.current.startTalking();
     mic.current.start((pcm) => client.current?.sendAudio(pcm)).then(
       (ok) => {

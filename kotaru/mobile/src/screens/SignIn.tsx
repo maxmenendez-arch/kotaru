@@ -1,17 +1,18 @@
 import type { AuthApi } from '@kotaru/client';
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { appleSignInAvailable, signInWithApple, signInWithGoogle, SignInCancelled } from '../auth';
+import { AppleButton, appleAvailable } from '../apple';
+import { newRawNonce, signInWithApple, SignInCancelled } from '../auth';
 import { GoogleButton, googleConfigured } from '../google';
 import type { Lang } from '../i18n';
 import { t } from '../i18n';
-import { radius, space } from '../theme';
+import { space } from '../theme';
 import { Body, Button, Screen, Title } from '../ui/kit';
 
 /**
- * Login con Apple (iPhone/iPad) y Google (iOS y Android, cuando la app se compila con sus
- * client id). La opcion de desarrollo aparece solo en builds de desarrollo.
+ * Login con Apple y Google, en el telefono y en la web (cada plataforma usa su modulo:
+ * `apple.*.tsx`, `google.*.tsx`). Cada boton aparece solo si la app se compilo con su
+ * identificador. La opcion de desarrollo aparece solo en builds de desarrollo.
  */
 export function SignIn({
   lang,
@@ -28,19 +29,20 @@ export function SignIn({
   const [apple, setApple] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    appleSignInAvailable().then(setApple);
-  }, []);
-
+  // Un nonce por intento de Google: el boton web de Google lo necesita antes del clic.
+  const [googleNonce, setGoogleNonce] = useState(newRawNonce);
   const google = googleConfigured();
 
-  const signIn = async (provider: 'apple' | 'google') => {
+  useEffect(() => {
+    appleAvailable().then(setApple);
+  }, []);
+
+  const run = async (attempt: () => Promise<unknown>) => {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      await (provider === 'apple' ? signInWithApple(auth) : signInWithGoogle(auth));
+      await attempt();
       onSignedIn();
     } catch (err) {
       if (!(err instanceof SignInCancelled)) setError(s.signInFailed);
@@ -49,26 +51,30 @@ export function SignIn({
     }
   };
 
+  const withGoogle = (idToken: string) => {
+    const nonce = googleNonce;
+    setGoogleNonce(newRawNonce());
+    void run(() => auth.signInWithGoogle(idToken, nonce));
+  };
+
   return (
     <Screen>
       <Title>{s.signInTitle}</Title>
       <View style={styles.block}>
         <Body>{s.signInBody}</Body>
       </View>
-      {apple ? (
-        <AppleAuthentication.AppleAuthenticationButton
-          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-          cornerRadius={radius.control}
-          style={styles.apple}
-          onPress={() => signIn('apple')}
-        />
-      ) : null}
-      {google ? (
-        <View style={styles.gap}>
-          <GoogleButton onPress={() => signIn('google')} disabled={busy} />
-        </View>
-      ) : null}
+      <View style={styles.buttons}>
+        {apple ? <AppleButton label={s.signInApple} onPress={() => run(() => signInWithApple(auth))} disabled={busy} /> : null}
+        {google ? (
+          <GoogleButton
+            nonce={googleNonce}
+            onIdToken={withGoogle}
+            onCancel={() => setGoogleNonce(newRawNonce())}
+            onError={() => setError(s.signInFailed)}
+            disabled={busy}
+          />
+        ) : null}
+      </View>
       {apple === false && !google ? <Body muted>{s.signInUnavailable}</Body> : null}
       {error ? (
         <View style={styles.block}>
@@ -86,7 +92,6 @@ export function SignIn({
 
 const styles = StyleSheet.create({
   block: { marginBottom: space.xl },
-  apple: { height: 48, width: '100%' },
-  gap: { marginTop: space.m },
+  buttons: { gap: space.m, marginBottom: space.l },
   dev: { marginTop: space.xxl },
 });

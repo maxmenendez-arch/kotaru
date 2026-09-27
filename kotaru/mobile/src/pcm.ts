@@ -45,3 +45,33 @@ export function resampleLinear(samples: Float32Array, from: number, to: number):
   }
   return out;
 }
+
+/**
+ * Junta muestras de cualquier frecuencia y entrega trozos exactos (`chunkMs`) en PCM 16
+ * bits a `targetRate`. Lo que sobra espera al siguiente `push`.
+ */
+export class ChunkAssembler {
+  #pending: Float32Array = new Float32Array(0);
+  readonly #targetRate: number;
+  readonly #chunkSamples: number;
+  readonly #onChunk: (pcm: Uint8Array) => void;
+
+  constructor(targetRate: number, chunkMs: number, onChunk: (pcm: Uint8Array) => void) {
+    this.#targetRate = targetRate;
+    this.#chunkSamples = Math.round((targetRate * chunkMs) / 1000);
+    this.#onChunk = onChunk;
+  }
+
+  push(samples: Float32Array, sampleRate: number): void {
+    const resampled = resampleLinear(samples, sampleRate, this.#targetRate);
+    const all = new Float32Array(this.#pending.length + resampled.length);
+    all.set(this.#pending);
+    all.set(resampled, this.#pending.length);
+    let offset = 0;
+    while (all.length - offset >= this.#chunkSamples) {
+      this.#onChunk(floatToPcm16(all.subarray(offset, offset + this.#chunkSamples)));
+      offset += this.#chunkSamples;
+    }
+    this.#pending = all.slice(offset);
+  }
+}

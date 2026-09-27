@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { floatToPcm16, pcm16ToFloat, resampleLinear } from '../src/pcm.ts';
+import { ChunkAssembler, floatToPcm16, pcm16ToFloat, resampleLinear } from '../src/pcm.ts';
 
 test('float → int16 little-endian, con recorte', () => {
   const pcm = floatToPcm16(new Float32Array([0, 1, -1, 2, -2, 0.5]));
@@ -42,4 +42,16 @@ test('remuestreo 16k → 24k interpola', () => {
   const out = resampleLinear(new Float32Array([0, 1]), 16000, 24000);
   assert.equal(out.length, 3);
   assert.ok(Math.abs(out[1]! - 2 / 3) < 1e-6);
+});
+
+test('trozos exactos de 20 ms a 24 kHz desde 48 kHz, sin perder muestras entre llamadas', () => {
+  const chunks: Uint8Array[] = [];
+  const a = new ChunkAssembler(24000, 20, (c) => chunks.push(c));
+  a.push(new Float32Array(1024), 48000); // 512 muestras a 24 kHz: 1 trozo (480) y sobran 32
+  assert.equal(chunks.length, 1);
+  assert.equal(chunks[0]!.byteLength, 960);
+  a.push(new Float32Array(1024), 48000); // 32 + 512 = 544: otro trozo, sobran 64
+  assert.equal(chunks.length, 2);
+  a.push(new Float32Array(832), 48000); // 64 + 416 = 480: justo uno
+  assert.equal(chunks.length, 3);
 });
