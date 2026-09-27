@@ -77,11 +77,15 @@ turno de voz real se prueba desde la app (paso 5), porque la prueba de humo env�
 4. Recomendado: en Google Cloud → Facturación → **Presupuestos y alertas**, un presupuesto de
    20 USD con alertas al 50/75/90 %.
 5. No usar el modo Flex.
-6. En `gateway.env`:
+6. **En el servidor** (terminal web de Hostinger), un solo comando:
+   ```bash
+   cd ~/Kotaru/kotaru && bash deploy/gemini.sh
    ```
-   GEMINI_API_KEY=...
-   KOTARU_GEMINI_PAID_TIER_CONFIRMED=true
-   ```
+   Pregunta si el proyecto tiene facturación, pide la clave sin mostrarla, la comprueba con
+   Google (gratis, sin gastar tokens), la guarda en `gateway.env` y reinicia. Si algo falla,
+   deja todo como estaba. Con eso el **chat de texto con Rio ya usa Gemini de verdad**; la
+   voz sigue simulada (`KOTARU_PROVIDERS=gemini,mock-voice`) hasta tener AssemblyAI y Polly.
+   Coste orientativo del texto: menos de 0,1 céntimos por mensaje.
 
 ### AWS Polly (texto a voz) — 16 USD por millón de caracteres
 

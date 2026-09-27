@@ -70,4 +70,19 @@ describe('proveedores del gateway', () => {
   it('una confirmacion mal escrita es un error, no un "no"', () => {
     expect(() => loadConfig({ ...real, KOTARU_GEMINI_PAID_TIER_CONFIRMED: 'si' })).toThrow(/debe ser true o false/);
   });
+
+  it('gemini,mock-voice: el chat usa Gemini de verdad; oido y voz simulados, sin LLM simulado', () => {
+    const config = loadConfig({
+      ...base,
+      KOTARU_PROVIDERS: 'gemini,mock-voice',
+      GEMINI_API_KEY: 'k2',
+      KOTARU_GEMINI_PAID_TIER_CONFIRMED: 'true',
+    });
+    const set = buildProviders(config.providers, config.providerSettings, Date.now);
+    expect(set.registered).toEqual(['mock-stt', 'gemini-3.1-flash-lite', 'mock-tts']);
+    expect(set.blocked).toEqual([]);
+    expect(select(set, 'llm').providerId).toBe('gemini-3.1-flash-lite');
+    expect(select(set, 'stt').providerId).toBe('mock-stt');
+    expect(select(set, 'tts').providerId).toBe('mock-tts');
+  });
 });

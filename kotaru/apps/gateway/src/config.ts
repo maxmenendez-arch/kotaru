@@ -49,7 +49,7 @@ export interface ProviderSettings {
   };
 }
 
-const KNOWN_PROVIDERS = new Set(['mock', 'assemblyai', 'gemini', 'polly']);
+const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly']);
 
 export class ConfigError extends Error {
   constructor(readonly problems: readonly string[]) {

@@ -831,3 +831,18 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Verificado con Playwright: tres mensajes escritos quedan en pantalla (3 tuyos, 3 de Rio),
   sin errores; la prueba de voz con passkey (hablar, salir, volver a entrar, recargar, borrar
   la cuenta) sigue pasando.
+
+## 2026-09-27 (tarde) — Gemini de verdad en el chat, sin esperar a la voz
+
+- `KOTARU_PROVIDERS=gemini,mock-voice`: oído y voz simulados, modelo de lenguaje real. Así
+  el chat de texto con Rio usa Gemini en cuanto hay clave, sin necesitar AssemblyAI ni Polly.
+  `mock-voice` no registra el LLM simulado, así que el router no puede elegirlo por barato.
+- `deploy/gemini.sh`: activa Gemini en el servidor. Confirma la facturación (sin ella Google
+  usa las conversaciones), pide la clave sin mostrarla, la valida contra Google sin generar
+  texto (la clave va a curl por la entrada estándar, nunca en la línea de comandos), la
+  guarda con permisos 600, reinicia y, si el gateway no arranca, restaura el archivo anterior.
+- Prueba nueva en `providers.test.ts`. Verificado en simulación local con systemctl y curl
+  falsos: clave con formato inválido (nada cambia), gateway que no arranca (vuelve atrás),
+  y camino bueno (arranca con `mock-stt, gemini-3.1-flash-lite, mock-tts`).
+- El id `gemini-3.1-flash-lite` se comprobó estable en https://ai.google.dev/gemini-api/docs/models
+  el 2026-09-27.

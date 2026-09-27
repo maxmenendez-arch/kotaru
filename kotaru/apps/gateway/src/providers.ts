@@ -27,6 +27,9 @@ export interface ProviderSet {
  * Arma el conjunto de proveedores segun KOTARU_PROVIDERS.
  *
  * - `mock`: simulados, gratis, respuestas fijas. Para probar la app contra el servidor.
+ * - `mock-voice`: solo el oido y la voz simulados (STT y TTS), sin LLM simulado. Con
+ *   `gemini,mock-voice` el chat de texto ya habla con el modelo real antes de tener las
+ *   claves de AssemblyAI y Polly (los turnos de voz oyen una frase fija y suenan en tono).
  * - `assemblyai`, `gemini`, `polly`: los reales. Cada uno se registra con sus garantias
  *   declaradas (retencion, entrenamiento, derechos de audio) segun las confirmaciones del
  *   operador; el router excluye al que no las cumpla. No se mezclan en silencio: si se
@@ -48,6 +51,9 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     add(stt, s);
     add(llm, l);
     add(tts, t);
+  } else if (enabled.includes('mock-voice')) {
+    add(stt, new MockSttProvider());
+    add(tts, new MockTtsProvider());
   }
   if (settings.assemblyai) {
     const s = new AssemblyAiSttProvider({
