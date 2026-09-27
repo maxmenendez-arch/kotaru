@@ -107,6 +107,9 @@ say "Puerto"
 # Otro programa en el mismo puerto hace que el gateway no arranque (EADDRINUSE) y que la
 # prueba de humo hable con ese otro programa. Se comprueba antes de tocar los servicios.
 PORT_NOW=${PORT:-8787}
+# Donde escucha el gateway: 127.0.0.1, o la IP del puente de Docker si el proxy de
+# delante corre en un contenedor (ver "Caddy compartido" en deploy/README.md).
+HOST_NOW=${HOST:-127.0.0.1}
 OWNER=$(ss -Hltnp "sport = :$PORT_NOW" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true)
 if [ -n "$OWNER" ] && [ "$(ps -o user= -p "$OWNER" 2>/dev/null | tr -d ' ')" != "kotaru" ]; then
   echo "El puerto $PORT_NOW lo usa otro programa:" >&2
@@ -128,11 +131,11 @@ systemctl restart kotaru-gateway
 
 say "Comprobacion"
 for _ in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:$PORT_NOW/readyz" >/dev/null 2>&1; then break; fi
+  if curl -fsS "http://$HOST_NOW:$PORT_NOW/readyz" >/dev/null 2>&1; then break; fi
   sleep 1
 done
 # runuser sin -l conserva el entorno ya cargado de $ENV_FILE.
-if runuser -u kotaru -- "$NODE_BIN" "$RELEASE/bin/smoke.mjs" "http://127.0.0.1:$PORT_NOW"; then
+if runuser -u kotaru -- "$NODE_BIN" "$RELEASE/bin/smoke.mjs" "http://$HOST_NOW:$PORT_NOW"; then
   say "Listo: version $COMMIT en marcha"
   systemctl --no-pager --lines=0 status kotaru-gateway | head -5
   # Conserva las 5 ultimas versiones para poder volver atras.

@@ -157,3 +157,25 @@ gateway ya registra lo necesario sin contenido. Al recargar la configuración, l
 conversaciones abiertas siguen hasta 5 minutos en vez de cortarse.
 
 La app se compila entonces con `EXPO_PUBLIC_KOTARU_SERVER_URL=https://api.kotaru.app`.
+
+### Caddy compartido (así está srv1987174)
+
+En srv1987174 los puertos 80 y 443 ya los tiene un Caddy en Docker (`rapimula-caddy-1`) que
+sirve otros sitios, y nginx ocupa el 8080. Ahí **no se usa `expose.sh`** (un segundo Caddy
+chocaría con el primero). Ese Caddy importa `/etc/caddy/otros-sitios/*.caddy`, una carpeta
+que el despliegue de RapiMula no reescribe, así que Kotaru se añade como un sitio más:
+
+1. El gateway escucha en la IP del puente de Docker de esa red, que el contenedor alcanza y
+   que no es accesible desde internet. En `/etc/kotaru/gateway.env`: `HOST=172.18.0.1`,
+   `PORT=8787`, `KOTARU_TRUST_PROXY=true`.
+2. `deploy/kotaru.caddy` se copia a `/etc/caddy/otros-sitios/kotaru.caddy`.
+3. Se valida y se recarga el Caddy existente. La recarga no corta los otros sitios, y si la
+   configuración fuera inválida, Caddy sigue con la anterior:
+
+   ```bash
+   docker exec rapimula-caddy-1 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+   docker exec rapimula-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+   ```
+
+Si la red `rapimula_default` cambiara de IP, habría que actualizar `HOST` y `kotaru.caddy`
+(`docker network inspect rapimula_default` muestra la actual).
