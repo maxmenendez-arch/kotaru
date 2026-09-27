@@ -7,3 +7,4 @@ export * from './conversation-repository.js';
 export * from './retention.js';
 export * from './export.js';
 export * from './metric-sink.js';
+export * from './safety-repository.js';

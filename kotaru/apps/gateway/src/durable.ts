@@ -4,18 +4,20 @@ import type { MemoryRepository } from '@kotaru/memory';
 import {
   ConversationRepository,
   GrantRepository,
+  SafetyEventRepository,
   SqlMemoryRepository,
   UsageRepository,
   type ConversationRepositoryOptions,
   type SqlClient,
 } from '@kotaru/persistence';
-import type { ConversationLog } from './session.js';
+import type { ConversationLog, SafetyLog } from './session.js';
 
 export interface DurableStores {
   readonly usage: UsageLedger;
   readonly grantClaims: GrantClaimStore;
   readonly memories: MemoryRepository;
   readonly conversations: ConversationLog;
+  readonly safety: SafetyLog;
 }
 
 /**
@@ -31,6 +33,7 @@ export function durableStores(sql: SqlClient, retention: ConversationRepositoryO
     usage: new UsageRepository(sql),
     memories: new SqlMemoryRepository(sql),
     conversations: new ConversationRepository(sql, retention),
+    safety: new SafetyEventRepository(sql),
     grantClaims: {
       claim: (jti, expSeconds) => grants.claim(jti, new Date(expSeconds * 1000)),
     },

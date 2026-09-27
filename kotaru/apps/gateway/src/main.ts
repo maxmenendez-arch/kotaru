@@ -63,6 +63,7 @@ const server = await startGatewayServer({
     memory,
     usage: stores.usage,
     conversations: stores.conversations,
+    safety: stores.safety,
     sink,
     budget: { hardCapUsd: config.monthlyHardCapUsd },
     now,

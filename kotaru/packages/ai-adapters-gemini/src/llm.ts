@@ -125,6 +125,7 @@ export class GeminiLlmProvider implements LanguageModelProvider {
 
     let usage: GeminiChunk['usageMetadata'];
     let stop: LlmStopReason = 'complete';
+    let emittedChars = 0;
     try {
       for await (const chunk of sse(response)) {
         if (chunk.usageMetadata) usage = chunk.usageMetadata;
@@ -133,6 +134,7 @@ export class GeminiLlmProvider implements LanguageModelProvider {
         for (const part of candidate?.content?.parts ?? []) {
           // Los resumenes de razonamiento no son respuesta; nunca llegan al usuario.
           if (part.thought || !part.text) continue;
+          emittedChars += part.text.length;
           yield { type: 'token', text: part.text };
         }
         if (candidate?.finishReason) stop = mapFinish(candidate.finishReason);
@@ -140,6 +142,24 @@ export class GeminiLlmProvider implements LanguageModelProvider {
     } catch (error) {
       if (ctx.signal.aborted) {
         yield { type: 'stop', reason: 'cancelled' };
+        // Cortado a mitad (barge-in): Google no manda el consumo, pero la entrada ya se
+        // proceso y lo emitido se cobra. Se estima (~4 caracteres por token) y se marca
+        // como supuesto, para no subestimar el costo del turno sin decirlo.
+        const inputTokens = Math.ceil(JSON.stringify(body.contents).length / 4) + Math.ceil(JSON.stringify(body.systemInstruction ?? '').length / 4);
+        const outputTokens = Math.ceil(emittedChars / 4);
+        const estimate = this.#cost(inputTokens, 0, outputTokens);
+        yield {
+          type: 'usage',
+          usage: {
+            inputTokens,
+            outputTokens,
+            billedUnits: [
+              { unit: 'input_token_estimated', quantity: inputTokens },
+              { unit: 'output_token_estimated', quantity: outputTokens },
+            ],
+          },
+          cost: { amountUsd: estimate.amountUsd, basis: 'assumption', rateCardVersion: estimate.rateCardVersion },
+        };
         return;
       }
       this.#lastError = Date.now();

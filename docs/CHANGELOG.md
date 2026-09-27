@@ -527,3 +527,26 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - 283 pruebas en verde en la nube y en impermax-gl; 29 contra PostgreSQL 16 real.
 - `install.sh` con systemd simulado: instalación limpia, reinstalación y un despliegue fallido
   que vuelve solo a la versión anterior.
+
+## 2026-09-27 — Personaje versionado y registro de seguridad (noche, bloque 6)
+
+**Qué cambió**
+- `@kotaru/persona`: ficha de Rio (`rio-v1@1.0.0`) y un prompt con reglas fijas
+  (`rules@1.0.0`) que ninguna personalización quita: es una IA, no tiene conciencia, no es
+  profesional, no puede llamar a emergencias, sin contenido sexual, sin presión para quedarse
+  ni pagar. Pide respuestas cortas y habladas, porque van a voz. Español e inglés.
+- Los recuerdos aprobados llegan al modelo como **bloque de datos delimitado**, con aviso de
+  que no son instrucciones; se aplanan, se recortan y no pueden cerrar el bloque. Es la defensa
+  contra inyección por memoria que pide `06_SAFETY`.
+- Cada turno registra qué versión de prompt habló (`rio-v1@1.0.0+rules@1.0.0`).
+- `SafetyEventRepository`: cuando actúa una política de seguridad queda constancia en
+  `app.safety_events` (política, versión, resultado), nunca de lo que se dijo.
+- Gemini: un turno cortado a mitad (barge-in) ya no se cuenta como gratis: se estima lo
+  procesado y se marca como supuesto (`basis: assumption`).
+
+**Cómo se verificó**
+- 8 pruebas del prompt, incluida una inyección que intenta cerrar el bloque de notas.
+- Por el gateway: el modelo recibe el prompt con sus reglas y solo los recuerdos aprobados.
+- Una señal de crisis deja el evento de seguridad con la versión de política, y no guarda ni
+  el turno ni un recuerdo de ese momento.
+- 293 pruebas en verde en la nube y en impermax-gl; 29 contra PostgreSQL 16 real.

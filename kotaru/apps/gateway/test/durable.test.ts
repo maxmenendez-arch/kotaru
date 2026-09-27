@@ -251,4 +251,30 @@ describe('gateway con PostgreSQL', () => {
     const { rows } = await sql.query<{ subject_id: string }>('select subject_id::text from app.usage_ledger');
     expect(rows.map((r) => r.subject_id).sort()).toEqual([claims.subjectId, other.subjectId].sort());
   });
+
+  it('una senal de crisis deja constancia de la politica aplicada, sin guardar lo que se dijo', async () => {
+    const stores = durableStores(sql);
+    const { deps } = buildDeps('a veces quiero morir', stores.usage, stores.memories);
+    server = await startGatewayServer({
+      port: 0, keys: [key], audience: AUDIENCE,
+      deps: { ...deps, conversations: stores.conversations, safety: stores.safety },
+      grantClaims: stores.grantClaims,
+    });
+    const conn = await hello(server.port, signGrant(claims, key, { nowSeconds: Math.floor(Date.now() / 1000) }));
+    conn.socket.send(JSON.stringify({ type: 'turn_start', turnId: 'c1' }));
+    for (let i = 0; i < 8; i += 1) conn.socket.send(Buffer.alloc(24000 * 2 * 0.02), { binary: true });
+    conn.socket.send(JSON.stringify({ type: 'turn_end', turnId: 'c1' }));
+    await waitFor(conn.collected, (m) => m.some((x) => x.type === 'turn_done'));
+    expect(conn.collected.messages).toContainEqual(expect.objectContaining({ type: 'safety', action: 'crisis_handoff' }));
+    conn.socket.close();
+
+    const events = await sql.query<{ outcome: string; policy_version: string; conversation_id: string | null }>(
+      'select outcome, policy_version, conversation_id::text from app.safety_events where subject_id = $1',
+      [claims.subjectId],
+    );
+    expect(events.rows).toEqual([{ outcome: 'crisis_handoff', policy_version: 'safety-policy@0.2.0', conversation_id: claims.conversationId }]);
+    // Ni el turno de crisis ni un recuerdo suyo quedan guardados.
+    expect((await sql.query('select 1 from app.messages where conversation_id = $1', [claims.conversationId])).rows).toHaveLength(0);
+    expect((await sql.query('select 1 from app.memories where subject_id = $1', [claims.subjectId])).rows).toHaveLength(0);
+  });
 });

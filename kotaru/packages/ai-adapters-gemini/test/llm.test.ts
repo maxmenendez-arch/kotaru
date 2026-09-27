@@ -133,7 +133,12 @@ describe('Gemini streamGenerateContent', () => {
       if (e.type === 'token') controller.abort();
     }
     expect(Date.now() - started).toBeLessThan(1500);
-    expect(events.at(-1)).toEqual({ type: 'stop', reason: 'cancelled' });
+    expect(events.find((e) => e.type === 'stop')).toEqual({ type: 'stop', reason: 'cancelled' });
+    // Lo ya procesado se cobra igual: estimado y marcado como supuesto, no como tarifa exacta.
+    const usage = events.at(-1) as Extract<LlmEvent, { type: 'usage' }>;
+    expect(usage.type).toBe('usage');
+    expect(usage.cost.basis).toBe('assumption');
+    expect(usage.cost.amountUsd).toBeGreaterThan(0);
   });
 
   it('un servidor que no responde a tiempo es un error reintentable', async () => {

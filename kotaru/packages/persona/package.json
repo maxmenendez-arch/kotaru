@@ -1,0 +1,10 @@
+{
+  "name": "@kotaru/persona",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@kotaru/ai-contracts": "0.0.1" }
+}

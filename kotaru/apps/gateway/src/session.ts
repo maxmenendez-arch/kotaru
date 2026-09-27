@@ -21,6 +21,7 @@ import {
   type ProviderResolver,
   type RouterPort,
 } from '@kotaru/orchestrator';
+import { buildSystemPrompt, memoryMessage, promptId, RIO_V1 } from '@kotaru/persona';
 import { evaluateSafety, statesMinorAge } from '@kotaru/safety';
 import type { MetricSink } from '@kotaru/telemetry';
 
@@ -54,6 +55,17 @@ export interface ConversationLog {
   }): Promise<unknown>;
 }
 
+/** Donde queda constancia de que actuo una politica de seguridad (sin contenido). */
+export interface SafetyLog {
+  record(event: {
+    readonly subjectId: string;
+    readonly conversationId: string | null;
+    readonly policyVersion: string;
+    readonly outcome: 'allow' | 'soften' | 'refuse' | 'crisis_handoff' | 'block_minor';
+    readonly atIso: string;
+  }): Promise<void>;
+}
+
 /** Cuantos mensajes previos se recuperan al retomar una conversacion. */
 const RESUME_MESSAGES = 20;
 
@@ -69,6 +81,7 @@ export interface SessionDeps {
   readonly now: () => number;
   readonly infraCostUsd?: number;
   readonly conversations?: ConversationLog;
+  readonly safety?: SafetyLog;
 }
 
 export interface SessionTransport {
@@ -116,10 +129,9 @@ export class GatewaySession {
     this.#startedAtMs = deps.now();
     this.#lastActivityMs = this.#startedAtMs;
 
-    this.#history.push({
-      role: 'system',
-      content: 'Eres un companion calido y honesto. Nunca afirmas ser humano.',
-    });
+    // El prompt del personaje, versionado. Las reglas (es una IA, no es profesional, no
+    // presiona) van fijas dentro y ninguna personalizacion las quita.
+    this.#history.push({ role: 'system', content: buildSystemPrompt(RIO_V1, grant.locale) });
   }
 
   get turnsCompleted(): number {
@@ -264,8 +276,8 @@ export class GatewaySession {
         audio,
         history,
         llmOptions: {
-          personaId: 'rio-v1',
-          promptVersion: '0.1.0',
+          personaId: RIO_V1.id,
+          promptVersion: promptId(RIO_V1),
           maxOutputTokens: 256,
           temperature: 0.7,
           allowAffectChannel: true,
@@ -332,6 +344,15 @@ export class GatewaySession {
             userStatedMinor: statesMinorAge(transcript),
           });
           suppressMemory = response.suppressMemoryWrite;
+          await this.#deps.safety
+            ?.record({
+              subjectId: this.#grant.subjectId,
+              conversationId: this.#grant.conversationId,
+              policyVersion: response.policyVersion,
+              outcome: response.outcome,
+              atIso: new Date(this.#deps.now()).toISOString(),
+            })
+            .catch(() => undefined);
           this.#transport.send({ type: 'safety', turnId, action: event.verdict.action });
           if (response.endSession) endAfterTurn = 'protocol_error';
           break;
@@ -448,15 +469,10 @@ export class GatewaySession {
       text: typeof last?.content === 'string' ? last.content : '',
       limit: 5,
     });
-    if (recalled.length === 0) return this.#history;
-
-    return [
-      ...this.#history,
-      {
-        role: 'system',
-        content: `Recuerdos aprobados por el usuario: ${recalled.map((m) => m.text).join('; ')}`,
-      },
-    ];
+    // Como bloque de datos delimitado: un recuerdo es texto del usuario y no puede colarse
+    // como instruccion (ver @kotaru/persona).
+    const block = memoryMessage(recalled, this.#grant.locale);
+    return block ? [...this.#history, block] : this.#history;
   }
 
   async #refreshUsage(): Promise<void> {
