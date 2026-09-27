@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { verifyAccessToken, type SigningKey } from '@kotaru/gateway';
 import type { Memory, MemoryStore } from '@kotaru/memory';
+import { AuthHttpError, deleteOwnAccount, handleLogin, issueGrant, type AuthDeps } from './auth.js';
 
 /**
  * API HTTP del centro de memoria, la exportacion y los ajustes de retencion.
@@ -31,6 +32,14 @@ export interface ApiDeps {
    * abrir la API a cualquier origen permitiria a una web ajena usar el token de otro.
    */
   readonly corsOrigins?: readonly string[];
+  /** Cuentas: login con Apple/Google, renovacion, grants de voz, borrado. */
+  readonly auth?: AuthDeps;
+  /**
+   * Detras de un proxy propio (Caddy), todas las peticiones llegan desde 127.0.0.1: el
+   * limite por IP seria uno solo para todo el mundo. Con esto se usa X-Forwarded-For.
+   * Solo activarlo si el proxy existe: si no, cualquiera inventa su IP.
+   */
+  readonly trustProxy?: boolean;
 }
 
 const MAX_BODY_BYTES = 16 * 1024;
@@ -51,6 +60,8 @@ class HttpError extends Error {
  */
 export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
   const limiter = new TokenBuckets(deps.rateLimit ?? { capacity: 60, refillPerSecond: 1 }, deps.now);
+  // Aparte del limite por usuario: un aluvion de logins no puede vaciar los cubos de nadie.
+  const loginLimiter = new TokenBuckets({ capacity: 20, refillPerSecond: 0.2 }, deps.now);
 
   const cors = new Set(deps.corsOrigins ?? []);
 
@@ -85,12 +96,26 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
     }
     if (!path.startsWith('/v1/')) return false;
 
+    // Login y renovacion: sin token (es lo que se viene a buscar), pero con limite por IP.
+    if (path.startsWith('/v1/auth/')) {
+      try {
+        if (!deps.auth) throw new HttpError(501, 'not_available');
+        if (method !== 'POST') throw new HttpError(405, 'method_not_allowed');
+        if (!loginLimiter.take(clientIp(req, deps.trustProxy === true))) throw new HttpError(429, 'rate_limited');
+        send(res, 200, await handleLogin(path, await readJson(req), deps.auth));
+      } catch (error) {
+        if (error instanceof HttpError || error instanceof AuthHttpError) send(res, error.status, { error: error.code });
+        else send(res, 500, { error: 'internal' });
+      }
+      return true;
+    }
+
     try {
       const subjectId = authenticate(req, deps);
       if (!limiter.take(subjectId)) throw new HttpError(429, 'rate_limited');
       await route(method, path, url, req, res, subjectId, deps);
     } catch (error) {
-      if (error instanceof HttpError) send(res, error.status, { error: error.code });
+      if (error instanceof HttpError || error instanceof AuthHttpError) send(res, error.status, { error: error.code });
       else send(res, 500, { error: 'internal' });
     }
     return true;
@@ -174,6 +199,22 @@ async function route(
     throw new HttpError(405, 'method_not_allowed');
   }
 
+  if (path === '/v1/session/grant') {
+    if (!deps.auth) throw new HttpError(501, 'not_available');
+    if (method !== 'POST') throw new HttpError(405, 'method_not_allowed');
+    const body = req.headers['content-length'] === '0' || !req.headers['content-type'] ? {} : await readJson(req);
+    send(res, 200, await issueGrant(subjectId, body, deps.auth));
+    return;
+  }
+
+  if (path === '/v1/account') {
+    if (!deps.auth) throw new HttpError(501, 'not_available');
+    if (method !== 'DELETE') throw new HttpError(405, 'method_not_allowed');
+    await deleteOwnAccount(subjectId, deps.auth);
+    res.writeHead(204).end();
+    return;
+  }
+
   if (path === '/v1/export') {
     if (method !== 'GET') throw new HttpError(405, 'method_not_allowed');
     if (!deps.exportSubject) throw new HttpError(501, 'not_available');
@@ -203,6 +244,22 @@ async function route(
   }
 
   throw new HttpError(404, 'not_found');
+}
+
+/**
+ * IP del cliente para el limite de logins. Con proxy de confianza se toma la ULTIMA entrada
+ * de X-Forwarded-For (la que anadio nuestro proxy): las anteriores las escribe el cliente y
+ * se pueden inventar. Las IPv6 se agrupan por /64, que es lo que suele tener un solo hogar.
+ */
+function clientIp(req: IncomingMessage, trustProxy: boolean): string {
+  let ip = req.socket.remoteAddress ?? '?';
+  if (trustProxy) {
+    const header = req.headers['x-forwarded-for'];
+    const last = (Array.isArray(header) ? header.join(',') : header)?.split(',').at(-1)?.trim();
+    if (last) ip = last;
+  }
+  if (ip.includes(':') && !ip.startsWith('::ffff:')) return ip.split(':').slice(0, 4).join(':') + '::/64';
+  return ip;
 }
 
 function authenticate(req: IncomingMessage, deps: ApiDeps): string {
@@ -284,8 +341,18 @@ class TokenBuckets {
       this.#buckets.set(key, { tokens: refilled, at: now });
       return false;
     }
+    // Reinsertar mantiene el Map en orden de uso: los primeros son los mas viejos.
+    this.#buckets.delete(key);
     this.#buckets.set(key, { tokens: refilled - 1, at: now });
-    if (this.#buckets.size > 100_000) this.#buckets.clear();
+    if (this.#buckets.size > 100_000) {
+      // Se olvidan los menos recientes, no todos: vaciar el mapa entero regalaria un cubo
+      // lleno a quien provocara el vaciado.
+      let drop = 10_000;
+      for (const old of this.#buckets.keys()) {
+        if (drop-- === 0) break;
+        this.#buckets.delete(old);
+      }
+    }
     return true;
   }
 }

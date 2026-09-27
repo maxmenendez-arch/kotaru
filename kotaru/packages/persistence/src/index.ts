@@ -8,3 +8,4 @@ export * from './retention.js';
 export * from './export.js';
 export * from './metric-sink.js';
 export * from './safety-repository.js';
+export * from './account-repository.js';

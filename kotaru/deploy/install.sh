@@ -78,6 +78,12 @@ KOTARU_API_AUDIENCE=kotaru-api
 KOTARU_MONTHLY_HARD_CAP_USD=50
 KOTARU_MESSAGE_RETENTION_DAYS=30
 KOTARU_PROVIDERS=mock
+# Login: se activa al poner los client ids (ver deploy/README.md).
+KOTARU_APPLE_CLIENT_IDS=
+KOTARU_GOOGLE_CLIENT_IDS=
+KOTARU_EMAIL_HASH_KEY=$(openssl rand -base64 32)
+KOTARU_EMAIL_ENCRYPTION_KEY=$(openssl rand -base64 32)
+KOTARU_TRUST_PROXY=false
 EOF
   echo "creado $ENV_FILE con claves nuevas"
 else

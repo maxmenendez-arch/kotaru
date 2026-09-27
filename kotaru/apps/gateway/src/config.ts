@@ -16,6 +16,14 @@ export interface GatewayConfig {
   readonly providerSettings: ProviderSettings;
   /** Origenes web con acceso a la API (CORS). Vacio salvo para la version web. */
   readonly corsOrigins: readonly string[];
+  /** Login con Apple/Google. Ausente si no esta configurado: la API responde 501. */
+  readonly auth?: {
+    readonly appleClientIds: readonly string[];
+    readonly googleClientIds: readonly string[];
+    readonly emailHashKey: Uint8Array;
+    readonly emailEncryptionKey: Uint8Array;
+  };
+  readonly trustProxy: boolean;
 }
 
 /**
@@ -137,6 +145,33 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
     problems.push('polly necesita AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY');
   }
 
+  const list = (name: string) =>
+    (env[name] ?? '')
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+  const secret32 = (name: string): Uint8Array | null => {
+    const raw = env[name]?.trim();
+    if (!raw) return null;
+    const bytes = Buffer.from(raw, 'base64');
+    if (bytes.byteLength !== 32) {
+      problems.push(`${name} debe ser de 32 bytes en base64 (tiene ${bytes.byteLength})`);
+      return null;
+    }
+    return new Uint8Array(bytes);
+  };
+  const appleClientIds = list('KOTARU_APPLE_CLIENT_IDS');
+  const googleClientIds = list('KOTARU_GOOGLE_CLIENT_IDS');
+  const emailHashKey = secret32('KOTARU_EMAIL_HASH_KEY');
+  const emailEncryptionKey = secret32('KOTARU_EMAIL_ENCRYPTION_KEY');
+  const wantsAuth = appleClientIds.length > 0 || googleClientIds.length > 0;
+  if (wantsAuth && (!emailHashKey || !emailEncryptionKey)) {
+    problems.push('el login necesita KOTARU_EMAIL_HASH_KEY y KOTARU_EMAIL_ENCRYPTION_KEY');
+  }
+  if (emailHashKey && emailEncryptionKey && Buffer.from(emailHashKey).equals(Buffer.from(emailEncryptionKey))) {
+    problems.push('KOTARU_EMAIL_HASH_KEY y KOTARU_EMAIL_ENCRYPTION_KEY deben ser distintas');
+  }
+
   const config: GatewayConfig = {
     host: env.HOST?.trim() || '127.0.0.1',
     port: integer('PORT', 8080, 1, 65535),
@@ -154,6 +189,10 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
       .split(',')
       .map((o) => o.trim())
       .filter(Boolean),
+    ...(wantsAuth && emailHashKey && emailEncryptionKey
+      ? { auth: { appleClientIds, googleClientIds, emailHashKey, emailEncryptionKey } }
+      : {}),
+    trustProxy: flag('KOTARU_TRUST_PROXY'),
   };
 
   if (problems.length > 0) throw new ConfigError(problems);

@@ -1,6 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { MemoryStore } from '@kotaru/memory';
-import { ConversationRepository, exportSubject, loadMigrations, MIGRATIONS_DIR, SqlMetricSink } from '@kotaru/persistence';
+import {
+  AccountRepository,
+  ConversationRepository,
+  deleteAccount,
+  exportSubject,
+  loadMigrations,
+  MIGRATIONS_DIR,
+  SqlMetricSink,
+} from '@kotaru/persistence';
+import { APPLE, GOOGLE, IdTokenVerifier } from './id-token.js';
 import { ConfigError, loadConfig } from './config.js';
 import { durableStores } from './durable.js';
 import { pgClient } from './pg-client.js';
@@ -81,10 +90,31 @@ const server = await startGatewayServer({
     },
     ready: async () => (await sql.query('select 1 as ok')).rows.length === 1,
     corsOrigins: config.corsOrigins,
+    trustProxy: config.trustProxy,
+    ...(config.auth
+      ? {
+          auth: {
+            accounts: new AccountRepository(sql),
+            verifiers: {
+              ...(config.auth.appleClientIds.length ? { apple: new IdTokenVerifier({ ...APPLE, audiences: config.auth.appleClientIds }) } : {}),
+              ...(config.auth.googleClientIds.length ? { google: new IdTokenVerifier({ ...GOOGLE, audiences: config.auth.googleClientIds }) } : {}),
+            },
+            emailHashKey: config.auth.emailHashKey,
+            emailEncryptionKey: config.auth.emailEncryptionKey,
+            accessKeys: config.accessKeys,
+            apiAudience: config.apiAudience,
+            grantKeys: config.grantKeys,
+            grantAudience: config.grantAudience,
+            monthlyHardCapUsd: config.monthlyHardCapUsd,
+            deleteAccount: (accountId: string) => deleteAccount(sql, accountId),
+            now,
+          },
+        }
+      : {}),
   },
 });
 
-log('started', { host: config.host, port: server.port, providers: providers.registered });
+log('started', { host: config.host, port: server.port, providers: providers.registered, login: config.auth ? 'on' : 'off' });
 // Un proveedor registrado que el router nunca elegira merece un aviso claro al arrancar.
 for (const blocked of providers.blocked) log('provider_blocked', blocked);
 

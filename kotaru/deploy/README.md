@@ -103,6 +103,29 @@ Costo verificado el 2026-09-27: AssemblyAI 0,15 USD por hora de sesión abierta;
 Flash-Lite 0,25 / 1,50 USD por millón de tokens de entrada / salida; Polly Neural 16 USD por
 millón de caracteres. Cada turno registra su costo en `app.turn_metrics`.
 
+## Activar el login (Apple y Google)
+
+El servidor ya verifica los tokens de Apple y Google, crea la cuenta con un seudónimo nuevo,
+emite tokens de acceso (15 min) y de renovación (60 días, rotan en cada uso), da grants de voz
+(`POST /v1/session/grant`) y borra la cuenta desde la app (`DELETE /v1/account`, requisito de
+las tiendas). El correo nunca se guarda en claro: HMAC para buscarlo y AES-256-GCM para poder
+escribir.
+
+Para encenderlo, en `/etc/kotaru/gateway.env`:
+- `KOTARU_APPLE_CLIENT_IDS=app.kotaru.mobile` (el bundle id de iOS; añade el Services ID si
+  hay login web).
+- `KOTARU_GOOGLE_CLIENT_IDS=` los client ids de OAuth de Google (iOS, Android, web).
+- Las dos claves del correo las generó `install.sh`. **No las cambies nunca**: con otra clave,
+  los correos guardados quedan ilegibles.
+
+Cada login exige un `nonce`: la app genera un valor aleatorio, se lo pasa a Apple (su SHA-256)
+o a Google (tal cual), y lo manda junto al id token. Así un token interceptado no sirve para
+abrir otra sesión. Las sesiones duran 60 días sin uso y 180 como máximo; reusar un token de
+renovación ya gastado revoca la sesión entera (señal de copia robada).
+
+Falta del lado de la app: las pantallas de login con los módulos nativos de Apple y Google
+(`@kotaru/client` ya trae `AuthApi` con renovación automática).
+
 ## Siguiente paso: exponerlo a internet
 
 Pendiente de decidir el subdominio (por ejemplo `api.kotaru.app`) y apuntar su DNS a la IP
@@ -115,4 +138,5 @@ api.kotaru.app {
 ```
 
 Caddy reenvía WebSocket sin configuración extra. No abrir el puerto 8080 en el firewall: el
-único acceso público debe ser el 443 de Caddy.
+único acceso público debe ser el 443 de Caddy. Con Caddy delante, poner
+`KOTARU_TRUST_PROXY=true` para que el límite de peticiones por IP vea la IP real.

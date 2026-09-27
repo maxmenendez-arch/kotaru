@@ -53,4 +53,17 @@ describe('configuracion', () => {
     expect(text).not.toContain('secreto-que-no-debe-salir');
     expect(text).not.toContain('abc');
   });
+
+  it('el login necesita las dos claves del correo, de 32 bytes y distintas', () => {
+    expect(problems({ ...valid(), KOTARU_APPLE_CLIENT_IDS: 'app.kotaru.mobile' })).toEqual([
+      'el login necesita KOTARU_EMAIL_HASH_KEY y KOTARU_EMAIL_ENCRYPTION_KEY',
+    ]);
+    const same = k();
+    expect(problems({ ...valid(), KOTARU_APPLE_CLIENT_IDS: 'x', KOTARU_EMAIL_HASH_KEY: same, KOTARU_EMAIL_ENCRYPTION_KEY: same })).toContain(
+      'KOTARU_EMAIL_HASH_KEY y KOTARU_EMAIL_ENCRYPTION_KEY deben ser distintas',
+    );
+    const ok = loadConfig({ ...valid(), KOTARU_GOOGLE_CLIENT_IDS: 'a,b', KOTARU_EMAIL_HASH_KEY: k(), KOTARU_EMAIL_ENCRYPTION_KEY: k() });
+    expect(ok.auth?.googleClientIds).toEqual(['a', 'b']);
+    expect(loadConfig(valid()).auth).toBeUndefined();
+  });
 });

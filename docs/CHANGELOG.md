@@ -550,3 +550,37 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Una señal de crisis deja el evento de seguridad con la versión de política, y no guarda ni
   el turno ni un recuerdo de ese momento.
 - 293 pruebas en verde en la nube y en impermax-gl; 29 contra PostgreSQL 16 real.
+
+## 2026-09-27 — Cuentas: login con Apple y Google (noche, bloque 7)
+
+**Qué cambió**
+- Login con Apple y Google en el servidor: `POST /v1/auth/apple`, `/v1/auth/google`. El id
+  token se verifica a mano con node:crypto (solo RS256, clave por `kid` del JWKS oficial,
+  emisor, audiencia = nuestros client ids, caducidad) y se exige un `nonce` que ata el token a
+  ese intento de login.
+- La cuenta nace con un seudónimo nuevo. El correo nunca en claro: HMAC para buscar y
+  AES-256-GCM atado al login para escribir. El mismo correo por Apple y por Google **no** fusiona
+  cuentas: unir cuentas merece su propio flujo con confirmación.
+- Sesión: token de acceso de 15 min y de renovación que rota en cada uso (60 días sin uso, 180
+  como máximo). Reusar uno ya gastado revoca la sesión entera. `POST /v1/auth/logout`.
+- `POST /v1/session/grant`: grant de voz de un solo uso con el plan vigente; la conversación la
+  numera el servidor y solo se retoman las propias.
+- `DELETE /v1/account`: borrado completo desde la app (requisito de las tiendas).
+- JWKS: una sola descarga a la vez, como mucho una por minuto, 3 s de límite, claves viejas
+  válidas si el proveedor cae, y 503 `provider_unavailable` en vez de "token inválido".
+- Límite de logins por IP separado del de usuarios; con `KOTARU_TRUST_PROXY` usa la última
+  entrada de X-Forwarded-For; IPv6 agrupadas por /64.
+- `AuthApi` en `@kotaru/client`: login, renovación automática de una en una, grants y borrado.
+- Migración 0009: correo opcional y tokens de renovación con familias. `install.sh` genera las
+  claves del correo; el login se enciende al poner los client ids.
+
+**Cómo se verificó**
+- Con claves RSA generadas en la prueba y un JWKS falso: login, cuenta repetida, correo cifrado,
+  audiencia ajena, caducado, emisor equivocado, firma alterada, kid desconocido, HS256, nonce,
+  rotación, reutilización, cierre de sesión, proveedor caído, avalancha de kids falsos y borrado.
+- Contra PostgreSQL 16 real: cinco logins simultáneos crean una sola cuenta; cinco renovaciones
+  simultáneas del mismo token dan una sola sesión.
+- Revisión de seguridad independiente: sin bypass ni toma de cuentas; se corrigieron 8 de sus
+  10 hallazgos. Pendiente: exigir reautenticación reciente para borrar la cuenta y un margen de
+  gracia si se pierde la respuesta de una renovación.
+- 309 pruebas en verde en la nube y en impermax-gl; 30 contra PostgreSQL real.

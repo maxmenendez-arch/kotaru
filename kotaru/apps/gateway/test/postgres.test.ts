@@ -10,7 +10,8 @@ import {
   UsageRepository,
 } from '@kotaru/persistence';
 import { describeMemoryStore } from '@kotaru/memory/testing';
-import { SqlMemoryRepository } from '@kotaru/persistence';
+import { AccountRepository, SqlMemoryRepository } from '@kotaru/persistence';
+import { createHash } from 'node:crypto';
 import { durableStores, pgClient, startGatewayServer, type GatewayServerHandle, type PgSqlClient } from '../src/index.js';
 import { AUDIENCE, buildDeps, claims as baseClaims, connect, key, waitFor } from './helpers.js';
 
@@ -170,5 +171,24 @@ describe.skipIf(!URL_ENV)('PostgreSQL real', () => {
 
     const { rows } = await sql.query<{ n: string }>('select count(*)::text as n from app.usage_ledger where subject_id = $1', [claims.subjectId]);
     expect(rows[0]!.n).toBe('1');
+  });
+
+  it('cuentas: el mismo login simultaneo crea una sola cuenta, y una renovacion simultanea da una sola sesion', async () => {
+    const accounts = new AccountRepository(sql);
+    const sub = `apple-${randomUUID()}`;
+    const created = await Promise.all(
+      Array.from({ length: 5 }, () => accounts.findOrCreate({ provider: 'apple', providerSubject: sub, emailHash: null, emailEncrypted: null })),
+    );
+    expect(new Set(created.map((c) => c.subjectId)).size).toBe(1);
+    expect(created.filter((c) => c.created)).toHaveLength(1);
+
+    const h = (t: string) => createHash('sha256').update(t).digest();
+    const now = new Date();
+    const later = (days: number) => new Date(now.getTime() + days * 86_400_000).toISOString();
+    await accounts.storeRefresh(created[0]!.accountId, h('inicial'), later(60), later(180));
+    const rotated = await Promise.all(
+      Array.from({ length: 5 }, (_, i) => accounts.rotateRefresh(h('inicial'), h(`nuevo-${i}`), later(60), now.toISOString())),
+    );
+    expect(rotated.filter(Boolean)).toHaveLength(1);
   });
 });

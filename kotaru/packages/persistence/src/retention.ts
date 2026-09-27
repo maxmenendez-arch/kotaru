@@ -8,6 +8,8 @@ export interface RetentionReport {
   readonly messages: number;
   readonly memories: number;
   readonly usedGrants: number;
+  /** Tokens de renovacion caducados (o de familias terminadas). */
+  readonly refreshTokens: number;
   /** Filas escritas por sesiones que seguian abiertas cuando se borro la cuenta. */
   readonly lateWritesOfErased: number;
   readonly ranAt: string;
@@ -41,6 +43,7 @@ export async function runRetention(sql: SqlClient, nowIso: string): Promise<Rete
     messages: await count('delete from app.messages where expires_at is not null and expires_at <= $1'),
     memories: await count('delete from app.memories where expires_at is not null and expires_at <= $1'),
     usedGrants: await count('delete from app.used_grants where expires_at < $1'),
+    refreshTokens: await count('delete from identity.refresh_tokens where expires_at < $1 or family_expires_at < $1'),
     lateWritesOfErased,
     ranAt: nowIso,
   };
