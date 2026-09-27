@@ -9,6 +9,8 @@ export interface GatewayConfig {
   readonly grantAudience: string;
   readonly apiAudience: string;
   readonly monthlyHardCapUsd: number;
+  /** Tope mensual del plan gratuito, dentro del tope duro. */
+  readonly freeMonthlyCapUsd: number;
   readonly messageRetentionDays: number;
   readonly infraCostUsdPerTurn: number;
   /** Proveedores de IA habilitados: mock, assemblyai, gemini, polly. */
@@ -26,6 +28,8 @@ export interface GatewayConfig {
     readonly passkeys?: { readonly rpId: string; readonly origins: readonly string[] };
   };
   readonly trustProxy: boolean;
+  /** IPs del proxy de las que se acepta X-Forwarded-For (vacio: cualquiera, con trustProxy). */
+  readonly trustedProxies: readonly string[];
   /** Cupo diario de cuentas nuevas con passkey para todo el servidor. */
   readonly signupsPerDay: number;
 }
@@ -210,6 +214,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
     grantAudience: env.KOTARU_GRANT_AUDIENCE?.trim() || 'kotaru-gateway',
     apiAudience: env.KOTARU_API_AUDIENCE?.trim() || 'kotaru-api',
     monthlyHardCapUsd: decimal('KOTARU_MONTHLY_HARD_CAP_USD', 50, 0),
+    freeMonthlyCapUsd: decimal('KOTARU_FREE_MONTHLY_CAP_USD', 15, 0),
     messageRetentionDays: integer('KOTARU_MESSAGE_RETENTION_DAYS', 30, 1, 3650),
     infraCostUsdPerTurn: decimal('KOTARU_INFRA_COST_USD_PER_TURN', 0.0003, 0),
     providers,
@@ -222,6 +227,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
       ? { auth: { appleClientIds, googleClientIds, emailHashKey, emailEncryptionKey, ...(passkeys ? { passkeys } : {}) } }
       : {}),
     trustProxy: flag('KOTARU_TRUST_PROXY'),
+    trustedProxies: list('KOTARU_TRUSTED_PROXIES'),
     signupsPerDay: integer('KOTARU_SIGNUPS_PER_DAY', 30, 1, 100_000),
   };
 

@@ -5,6 +5,8 @@ export interface UsageEntry {
   readonly costUsd: number;
   /** Epoch en milisegundos. */
   readonly at: number;
+  /** Plan con el que se hizo el turno: el gratuito tiene su propio tope de gasto. */
+  readonly plan?: string;
 }
 
 export interface MeterSnapshot {
@@ -26,6 +28,7 @@ export class UsageMeter {
   readonly #seenTurns = new Set<string>();
   readonly #bySubject = new Map<string, { voiceSeconds: number; costUsd: number; turns: number }>();
   #totalCostUsd = 0;
+  #freeCostUsd = 0;
 
   /** Devuelve true si la entrada se conto; false si era un duplicado. */
   record(entry: UsageEntry): boolean {
@@ -39,6 +42,7 @@ export class UsageMeter {
       turns: current.turns + 1,
     });
     this.#totalCostUsd += entry.costUsd;
+    if (entry.plan === 'free') this.#freeCostUsd += entry.costUsd;
     return true;
   }
 
@@ -52,10 +56,16 @@ export class UsageMeter {
     return Math.round(this.#totalCostUsd * 1e6) / 1e6;
   }
 
+  /** Gasto del periodo en turnos del plan gratuito. */
+  freeCostUsd(): number {
+    return Math.round(this.#freeCostUsd * 1e6) / 1e6;
+  }
+
   /** Cierre de periodo de facturacion. El gasto se reinicia con el mes. */
   reset(): void {
     this.#seenTurns.clear();
     this.#bySubject.clear();
     this.#totalCostUsd = 0;
+    this.#freeCostUsd = 0;
   }
 }

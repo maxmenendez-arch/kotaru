@@ -762,3 +762,38 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   muchas IPs, el gasto queda en unos 12 USD al día como mucho (ASSUMPTION: 45 min gratis a
   ~0,52 USD/h) en vez de poder agotar el tope mensual en horas. Prueba nueva: el cupo se
   agota aunque las peticiones vengan de IPs distintas. 332 pruebas en verde.
+
+## 2026-09-27 (tarde) — Desplegado; X-Forwarded-For solo desde Caddy; passkeys en la exportación
+
+- **Desplegado en srv1987174**: gateway con passkeys (migración 0010) y webapp en
+  https://app.kotaru.app. Comprobado en producción: la página muestra "Crear cuenta con
+  passkey", `POST /v1/auth/passkey/login/options` responde con `rpId=app.kotaru.app` y
+  verificación obligatoria, la política de seguridad está puesta, y los otros sitios del
+  servidor (not2late.tech, abaco.software, inversiones.abaco.software) siguen respondiendo.
+- `KOTARU_TRUSTED_PROXIES`: el gateway solo cree `X-Forwarded-For` si la conexión viene de esa
+  IP (la del contenedor de Caddy, que `web.sh` detecta y pone). Otro contenedor del mismo
+  servidor ya no puede inventarse IPs para saltarse los límites. Prueba nueva.
+- La descarga de datos incluye ahora la parte de cuenta: método de entrada y passkeys (fechas,
+  tipo, si tiene copia en la nube), nunca claves ni identificadores. Prueba nueva.
+
+## 2026-09-27 (tarde) — Presupuesto aparte para el plan gratuito
+
+- `KOTARU_FREE_MONTHLY_CAP_USD` (15 USD por defecto, siempre dentro del tope duro): cuando los
+  turnos del plan gratuito llegan a ese gasto en el mes, el plan gratuito pierde la voz
+  (sigue en texto) y los planes de pago siguen hablando. Antes, cuentas gratis —o creadas en
+  masa— podían llevar el gasto global al tope y cortarle la voz a quien paga.
+- El libro de consumo guarda el plan de cada turno (migración `0011_usage_plan`; los turnos
+  anteriores cuentan solo para el tope duro).
+- Pruebas: el medidor y el repositorio separan el gasto gratuito; con el tope gratuito
+  agotado, una cuenta gratis recibe `limit: spend` y una de pago completa su turno.
+
+## 2026-09-27 (tarde) — Mensajes claros en la pantalla de hablar
+
+- Antes se mostraban códigos internos (`replayed`, `gave_up`, el texto de una excepción). Ahora
+  cada caso dice qué pasó y qué hacer: tope de gasto del servicio ("no es por tu cuenta"),
+  duración máxima, inactividad, conexión perdida, fallo del servidor, sesión caducada (volver a
+  entrar con la passkey), sin conexión y demasiados intentos.
+- El cliente compartido emite el tipo de límite (`plan`, `session` o `spend`), y el estado se
+  llama "Voz en pausa" en vez de culpar siempre al plan.
+- Verificado con Playwright: con `KOTARU_FREE_MONTHLY_CAP_USD=0`, una cuenta nueva con passkey
+  conecta y ve "Voz en pausa" con el mensaje del tope de gasto, sin errores en la página.

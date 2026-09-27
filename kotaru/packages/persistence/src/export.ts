@@ -93,3 +93,48 @@ export async function exportSubject(sql: SqlClient, subjectId: string, nowIso: s
     safetyEvents: safety.rows.map((s) => ({ policyVersion: s.policy_version, outcome: s.outcome, createdAt: s.created_at })),
   };
 }
+
+export interface AccountExport {
+  /** Como se entra: apple, google o passkey. El correo no se exporta en claro porque no se guarda en claro. */
+  readonly signInMethod: string;
+  readonly createdAt: string;
+  readonly hasEmail: boolean;
+  readonly passkeys: readonly {
+    readonly createdAt: string;
+    readonly lastUsedAt: string | null;
+    readonly transports: readonly string[];
+    readonly backedUp: boolean;
+  }[];
+}
+
+/**
+ * La parte de identidad de la exportacion: con que se entra y que passkeys tiene la cuenta
+ * (fechas y tipo; nunca claves ni identificadores de credencial). Va aparte de
+ * `exportSubject` porque vive en el esquema `identity`.
+ */
+export async function exportAccount(sql: SqlClient, subjectId: string): Promise<AccountExport | null> {
+  const account = await sql.query<{ id: string; auth_provider: string; created_at: string; has_email: boolean }>(
+    `select a.id::text as id, a.auth_provider, ${ISO('a.created_at', 'created_at')}, a.email_hash is not null as has_email
+     from identity.accounts a join identity.subject_links l on l.account_id = a.id
+     where l.subject_id = $1 and a.deleted_at is null`,
+    [subjectId],
+  );
+  const row = account.rows[0];
+  if (!row) return null;
+  const passkeys = await sql.query<{ created_at: string; last_used_at: string | null; transports: string[]; backed_up: boolean }>(
+    `select ${ISO('created_at')}, ${ISO('last_used_at')}, transports, backed_up
+     from identity.passkeys where account_id = $1 order by created_at`,
+    [row.id],
+  );
+  return {
+    signInMethod: row.auth_provider,
+    createdAt: row.created_at,
+    hasEmail: row.has_email,
+    passkeys: passkeys.rows.map((p) => ({
+      createdAt: p.created_at,
+      lastUsedAt: p.last_used_at,
+      transports: p.transports ?? [],
+      backedUp: p.backed_up,
+    })),
+  };
+}

@@ -5,6 +5,8 @@ export interface UsageEntry {
   readonly subjectId: string;
   readonly voiceSeconds: number;
   readonly costUsd: number;
+  /** Plan del turno ("free" cuenta para el tope del plan gratuito). */
+  readonly plan?: string;
 }
 
 export interface SubjectUsage {
@@ -31,11 +33,11 @@ export class UsageRepository {
   /** Devuelve true si se conto; false si el turno ya estaba registrado. */
   async record(entry: UsageEntry): Promise<boolean> {
     const { rows } = await this.#sql.query<{ turn_id: string }>(
-      `insert into app.usage_ledger (turn_id, subject_id, voice_seconds, cost_usd)
-       values ($1, $2, $3, $4)
+      `insert into app.usage_ledger (turn_id, subject_id, voice_seconds, cost_usd, plan)
+       values ($1, $2, $3, $4, $5)
        on conflict (turn_id) do nothing
        returning turn_id`,
-      [entry.turnId, entry.subjectId, entry.voiceSeconds, entry.costUsd],
+      [entry.turnId, entry.subjectId, entry.voiceSeconds, entry.costUsd, entry.plan ?? null],
     );
     return rows.length > 0;
   }
@@ -62,6 +64,17 @@ export class UsageRepository {
       since
         ? `select coalesce(sum(cost_usd), 0)::text as total from app.usage_ledger where recorded_at >= $1`
         : `select coalesce(sum(cost_usd), 0)::text as total from app.usage_ledger`,
+      since ? [since.toISOString()] : [],
+    );
+    return Number(rows[0]!.total);
+  }
+
+  /** Gasto del periodo en turnos del plan gratuito. */
+  async freeCostUsd(since?: Date): Promise<number> {
+    const { rows } = await this.#sql.query<{ total: string }>(
+      since
+        ? `select coalesce(sum(cost_usd), 0)::text as total from app.usage_ledger where plan = 'free' and recorded_at >= $1`
+        : `select coalesce(sum(cost_usd), 0)::text as total from app.usage_ledger where plan = 'free'`,
       since ? [since.toISOString()] : [],
     );
     return Number(rows[0]!.total);

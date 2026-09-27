@@ -8,6 +8,7 @@ import {
 import {
   entitlementFor,
   evaluateSpend,
+  freeVoiceExhausted,
   type MeterSnapshot,
   type UsageLedger,
   type SpendBudget,
@@ -117,9 +118,10 @@ export class GatewaySession {
    * terminarlo: ahi es donde puede haber cambiado (otro dispositivo, el turno recien
    * cobrado). Los chequeos intermedios, como los plazos, leen esta copia y no la base.
    */
-  #usage: { subject: MeterSnapshot; totalCostUsd: number } = {
+  #usage: { subject: MeterSnapshot; totalCostUsd: number; freeCostUsd: number } = {
     subject: { voiceSeconds: 0, costUsd: 0, turns: 0 },
     totalCostUsd: 0,
+    freeCostUsd: 0,
   };
 
   constructor(grant: SessionGrant, transport: SessionTransport, deps: SessionDeps) {
@@ -365,6 +367,7 @@ export class GatewaySession {
             voiceSeconds,
             costUsd: event.metric.totalCostUsd,
             at: this.#deps.now(),
+            plan: this.#grant.plan,
           });
           break;
 
@@ -476,11 +479,12 @@ export class GatewaySession {
   }
 
   async #refreshUsage(): Promise<void> {
-    const [subject, totalCostUsd] = await Promise.all([
+    const [subject, totalCostUsd, freeCostUsd] = await Promise.all([
       this.#deps.usage.forSubject(this.#grant.subjectId),
       this.#deps.usage.totalCostUsd(),
+      this.#grant.plan === 'free' ? this.#deps.usage.freeCostUsd() : Promise.resolve(0),
     ]);
-    this.#usage = { subject, totalCostUsd };
+    this.#usage = { subject, totalCostUsd, freeCostUsd };
   }
 
   #context(signal: AbortSignal): ProviderContext {
@@ -509,12 +513,21 @@ export class GatewaySession {
     return entitlementFor({
       planId: this.#grant.plan as PlanId,
       usedVoiceSeconds: used.voiceSeconds,
-      spend: evaluateSpend(this.#usage.totalCostUsd, this.#deps.budget),
+      spend: this.#spend(),
     });
   }
 
-  #limitKind(): 'plan' | 'session' | 'spend' {
+  /** La escalera de gasto global, mas el tope propio del plan gratuito. */
+  #spend() {
     const spend = evaluateSpend(this.#usage.totalCostUsd, this.#deps.budget);
+    if (this.#grant.plan === 'free' && freeVoiceExhausted(this.#usage.freeCostUsd, this.#deps.budget)) {
+      return { ...spend, disableFreeVoice: true };
+    }
+    return spend;
+  }
+
+  #limitKind(): 'plan' | 'session' | 'spend' {
+    const spend = this.#spend();
     if (spend.voiceKillSwitch || spend.disableFreeVoice) return 'spend';
     return 'plan';
   }

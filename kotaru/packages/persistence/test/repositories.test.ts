@@ -81,6 +81,16 @@ describe('libro de consumo', () => {
     const repo = new UsageRepository(sql);
     expect(await repo.forSubject(randomUUID())).toEqual({ voiceSeconds: 0, costUsd: 0, turns: 0 });
   });
+
+  it('separa el gasto del plan gratuito', async () => {
+    const repo = new UsageRepository(sql);
+    const subject = randomUUID();
+    await repo.record({ turnId: 'f1', subjectId: subject, voiceSeconds: 1, costUsd: 0.4, plan: 'free' });
+    await repo.record({ turnId: 'p1', subjectId: subject, voiceSeconds: 1, costUsd: 1.1, plan: 'close' });
+    await repo.record({ turnId: 'n1', subjectId: subject, voiceSeconds: 1, costUsd: 0.5 });
+    expect(await repo.freeCostUsd()).toBeCloseTo(0.4);
+    expect(await repo.totalCostUsd()).toBeCloseTo(2.0);
+  });
 });
 
 describe('grants usados', () => {

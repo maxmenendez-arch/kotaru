@@ -33,7 +33,7 @@ export const STATE_LABELS: Readonly<Record<'es' | 'en', Readonly<Record<Conversa
     speaking: 'Hablando',
     interrupted: 'Te escucho',
     reconnecting: 'Reconectando',
-    limit_reached: 'Llegaste al límite del plan',
+    limit_reached: 'Voz en pausa',
     safety_handoff: 'Información de apoyo',
     closed: 'Conversación cerrada',
   },
@@ -46,7 +46,7 @@ export const STATE_LABELS: Readonly<Record<'es' | 'en', Readonly<Record<Conversa
     speaking: 'Speaking',
     interrupted: "I'm listening",
     reconnecting: 'Reconnecting',
-    limit_reached: 'Plan limit reached',
+    limit_reached: 'Voice paused',
     safety_handoff: 'Support information',
     closed: 'Conversation closed',
   },
@@ -72,6 +72,8 @@ export type ClientEvent =
   | { readonly type: 'usage'; readonly remainingSeconds: number; readonly planSeconds: number }
   | { readonly type: 'turn_done'; readonly turnId: string }
   | { readonly type: 'rejected'; readonly reason: string }
+  /** Por que se paro la voz: el plan del usuario, la sesion, o el tope de gasto del servicio. */
+  | { readonly type: 'limit'; readonly kind: 'plan' | 'session' | 'spend' }
   | { readonly type: 'closed'; readonly reason: CloseReason | 'network' | 'gave_up' };
 
 export interface ConversationClientOptions {
@@ -241,6 +243,7 @@ export class ConversationClient {
         return;
       case 'limit':
         this.#set('limit_reached');
+        this.#o.onEvent({ type: 'limit', kind: message.kind });
         return;
       case 'safety':
         if (message.action === 'crisis_handoff') this.#set('safety_handoff');

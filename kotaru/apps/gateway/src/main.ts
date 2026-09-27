@@ -5,6 +5,7 @@ import {
   PasskeyRepository,
   ConversationRepository,
   deleteAccount,
+  exportAccount,
   exportSubject,
   loadMigrations,
   MIGRATIONS_DIR,
@@ -75,7 +76,7 @@ const server = await startGatewayServer({
     conversations: stores.conversations,
     safety: stores.safety,
     sink,
-    budget: { hardCapUsd: config.monthlyHardCapUsd },
+    budget: { hardCapUsd: config.monthlyHardCapUsd, freeCapUsd: Math.min(config.freeMonthlyCapUsd, config.monthlyHardCapUsd) },
     now,
     infraCostUsd: config.infraCostUsdPerTurn,
   },
@@ -84,7 +85,10 @@ const server = await startGatewayServer({
     audience: config.apiAudience,
     memory,
     now,
-    exportSubject: (subjectId) => exportSubject(sql, subjectId, new Date().toISOString()),
+    exportSubject: async (subjectId) => ({
+      ...(await exportSubject(sql, subjectId, new Date().toISOString())),
+      account: await exportAccount(sql, subjectId),
+    }),
     retention: {
       get: (subjectId) => conversations.retentionDaysFor(subjectId),
       set: (subjectId, days) => conversations.setRetentionDays(subjectId, days, new Date().toISOString()),
@@ -99,6 +103,7 @@ const server = await startGatewayServer({
         error: error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 300) : 'unknown',
       }),
     trustProxy: config.trustProxy,
+    trustedProxies: config.trustedProxies,
     ...(config.auth
       ? {
           auth: {

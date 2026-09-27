@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
+import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAudio } from '../audio';
 import { createConversation, type Connection } from '../connection';
 import type { Lang } from '../i18n';
@@ -37,6 +37,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const [reply, setReply] = useState('');
   const [minutes, setMinutes] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [limitNote, setLimitNote] = useState<string | null>(null);
   const client = useRef<ConversationClient | null>(null);
   const audio = useRef(createAudio()).current;
   const mic = useRef(audio.input);
@@ -70,7 +71,13 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         setMinutes(Math.floor(e.remainingSeconds / 60));
         return;
       case 'rejected':
-        setError(e.reason);
+        setError(s.grantRejected);
+        return;
+      case 'limit':
+        setLimitNote(e.kind === 'spend' ? s.limitSpend : e.kind === 'session' ? s.limitSession : s.limitNote);
+        return;
+      case 'closed':
+        setError(closedMessage(e.reason, s));
         return;
       default:
         return;
@@ -83,10 +90,11 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     speaker.current.unlock?.();
     client.current?.close();
     client.current = createConversation(connection, lang, onEvent);
+    setLimitNote(null);
     try {
       await client.current.connect();
     } catch (err) {
-      setError(err instanceof Error ? err.message : s.error);
+      setError(connectMessage(err, s));
     }
   };
 
@@ -139,7 +147,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         </Card>
       ) : null}
       {state === 'reconnecting' ? <Body muted>{s.reconnectingNote}</Body> : null}
-      {state === 'limit_reached' ? <Body muted>{s.limitNote}</Body> : null}
+      {state === 'limit_reached' ? <Body muted>{limitNote ?? s.limitNote}</Body> : null}
 
       <View style={styles.captions}>
         {heard ? (
@@ -178,6 +186,35 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
       )}
     </Screen>
   );
+}
+
+/** Por que se cerro, en palabras de la persona; null si no hace falta decir nada. */
+function closedMessage(reason: string, s: ReturnType<typeof t>): string | null {
+  switch (reason) {
+    case 'client_bye':
+      return null;
+    case 'idle_timeout':
+      return s.closedIdle;
+    case 'session_max_duration':
+      return s.limitSession;
+    case 'spend_cap':
+      return s.limitSpend;
+    case 'plan_limit':
+      return s.limitNote;
+    case 'server_error':
+    case 'server_shutdown':
+      return s.closedServer;
+    default:
+      return s.closedGone;
+  }
+}
+
+/** Fallo al conectar: sesion caducada, sin red, o grant rechazado. */
+function connectMessage(err: unknown, s: ReturnType<typeof t>): string {
+  if (err instanceof ApiError && err.status === 401) return s.sessionExpired;
+  if (err instanceof ApiError && err.status === 429) return s.tooManyAttempts;
+  if (err instanceof TypeError) return s.offline;
+  return s.grantRejected;
 }
 
 const styles = StyleSheet.create({

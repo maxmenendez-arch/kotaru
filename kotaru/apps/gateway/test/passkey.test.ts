@@ -5,7 +5,7 @@ import { MemoryStore } from '@kotaru/memory';
 import { AccountRepository, deleteAccount, loadMigrations, MIGRATIONS_DIR, PasskeyRepository, runMigrations, type SqlClient } from '@kotaru/persistence';
 import { pgliteClient } from '@kotaru/persistence/testing';
 import { durableStores, startGatewayServer, type GatewayServerHandle } from '../src/index.js';
-import { ipv6Prefix64 } from '../src/api.js';
+import { clientIp, ipv6Prefix64 } from '../src/api.js';
 import { buildDeps } from './helpers.js';
 import { SoftAuthenticator } from './soft-authenticator.js';
 import { AuthApi } from '@kotaru/client';
@@ -273,5 +273,16 @@ describe('IPv6: una red /64 cuenta como una sola IP', () => {
     expect(ipv6Prefix64('2001:DB8:AAAA:BBBB:1:2:3:4')).toBe('2001:db8:aaaa:bbbb::/64');
     expect(ipv6Prefix64('::1')).toBe('0:0:0:0::/64');
     expect(ipv6Prefix64('fe80::1%eth0')).toBe('fe80:0:0:0::/64');
+  });
+
+  it('X-Forwarded-For solo cuenta si la conexion viene del proxy de confianza', () => {
+    const req = (peer: string, xff?: string) => ({ headers: xff ? { 'x-forwarded-for': xff } : {}, socket: { remoteAddress: peer } });
+    // Desde Caddy: la ultima IP de la cabecera (la que anadio Caddy).
+    expect(clientIp(req('::ffff:172.18.0.9', '6.6.6.6, 203.0.113.7'), true, ['172.18.0.9'])).toBe('203.0.113.7');
+    // Desde otro contenedor: la cabecera se ignora y cuenta su propia IP.
+    expect(clientIp(req('172.18.0.4', '203.0.113.99'), true, ['172.18.0.9'])).toBe('172.18.0.4');
+    // Sin lista (compatibilidad): se cree a cualquiera si trustProxy esta activo.
+    expect(clientIp(req('172.18.0.4', '203.0.113.99'), true)).toBe('203.0.113.99');
+    expect(clientIp(req('172.18.0.4', '203.0.113.99'), false, ['172.18.0.4'])).toBe('172.18.0.4');
   });
 });

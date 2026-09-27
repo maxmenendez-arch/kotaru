@@ -28,6 +28,17 @@ export interface SpendPolicy {
 export interface SpendBudget {
   /** Tope duro mensual. Por encima de esto no se gasta nada mas en voz. */
   readonly hardCapUsd: number;
+  /**
+   * Tope mensual del plan gratuito, dentro del tope duro. Al llegar, el plan gratuito pierde
+   * la voz y los de pago siguen: cuentas gratis (o creadas en masa) no pueden cortarle la
+   * voz a quien paga. Sin el, el gratuito solo lo limita el tope duro.
+   */
+  readonly freeCapUsd?: number;
+}
+
+/** El plan gratuito pierde la voz si su gasto propio llego a su tope. */
+export function freeVoiceExhausted(freeSpentUsd: number, budget: SpendBudget): boolean {
+  return budget.freeCapUsd !== undefined && freeSpentUsd >= budget.freeCapUsd;
 }
 
 export const SPEND_THRESHOLDS = { notify: 0.5, freeze: 0.75, degrade: 0.9, halt: 1 } as const;

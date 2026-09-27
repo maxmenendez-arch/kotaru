@@ -47,6 +47,12 @@ export interface ApiDeps {
    * Solo activarlo si el proxy existe: si no, cualquiera inventa su IP.
    */
   readonly trustProxy?: boolean;
+  /**
+   * IPs del proxy (p. ej. la del contenedor de Caddy). Si hay lista, X-Forwarded-For solo se
+   * cree cuando la conexion viene de una de ellas: otro programa del mismo servidor que
+   * hable directamente con el gateway no puede inventarse la IP para saltarse los limites.
+   */
+  readonly trustedProxies?: readonly string[];
 }
 
 const MAX_BODY_BYTES = 16 * 1024;
@@ -115,7 +121,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       try {
         if (!deps.auth) throw new HttpError(501, 'not_available');
         if (method !== 'POST') throw new HttpError(405, 'method_not_allowed');
-        const ip = clientIp(req, deps.trustProxy === true);
+        const ip = clientIp(req, deps.trustProxy === true, deps.trustedProxies);
         if (!loginLimiter.take(ip)) throw new HttpError(429, 'rate_limited');
         if (path === '/v1/auth/passkey/register/options' && (!signupPerIp.take(ip) || !signupGlobal.take('all'))) {
           throw new HttpError(429, 'signup_rate_limited');
@@ -275,9 +281,14 @@ async function route(
  * de X-Forwarded-For (la que anadio nuestro proxy): las anteriores las escribe el cliente y
  * se pueden inventar. Las IPv6 se agrupan por /64, que es lo que suele tener un solo hogar.
  */
-function clientIp(req: IncomingMessage, trustProxy: boolean): string {
+export function clientIp(
+  req: Pick<IncomingMessage, 'headers'> & { socket: { remoteAddress?: string | undefined } },
+  trustProxy: boolean,
+  trustedProxies: readonly string[] = [],
+): string {
   let ip = req.socket.remoteAddress ?? '?';
-  if (trustProxy) {
+  const peer = ip.startsWith('::ffff:') && ip.includes('.') ? ip.slice(7) : ip;
+  if (trustProxy && (trustedProxies.length === 0 || trustedProxies.includes(peer))) {
     const header = req.headers['x-forwarded-for'];
     const last = (Array.isArray(header) ? header.join(',') : header)?.split(',').at(-1)?.trim();
     if (last) ip = last;

@@ -14,6 +14,8 @@ export interface UsageLedger {
   forSubject(subjectId: string): Promise<MeterSnapshot>;
   /** Gasto acumulado del periodo, en todos los usuarios. */
   totalCostUsd(): Promise<number>;
+  /** Gasto acumulado del periodo en turnos del plan gratuito. */
+  freeCostUsd(): Promise<number>;
 }
 
 /** El medidor en memoria detras de la interfaz asincrona. Para pruebas y la demo. */
@@ -34,5 +36,9 @@ export class InMemoryUsageLedger implements UsageLedger {
 
   async totalCostUsd(): Promise<number> {
     return this.meter.totalCostUsd();
+  }
+
+  async freeCostUsd(): Promise<number> {
+    return this.meter.freeCostUsd();
   }
 }

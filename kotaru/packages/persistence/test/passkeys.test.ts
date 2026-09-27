@@ -5,6 +5,7 @@ import { loadMigrations, runMigrations } from '../src/migrate.js';
 import { PasskeyAlreadyRegistered, PasskeyRepository } from '../src/passkey-repository.js';
 import { deleteAccount } from '../src/deletion.js';
 import { runRetention } from '../src/retention.js';
+import { exportAccount } from '../src/export.js';
 import { pgliteClient } from './pglite-client.js';
 import type { SqlClient } from '../src/client.js';
 
@@ -81,5 +82,17 @@ describe('cuentas con passkey', () => {
     expect(await repo.findPasskey('cred-1')).toBeNull();
     const left = await sql.query<{ n: number }>('select count(*)::int as n from identity.passkeys');
     expect(left.rows[0]!.n).toBe(0);
+  });
+
+  it('la exportacion incluye el metodo de entrada y las passkeys, sin claves', async () => {
+    const { subjectId } = await repo.createAccountWithPasskey(passkey());
+    await repo.markUsed('cred-1', 1, NOW);
+    const exported = await exportAccount(sql, subjectId);
+    expect(exported).toMatchObject({ signInMethod: 'passkey', hasEmail: false });
+    expect(exported!.passkeys).toEqual([
+      { createdAt: expect.any(String), lastUsedAt: NOW, transports: ['internal', 'hybrid'], backedUp: true },
+    ]);
+    expect(JSON.stringify(exported)).not.toContain('cred-1');
+    expect(await exportAccount(sql, '00000000-0000-0000-0000-000000000000')).toBeNull();
   });
 });

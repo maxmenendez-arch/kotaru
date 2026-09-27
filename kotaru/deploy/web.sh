@@ -148,6 +148,14 @@ list_add() {
 list_add KOTARU_CORS_ORIGINS "$ORIGIN"
 list_add KOTARU_WEBAUTHN_ORIGINS "$ORIGIN"
 if [ -z "$(env_get KOTARU_WEBAUTHN_RP_ID)" ]; then env_set KOTARU_WEBAUTHN_RP_ID "$RP_ID"; fi
+# El gateway solo cree la IP de X-Forwarded-For si la conexion viene del contenedor de Caddy:
+# otro contenedor de la misma red no puede inventarse IPs para saltarse los limites. La IP
+# del contenedor puede cambiar si Docker lo recrea; correr web.sh otra vez la actualiza.
+CADDY_IP=$(docker inspect "$CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' | awk '{print $1}')
+if [[ "$CADDY_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "$(env_get KOTARU_TRUSTED_PROXIES)" != "$CADDY_IP" ]; then
+  env_set KOTARU_TRUSTED_PROXIES "$CADDY_IP"
+  echo "proxy de confianza: $CADDY_IP"
+fi
 if [ "$CHANGED" = 1 ]; then
   GATEWAY_TOUCHED=1
   systemctl restart kotaru-gateway
