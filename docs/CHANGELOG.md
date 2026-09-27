@@ -819,3 +819,15 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   mensaje enviado con el botón, sin errores en la página. La prueba encontró un fallo (un
   segundo mensaje en menos de 1 s se descartaba en silencio y la app quedaba "pensando"),
   corregido con el límite de ráfaga.
+
+## 2026-09-27 (tarde) — La conversación se puede releer
+
+- La pantalla de hablar muestra los intercambios anteriores de la sesión (hasta 40), con
+  desplazamiento automático al último. Cuando hay conversación, el retrato de Rio se achica
+  para dejar sitio al texto.
+- Privacidad: el historial vive solo en la memoria de la pantalla; no se guarda en el
+  teléfono ni en el navegador. Lo que Rio recuerda sigue siendo lo de Memoria.
+- Archivo: `mobile/src/screens/Conversation.tsx`.
+- Verificado con Playwright: tres mensajes escritos quedan en pantalla (3 tuyos, 3 de Rio),
+  sin errores; la prueba de voz con passkey (hablar, salir, volver a entrar, recargar, borrar
+  la cuenta) sigue pasando.

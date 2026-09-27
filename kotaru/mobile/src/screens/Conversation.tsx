@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAudio } from '../audio';
 import { createConversation, type Connection } from '../connection';
@@ -16,6 +16,18 @@ import { Body, Button, Card, Screen } from '../ui/kit';
  * lector de pantalla (09_BRAND): nunca solo con color o movimiento, y nunca con una
  * forma de onda, que se lee como vigilancia.
  */
+/**
+ * Lo que se ha dicho en esta conversacion, para poder releerlo. Vive solo en memoria de la
+ * pantalla: no se guarda en el telefono ni en el navegador (la memoria de Rio es aparte y
+ * se ve y se edita en Memoria). Como mucho HISTORY_MAX intercambios.
+ */
+const HISTORY_MAX = 40;
+interface Exchange {
+  readonly id: number;
+  readonly heard: string;
+  readonly reply: string;
+}
+
 const RING: Record<ConversationState, string> = {
   connecting: color.inkLine,
   idle: color.inkLine,
@@ -39,6 +51,9 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const [error, setError] = useState<string | null>(null);
   const [limitNote, setLimitNote] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [history, setHistory] = useState<Exchange[]>([]);
+  const nextId = useRef(0);
+  const scroll = useRef<ScrollView | null>(null);
   const client = useRef<ConversationClient | null>(null);
   const audio = useRef(createAudio()).current;
   const mic = useRef(audio.input);
@@ -52,6 +67,13 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     },
     [audio],
   );
+
+  /** Pasa el intercambio que se ve ahora al historial antes de empezar uno nuevo. */
+  const archiveCurrent = () => {
+    if (!heard && !reply) return;
+    const entry = { id: nextId.current++, heard, reply };
+    setHistory((h) => [...h, entry].slice(-HISTORY_MAX));
+  };
 
   const onEvent = (e: ClientEvent) => {
     switch (e.type) {
@@ -110,6 +132,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     }
     speaker.current.stopNow();
     if (client.current?.sendText(text)) {
+      archiveCurrent();
       setHeard(text);
       setReply('');
       setDraft('');
@@ -119,6 +142,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
 
   const pressIn = () => {
     if (!client.current || state === 'closed' || state === 'limit_reached') return;
+    archiveCurrent();
     setHeard('');
     setReply('');
     // Barge-in: Rio calla en cuanto se pulsa, sin esperar al servidor.
@@ -142,13 +166,15 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
 
   const label = STATE_LABELS[lang][state];
   const listening = state === 'listening';
+  // Con conversacion en pantalla, el retrato se achica para dejar sitio al texto.
+  const compact = history.length > 0;
 
   return (
     <Screen>
-      <View style={styles.portraitArea}>
-        <View style={[styles.ring, { borderColor: RING[state] }]}>
-          <View style={styles.portrait} accessibilityLabel="Rio" accessibilityRole="image">
-            <Text style={styles.initial}>R</Text>
+      <View style={[styles.portraitArea, compact && styles.portraitAreaCompact]}>
+        <View style={[styles.ring, compact && styles.ringCompact, { borderColor: RING[state] }]}>
+          <View style={[styles.portrait, compact && styles.portraitCompact]} accessibilityLabel="Rio" accessibilityRole="image">
+            <Text style={[styles.initial, compact && styles.initialCompact]}>R</Text>
           </View>
         </View>
         <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.state}>
@@ -172,20 +198,17 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         </View>
       ) : null}
 
-      <View style={styles.captions}>
-        {heard ? (
-          <Text style={styles.heard}>
-            <Text style={styles.speaker}>{s.you}: </Text>
-            {heard}
-          </Text>
-        ) : null}
-        {reply ? (
-          <Text style={styles.reply}>
-            <Text style={styles.speaker}>Rio: </Text>
-            {reply}
-          </Text>
-        ) : null}
-      </View>
+      <ScrollView
+        ref={scroll}
+        style={styles.captions}
+        contentContainerStyle={styles.captionsContent}
+        onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
+      >
+        {history.map((x) => (
+          <ExchangeView key={x.id} heard={x.heard} reply={x.reply} you={s.you} past />
+        ))}
+        <ExchangeView heard={heard} reply={reply} you={s.you} />
+      </ScrollView>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -237,6 +260,27 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   );
 }
 
+/** Un intercambio: lo que dijiste (o escribiste) y lo que contesto Rio. */
+function ExchangeView({ heard, reply, you, past }: { heard: string; reply: string; you: string; past?: boolean }) {
+  if (!heard && !reply) return null;
+  return (
+    <View style={[styles.exchange, past && styles.past]}>
+      {heard ? (
+        <Text style={styles.heard}>
+          <Text style={styles.speaker}>{you}: </Text>
+          {heard}
+        </Text>
+      ) : null}
+      {reply ? (
+        <Text style={styles.reply}>
+          <Text style={styles.speaker}>Rio: </Text>
+          {reply}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 /** Por que se cerro, en palabras de la persona; null si no hace falta decir nada. */
 function closedMessage(reason: string, s: ReturnType<typeof t>): string | null {
   switch (reason) {
@@ -271,9 +315,17 @@ const styles = StyleSheet.create({
   ring: { width: 188, height: 188, borderRadius: radius.pill, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
   portrait: { width: 164, height: 164, borderRadius: radius.pill, backgroundColor: color.inkRaised, alignItems: 'center', justifyContent: 'center' },
   initial: { ...type.display, color: color.mist },
+  portraitAreaCompact: { marginBottom: space.l },
+  ringCompact: { width: 96, height: 96 },
+  portraitCompact: { width: 80, height: 80 },
+  initialCompact: { ...type.title },
   state: { ...type.body, color: color.cloud, marginTop: space.m },
   minutes: { ...type.micro, color: color.mist, marginTop: space.xs },
-  captions: { flex: 1, gap: space.m },
+  captions: { flex: 1, marginBottom: space.m },
+  captionsContent: { gap: space.l, flexGrow: 1, justifyContent: 'flex-end' },
+  exchange: { gap: space.s },
+  // Lo anterior, separado por una linea fina (sin bajar el contraste del texto).
+  past: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.inkLine, paddingBottom: space.l },
   heard: { ...type.body, color: color.mist },
   reply: { ...type.body, color: color.cloud },
   speaker: { fontWeight: '600' },
