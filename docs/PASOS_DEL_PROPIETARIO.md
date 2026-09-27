@@ -105,6 +105,16 @@ Requiere tener Gemini activo.
    Igual que el de Gemini: pregunta, pide la clave sin mostrarla, la valida gratis y, si
    algo falla, deja todo como estaba.
 
+### Together AI — Whisper (Rio te oye) — 0,0015 USD por minuto de voz
+
+Con la misma clave de Together (después de `deploy/kokoro.sh`):
+```bash
+cd ~/Kotaru/kotaru && bash deploy/whisper.sh
+```
+No pide nada. Sustituye al oído simulado: Rio transcribe lo que dices al soltar el botón.
+Con esto AssemblyAI deja de ser imprescindible para probar; sigue siendo la opción para la
+conversación manos libres (streaming).
+
 ### AWS Polly (texto a voz) — 16 USD por millón de caracteres
 
 1. Crear cuenta de AWS: <https://portal.aws.amazon.com/billing/signup>.

@@ -92,4 +92,19 @@ describe('turnos escritos', () => {
     expect(reply?.text.length).toBeGreaterThan(0);
     client.close();
   });
+
+  it('sin oido real: ready avisa, un turno de voz no se procesa y el texto sigue', async () => {
+    const { deps } = buildDeps();
+    server = await startGatewayServer({ port: 0, keys: [key], audience: AUDIENCE, deps: { ...deps, voiceUnavailable: true } });
+    const { socket, collected } = await connect(server.port);
+    socket.send(JSON.stringify({ type: 'hello', grant: grantFor(), protocolVersion: PROTOCOL_VERSION }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'ready'));
+    expect(collected.messages.find((m) => m.type === 'ready')).toMatchObject({ voiceAvailable: false });
+    socket.send(JSON.stringify({ type: 'turn_start', turnId: 'v1' }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'turn_done'));
+    expect(collected.messages.some((m) => m.type === 'transcript' || m.type === 'token')).toBe(false);
+    socket.send(JSON.stringify({ type: 'text_turn', turnId: 't1', text: 'hola' }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'token'));
+    socket.close();
+  });
 });

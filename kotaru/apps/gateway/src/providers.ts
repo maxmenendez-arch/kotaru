@@ -10,7 +10,7 @@ import { MockLlmProvider, MockModerationProvider, MockSttProvider, MockTtsProvid
 import { AssemblyAiSttProvider } from '@kotaru/ai-adapters-assemblyai';
 import { GeminiLlmProvider, GEMINI_RATES } from '@kotaru/ai-adapters-gemini';
 import { PollyTtsProvider } from '@kotaru/ai-adapters-polly';
-import { KokoroTtsProvider } from '@kotaru/ai-adapters-together';
+import { KokoroTtsProvider, WhisperSttProvider } from '@kotaru/ai-adapters-together';
 import type { ProviderResolver, RouterPort } from '@kotaru/orchestrator';
 import type { ProviderSettings } from './config.js';
 
@@ -22,6 +22,11 @@ export interface ProviderSet {
   readonly registered: readonly string[];
   /** Proveedores registrados que el router NO podra elegir, con el motivo. */
   readonly blocked: readonly { readonly id: string; readonly reason: string }[];
+  /**
+   * Hay un modelo de lenguaje real pero el oido es simulado (p. ej. `gemini,mock-voice`
+   * sin AssemblyAI). Con todo simulado (`mock`, desarrollo y pruebas) la voz sigue.
+   */
+  readonly voiceUnavailable: boolean;
 }
 
 /**
@@ -31,7 +36,8 @@ export interface ProviderSet {
  * - `mock-voice`: el oido y la voz simulados que falten (STT si no hay AssemblyAI, TTS si
  *   no hay Polly ni Kokoro), sin LLM simulado. Con `gemini,mock-voice` el chat de texto ya
  *   habla con el modelo real antes de tener las claves de voz.
- * - `assemblyai`, `gemini`, `polly`, `kokoro` (Kokoro-82M en Together AI): los reales. Cada uno se registra con sus garantias
+ * - `assemblyai`, `gemini`, `polly`, `kokoro` y `whisper` (Kokoro-82M y Whisper Large v3
+ *   en Together AI): los reales. Cada uno se registra con sus garantias
  *   declaradas (retencion, entrenamiento, derechos de audio) segun las confirmaciones del
  *   operador; el router excluye al que no las cumpla. No se mezclan en silencio: si se
  *   piden reales, el simulado solo entra si tambien se nombra.
@@ -54,7 +60,7 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     add(tts, t);
   } else if (enabled.includes('mock-voice')) {
     // Solo lo que falte: un simulado gratis junto a uno real lo ganaria siempre por precio.
-    if (!settings.assemblyai) add(stt, new MockSttProvider());
+    if (!settings.assemblyai && !settings.whisper) add(stt, new MockSttProvider());
     if (!settings.polly && !settings.kokoro) add(tts, new MockTtsProvider());
   }
   if (settings.assemblyai) {
@@ -82,6 +88,9 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     });
     add(tts, t);
   }
+  if (settings.whisper) {
+    add(stt, new WhisperSttProvider({ apiKey: settings.whisper.apiKey, zeroRetentionConfirmed: settings.whisper.zeroRetentionConfirmed }));
+  }
   if (settings.kokoro) {
     add(
       tts,
@@ -99,6 +108,8 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
   for (const p of tts.values()) router.register({ descriptor: p.descriptor, estimate: (u: PredictedUsage, c) => p.estimate({ characters: u.characters ?? 0 }, c) });
 
   const all = [...stt.values(), ...llm.values(), ...tts.values()];
+  const realLlm = [...llm.keys()].some((id) => !id.startsWith('mock-'));
+  const realStt = [...stt.keys()].some((id) => !id.startsWith('mock-'));
   return {
     router,
     resolve: {
@@ -108,6 +119,7 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     },
     moderation: new MockModerationProvider(),
     registered: all.map((p) => p.descriptor.id),
+    voiceUnavailable: realLlm && !realStt,
     blocked: all.flatMap((p) => {
       const d = p.descriptor;
       if (!d.retentionKnown) return [{ id: d.id, reason: 'retencion sin confirmar' }];

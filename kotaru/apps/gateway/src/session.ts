@@ -88,6 +88,8 @@ export interface SessionDeps {
   readonly infraCostUsd?: number;
   readonly conversations?: ConversationLog;
   readonly safety?: SafetyLog;
+  /** Sin oido real: no se aceptan turnos de voz (ver `ready.voiceAvailable`). */
+  readonly voiceUnavailable?: boolean;
 }
 
 export interface SessionTransport {
@@ -154,6 +156,7 @@ export class GatewaySession {
     const entitlement = this.#entitlement();
     this.#transport.send({
       type: 'ready',
+      ...(this.#deps.voiceUnavailable ? { voiceAvailable: false } : {}),
       sessionId: this.#grant.jti,
       maxSessionSeconds: Math.min(this.#grant.maxSessionSeconds, entitlement.maxSessionSeconds),
     });
@@ -178,6 +181,12 @@ export class GatewaySession {
         if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(message.turnId)) {
           this.#transport.close('protocol_error');
           this.#closed = true;
+          return;
+        }
+        // Sin oido real, un turno de voz seria una respuesta a una frase inventada. La app
+        // no deberia mandarlo; si llega (version vieja), se cierra sin respuesta.
+        if (this.#deps.voiceUnavailable) {
+          this.#transport.send({ type: 'turn_done', turnId: message.turnId });
           return;
         }
         // Sin await aqui a proposito: el audio del turno llega en los frames siguientes y

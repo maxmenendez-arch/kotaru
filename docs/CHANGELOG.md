@@ -872,3 +872,23 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - AI Studio emite ahora claves con otro formato (`AQ.` + caracteres, con un punto); el script
   solo aceptaba el clásico (`AIza…`, 39 caracteres). Acepta los dos. Probado en simulación
   con una clave inventada del formato nuevo.
+
+## 2026-09-27 (noche) — Rio oye de verdad con Whisper (Together AI); sin oído real, no se finge
+
+- El dueño probó el micrófono y Rio "oía" siempre la frase del simulador ("hola, hoy me fue
+  bien en el trabajo") y Gemini le contestaba de verdad a algo que nadie dijo. Dos cambios:
+- `WhisperSttProvider` en `@kotaru/ai-adapters-together`: Whisper Large v3 por
+  `/v1/audio/transcriptions`, 0,0015 USD por minuto verificado el 2026-09-27
+  (https://www.together.ai/pricing; redondeo `ASSUMPTION`). Junta el turno de pulsar para
+  hablar, lo manda como WAV en memoria (no se guarda) con idioma y la pista "Kotaru, Rio".
+  No envía silencios ni toques de menos de 0,3 s: Whisper inventa frases con el silencio.
+  Proveedor `whisper` en el gateway (misma clave y retención cero que Kokoro);
+  `deploy/whisper.sh` lo activa sin pedir nada y vuelve atrás si falla.
+- Sin oído real pero con modelo real (p. ej. `gemini,mock-voice`), el servidor lo dice en
+  `ready.voiceAvailable: false`, ignora turnos de voz, y la app cambia el botón de hablar por
+  "Por ahora Rio solo lee lo que escribes". Todo simulado (desarrollo) sigue como antes.
+- Verificado: 7 pruebas de Whisper, 3 del gateway (363 en total), lint de arquitectura;
+  Playwright con `gemini,mock-voice`: sin botón de hablar, con la nota y la caja de texto,
+  sin errores; simulación de `whisper.sh`: arranca con `together-whisper,
+  gemini-3.1-flash-lite, together-kokoro`. Sin acceso a Together desde aquí, la primera
+  transcripción real la hace el dueño.

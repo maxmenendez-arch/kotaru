@@ -32,6 +32,8 @@ describe('proveedores del gateway', () => {
     const set = buildProviders(config.providers, config.providerSettings, Date.now);
     expect(set.registered).toEqual(['mock-stt', 'mock-llm', 'mock-tts']);
     expect(select(set, 'stt').providerId).toBe('mock-stt');
+    // Todo simulado (desarrollo): la voz de prueba sigue disponible.
+    expect(set.voiceUnavailable).toBe(false);
   });
 
   it('pedir reales exige sus claves, y Polly las credenciales de AWS', () => {
@@ -84,6 +86,8 @@ describe('proveedores del gateway', () => {
     expect(select(set, 'llm').providerId).toBe('gemini-3.1-flash-lite');
     expect(select(set, 'stt').providerId).toBe('mock-stt');
     expect(select(set, 'tts').providerId).toBe('mock-tts');
+    // Oido simulado con un modelo real: la app no debe ofrecer hablar.
+    expect(set.voiceUnavailable).toBe(true);
   });
 
   it('kokoro (Together): con sus confirmaciones es la voz, y mock-voice ya no pone un TTS simulado', () => {
@@ -107,5 +111,22 @@ describe('proveedores del gateway', () => {
     const config = loadConfig({ ...base, KOTARU_PROVIDERS: 'kokoro', TOGETHER_API_KEY: 'k3' });
     const set = buildProviders(config.providers, config.providerSettings, Date.now);
     expect(set.blocked.map((b) => b.id)).toEqual(['together-kokoro']);
+  });
+
+  it('whisper (Together) oye de verdad: con gemini y kokoro no queda nada simulado y la voz esta disponible', () => {
+    const config = loadConfig({
+      ...base,
+      KOTARU_PROVIDERS: 'gemini,mock-voice,kokoro,whisper',
+      GEMINI_API_KEY: 'k2',
+      KOTARU_GEMINI_PAID_TIER_CONFIRMED: 'true',
+      TOGETHER_API_KEY: 'k3',
+      KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED: 'true',
+      KOTARU_TOGETHER_COMMERCIAL_TERMS_REVIEWED: 'true',
+    });
+    const set = buildProviders(config.providers, config.providerSettings, Date.now);
+    expect(set.registered).toEqual(['together-whisper', 'gemini-3.1-flash-lite', 'together-kokoro']);
+    expect(set.blocked).toEqual([]);
+    expect(select(set, 'stt').providerId).toBe('together-whisper');
+    expect(set.voiceUnavailable).toBe(false);
   });
 });

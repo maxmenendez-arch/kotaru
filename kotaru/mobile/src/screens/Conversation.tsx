@@ -52,6 +52,8 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const [limitNote, setLimitNote] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [history, setHistory] = useState<Exchange[]>([]);
+  // El servidor dice al conectar si puede oir de verdad; hasta entonces se asume que si.
+  const [voiceOn, setVoiceOn] = useState(true);
   const nextId = useRef(0);
   const scroll = useRef<ScrollView | null>(null);
   const client = useRef<ConversationClient | null>(null);
@@ -89,6 +91,9 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         return;
       case 'audio':
         speaker.current.play(e.pcm, e.sampleRate);
+        return;
+      case 'voice':
+        setVoiceOn(e.available);
         return;
       case 'usage':
         setMinutes(Math.floor(e.remainingSeconds / 60));
@@ -141,7 +146,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   };
 
   const pressIn = () => {
-    if (!client.current || state === 'closed' || state === 'limit_reached') return;
+    if (!client.current || state === 'closed' || state === 'limit_reached' || !voiceOn) return;
     archiveCurrent();
     setHeard('');
     setReply('');
@@ -180,7 +185,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.state}>
           {label}
         </Text>
-        {minutes !== null ? <Text style={styles.minutes}>{s.minutesLeft(minutes)}</Text> : null}
+        {minutes !== null && voiceOn ? <Text style={styles.minutes}>{s.minutesLeft(minutes)}</Text> : null}
       </View>
 
       {state === 'safety_handoff' ? (
@@ -242,6 +247,8 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         <Body muted>{s.notConnected}</Body>
       ) : state === 'closed' ? (
         <Button label={s.connect} onPress={() => void connect()} />
+      ) : !voiceOn ? (
+        <Text style={styles.note}>{s.voiceNotYet}</Text>
       ) : (
         <>
           <Pressable

@@ -22,7 +22,17 @@ export type ClientMessage =
   | { readonly type: 'bye' };
 
 export type ServerMessage =
-  | { readonly type: 'ready'; readonly sessionId: string; readonly maxSessionSeconds: number }
+  | {
+      readonly type: 'ready';
+      readonly sessionId: string;
+      readonly maxSessionSeconds: number;
+      /**
+       * false: el servidor no tiene un oido real (STT simulado) aunque el modelo sea real. La
+       * app no debe ofrecer hablar: el simulado "oiria" siempre la misma frase y Rio
+       * contestaria a algo que la persona no dijo. Ausente = true (servidores anteriores).
+       */
+      readonly voiceAvailable?: boolean;
+    }
   | { readonly type: 'rejected'; readonly reason: GrantRejection }
   | { readonly type: 'transcript'; readonly turnId: string; readonly text: string; readonly final: boolean }
   | { readonly type: 'token'; readonly turnId: string; readonly text: string }

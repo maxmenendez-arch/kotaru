@@ -71,6 +71,8 @@ export type ClientEvent =
   | { readonly type: 'audio'; readonly pcm: Uint8Array; readonly sampleRate: number; readonly seq: number }
   | { readonly type: 'usage'; readonly remainingSeconds: number; readonly planSeconds: number }
   | { readonly type: 'turn_done'; readonly turnId: string }
+  /** Al conectar: si el servidor puede oir de verdad. Si no, solo texto. */
+  | { readonly type: 'voice'; readonly available: boolean }
   | { readonly type: 'rejected'; readonly reason: string }
   /** Por que se paro la voz: el plan del usuario, la sesion, o el tope de gasto del servicio. */
   | { readonly type: 'limit'; readonly kind: 'plan' | 'session' | 'spend' }
@@ -147,6 +149,7 @@ export class ConversationClient {
         if (!settled && message.type === 'ready') {
           settled = true;
           this.#attempt = 0;
+          this.#o.onEvent({ type: 'voice', available: message.voiceAvailable !== false });
           this.#set('idle');
           resolve();
         } else if (!settled && message.type === 'rejected') {

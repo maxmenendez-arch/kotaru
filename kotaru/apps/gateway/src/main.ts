@@ -71,6 +71,7 @@ const server = await startGatewayServer({
     router: providers.router,
     resolve: providers.resolve,
     moderation: providers.moderation,
+    voiceUnavailable: providers.voiceUnavailable,
     memory,
     usage: stores.usage,
     conversations: stores.conversations,

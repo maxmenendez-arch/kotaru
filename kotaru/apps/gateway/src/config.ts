@@ -53,9 +53,11 @@ export interface ProviderSettings {
     readonly zeroRetentionConfirmed: boolean;
     readonly commercialTermsReviewed: boolean;
   };
+  /** Whisper Large v3 servido por Together AI (voz a texto; misma clave que Kokoro). */
+  readonly whisper?: { readonly apiKey: string; readonly zeroRetentionConfirmed: boolean };
 }
 
-const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly', 'kokoro']);
+const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly', 'kokoro', 'whisper']);
 
 export class ConfigError extends Error {
   constructor(readonly problems: readonly string[]) {
@@ -164,6 +166,12 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
         }
       : {}),
   };
+  if (providers.includes('whisper')) {
+    (providerSettings as { whisper?: ProviderSettings['whisper'] }).whisper = {
+      apiKey: providers.includes('kokoro') ? providerSettings.kokoro!.apiKey : required('TOGETHER_API_KEY'),
+      zeroRetentionConfirmed: flag('KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED'),
+    };
+  }
   if (providers.includes('polly') && !(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY)) {
     problems.push('polly necesita AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY');
   }
