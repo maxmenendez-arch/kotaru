@@ -745,3 +745,12 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Desplegar: `install.sh` (gateway nuevo y migración 0010) y `web.sh`.
 - Passkeys en la app del teléfono: necesitan el dominio asociado (cuenta de Apple Developer y
   firma de Android).
+
+## 2026-09-27 — Dominio de las passkeys: app.kotaru.app
+
+- El dominio de las passkeys pasa a ser `app.kotaru.app` (antes del primer despliegue, así
+  que no invalida ninguna). La raíz `kotaru.app` no apunta a este servidor, y las apps
+  nativas necesitan que ese dominio sirva sus archivos de verificación.
+- `web.sh` genera `/.well-known/apple-app-site-association` y `/.well-known/assetlinks.json`
+  cuando `web.env` tiene `KOTARU_APPLE_TEAM_ID` y `KOTARU_ANDROID_CERT_SHA256`; Caddy los
+  sirve como JSON. Verificado con `web.sh` simulado (JSON válido) y `caddy validate`.

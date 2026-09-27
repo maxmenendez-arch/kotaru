@@ -135,6 +135,11 @@ al acercarse baja la calidad y al llegar corta la voz.
 
 La app ya declara el permiso (`usesAppleSignIn`).
 
+Para las **passkeys en el iPhone**: en el App ID `app.kotaru.mobile`, activar también
+**Associated Domains**; y en el servidor, en `/etc/kotaru/web.env`,
+`KOTARU_APPLE_TEAM_ID=` tu Team ID (arriba a la derecha en developer.apple.com, 10
+caracteres), y volver a correr `bash deploy/web.sh`.
+
 ---
 
 ## 4. Google: client id de OAuth
@@ -153,7 +158,9 @@ En <https://console.cloud.google.com> (puede ser el mismo proyecto de Gemini):
      `eas credentials`, o de `./gradlew signingReport` tras `npx expo prebuild`) y la de
      Google Play (Play Console → Integridad de la app). Crea un cliente Android por cada
      huella. Su id no se usa en ningún sitio, pero Google exige que exista.
-3. Servidor: `KOTARU_GOOGLE_CLIENT_IDS=WEB_CLIENT_ID,IOS_CLIENT_ID`.
+3. Servidor: `KOTARU_GOOGLE_CLIENT_IDS=WEB_CLIENT_ID,IOS_CLIENT_ID`. Para las passkeys en
+   Android, la misma huella pero en SHA-256 va en `/etc/kotaru/web.env` como
+   `KOTARU_ANDROID_CERT_SHA256=AB:CD:...` (y volver a correr `bash deploy/web.sh`).
 4. App (al compilar): `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=WEB_CLIENT_ID` y
    `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=IOS_CLIENT_ID`.
 5. Webapp, en `/etc/kotaru/web.env`: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=WEB_CLIENT_ID` y volver

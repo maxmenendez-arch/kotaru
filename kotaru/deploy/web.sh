@@ -13,7 +13,7 @@
 #   2. Compila la app para la web con esos valores.
 #   3. Deja los archivos en /etc/caddy/otros-sitios/kotaru-web (cambio atomico) y copia
 #      deploy/kotaru-web.caddy junto a ellos, con la politica de seguridad apuntando al API.
-#   4. Configura el gateway para ese origen (CORS y passkeys con dominio kotaru.app), lo
+#   4. Configura el gateway para ese origen (CORS y passkeys en app.kotaru.app), lo
 #      reinicia si cambio algo y espera a que responda de verdad.
 #   5. Valida la configuracion de Caddy y la recarga (los demas sitios no se cortan).
 #   6. Comprueba la pagina, el CORS y las passkeys.
@@ -48,6 +48,10 @@ EXPO_PUBLIC_KOTARU_SERVER_URL=https://api.kotaru.app
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
 # Services ID de Sign in with Apple para la web (tambien en KOTARU_APPLE_CLIENT_IDS).
 EXPO_PUBLIC_APPLE_WEB_SERVICE_ID=
+# Passkeys en las apps nativas (no son secretos): Team ID de Apple Developer (10 letras y
+# numeros) y huella SHA-256 del certificado con que se firma la app de Android.
+KOTARU_APPLE_TEAM_ID=
+KOTARU_ANDROID_CERT_SHA256=
 EOF
   chmod 644 "$WEB_ENV"
   echo "creado $WEB_ENV"
@@ -56,7 +60,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in ''|'#'*) continue ;; esac
   key=${line%%=*}
   value=${line#*=}
-  [[ $key =~ ^EXPO_PUBLIC_[A-Z0-9_]+$ ]] && export "$key=$value"
+  [[ $key =~ ^(EXPO_PUBLIC_[A-Z0-9_]+|KOTARU_APPLE_TEAM_ID|KOTARU_ANDROID_CERT_SHA256)$ ]] && export "$key=$value"
 done < "$WEB_ENV"
 API=${EXPO_PUBLIC_KOTARU_SERVER_URL:-https://api.kotaru.app}
 API_HOST=${API#https://}
@@ -66,9 +70,10 @@ echo "servidor: $API"
 echo "Google: ${EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID:-(sin configurar)}"
 echo "Apple: ${EXPO_PUBLIC_APPLE_WEB_SERVICE_ID:-(sin configurar)}"
 
-# Dominio de las passkeys: el registrable (app.kotaru.app -> kotaru.app), para que valgan
-# tambien en kotaru.app y en las apps nativas con dominio asociado.
-RP_ID=${KOTARU_WEBAUTHN_RP_ID:-${DOMAIN#*.}}
+# Dominio de las passkeys: el de la propia webapp. Tambien lo usaran las apps nativas
+# (dominio asociado webcredentials:app.kotaru.app), cuyos archivos de verificacion sirve este
+# mismo sitio. Cambiarlo despues invalida las passkeys ya creadas.
+RP_ID=${KOTARU_WEBAUTHN_RP_ID:-$DOMAIN}
 [[ "$RP_ID" =~ $HOSTNAME_RE ]] || die "dominio de passkeys no valido: $RP_ID"
 
 say "Compilando"
@@ -111,6 +116,17 @@ fail() {
 say "Publicando archivos"
 rm -rf "$TARGET.new" "$TARGET.old"
 cp -r "$WORK/dist" "$TARGET.new"
+# Verificacion de dominio para las passkeys de las apps nativas: iOS pregunta por
+# apple-app-site-association y Android por assetlinks.json. Solo si hay datos.
+mkdir -p "$TARGET.new/.well-known"
+if [[ "${KOTARU_APPLE_TEAM_ID:-}" =~ ^[A-Z0-9]{10}$ ]]; then
+  printf '{"webcredentials":{"apps":["%s.app.kotaru.mobile"]}}\n' "$KOTARU_APPLE_TEAM_ID" > "$TARGET.new/.well-known/apple-app-site-association"
+  echo "iOS: dominio asociado para $KOTARU_APPLE_TEAM_ID.app.kotaru.mobile"
+fi
+if [[ "${KOTARU_ANDROID_CERT_SHA256:-}" =~ ^([0-9A-F]{2}:){31}[0-9A-F]{2}$ ]]; then
+  printf '[{"relation":["delegate_permission/common.get_login_creds"],"target":{"namespace":"android_app","package_name":"app.kotaru.mobile","sha256_cert_fingerprints":["%s"]}}]\n' "$KOTARU_ANDROID_CERT_SHA256" > "$TARGET.new/.well-known/assetlinks.json"
+  echo "Android: dominio asociado para app.kotaru.mobile"
+fi
 chmod -R a+rX "$TARGET.new"
 if [ -d "$TARGET" ]; then mv "$TARGET" "$TARGET.old"; fi
 mv "$TARGET.new" "$TARGET"

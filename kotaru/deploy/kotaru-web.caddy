@@ -25,6 +25,13 @@ app.kotaru.app {
 	@page path / /index.html
 	header @page Cache-Control "no-cache"
 
+	# Verificacion de dominio para las passkeys de las apps nativas (JSON, sin redirigir).
+	@wellknown path /.well-known/apple-app-site-association /.well-known/assetlinks.json
+	header @wellknown Content-Type application/json
+	handle @wellknown {
+		file_server
+	}
+
 	# Cualquier otra ruta es la app (una sola pagina).
 	try_files {path} /index.html
 	file_server

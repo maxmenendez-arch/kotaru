@@ -204,8 +204,12 @@ solo a `api.kotaru.app`, y micrófono solo para ella misma. El token de sesión 
 script ajeno lo lea.
 
 **Passkeys** (el login que no depende de nadie): `web.sh` pone en `gateway.env`
-`KOTARU_WEBAUTHN_RP_ID=kotaru.app` y añade `https://app.kotaru.app` a
-`KOTARU_WEBAUTHN_ORIGINS`. Con eso la webapp ofrece "Crear cuenta con passkey" (Face ID,
+`KOTARU_WEBAUTHN_RP_ID=app.kotaru.app` y añade `https://app.kotaru.app` a
+`KOTARU_WEBAUTHN_ORIGINS`. El dominio de las passkeys es el de la webapp, no `kotaru.app`:
+la raíz de `kotaru.app` no apunta a este servidor, y las apps nativas necesitan que el
+dominio de las passkeys sirva sus archivos de verificación (`web.sh` los genera en
+`/.well-known/` si `web.env` tiene `KOTARU_APPLE_TEAM_ID` y `KOTARU_ANDROID_CERT_SHA256`).
+**No cambiarlo** una vez haya usuarios: las passkeys creadas dejarían de valer. Con eso la webapp ofrece "Crear cuenta con passkey" (Face ID,
 huella o PIN del equipo; sin correo ni contraseña). El servidor solo guarda la clave
 pública. Crear cuentas tiene su propio límite: 3 seguidas por IP y luego 1 cada 20
 minutos, y 60 por hora en todo el servidor, porque cada cuenta trae minutos gratis.
