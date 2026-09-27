@@ -18,7 +18,7 @@ describe('migraciones', () => {
     const { result } = await migrated();
     expect(result.applied).toEqual([
       '0001_identity', '0002_app_conversation', '0003_app_memory',
-      '0004_app_usage', '0005_app_safety', '0006_companion_slugs', '0007_conversation_retention', '0008_erased_subjects', '0009_auth',
+      '0004_app_usage', '0005_app_safety', '0006_companion_slugs', '0007_conversation_retention', '0008_erased_subjects', '0009_auth', '0010_passkeys',
     ]);
     expect(result.skipped).toEqual([]);
   });

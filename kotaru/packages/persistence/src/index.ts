@@ -9,3 +9,4 @@ export * from './export.js';
 export * from './metric-sink.js';
 export * from './safety-repository.js';
 export * from './account-repository.js';
+export * from './passkey-repository.js';

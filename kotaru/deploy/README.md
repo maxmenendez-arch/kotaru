@@ -203,7 +203,17 @@ solo a `api.kotaru.app`, y micrófono solo para ella misma. El token de sesión 
 `sessionStorage` (se pierde al cerrar la pestaña); esa política es lo que impide que un
 script ajeno lo lea.
 
-Login en la web: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (el client id web, con
+**Passkeys** (el login que no depende de nadie): `web.sh` pone en `gateway.env`
+`KOTARU_WEBAUTHN_RP_ID=kotaru.app` y añade `https://app.kotaru.app` a
+`KOTARU_WEBAUTHN_ORIGINS`. Con eso la webapp ofrece "Crear cuenta con passkey" (Face ID,
+huella o PIN del equipo; sin correo ni contraseña). El servidor solo guarda la clave
+pública. Crear cuentas tiene su propio límite: 3 seguidas por IP y luego 1 cada 20
+minutos, y 60 por hora en todo el servidor, porque cada cuenta trae minutos gratis.
+
+Si algo falla a mitad, `web.sh` deja todo como estaba: los archivos anteriores, el sitio
+de Caddy y `gateway.env` (y reinicia el gateway con la configuración vieja).
+
+Login con Google y Apple en la web: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (el client id web, con
 `https://app.kotaru.app` en sus orígenes autorizados) y `EXPO_PUBLIC_APPLE_WEB_SERVICE_ID`
 (un Services ID de Apple, que también va en `KOTARU_APPLE_CLIENT_IDS`). Pasos en
 `docs/PASOS_DEL_PROPIETARIO.md`.

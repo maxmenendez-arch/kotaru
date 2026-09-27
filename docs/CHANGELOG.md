@@ -699,3 +699,49 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Correr `deploy/web.sh` en el servidor.
 - Client id web de Google (con el origen `https://app.kotaru.app`) y Services ID de Apple:
   sin ellos la página carga pero no deja entrar.
+
+## 2026-09-27 — Passkeys: cuenta sin Google, sin Apple, sin correo
+
+**Qué cambió**
+- La webapp no dejaba entrar: solo ofrecía Google y Apple, que aún no están configurados.
+  Ahora ofrece primero **crear cuenta o entrar con passkey** (Face ID, huella o PIN del
+  equipo). Sin terceros, sin correo y sin contraseña; el servidor solo guarda la clave pública.
+- Servidor: `POST /v1/auth/passkey/{register,login}/{options,verify}` con
+  `@simplewebauthn/server` 14.0.3 (fijada). Retos de un solo uso que caducan a los 5 minutos
+  y se gastan aunque la verificación falle. Verificación del usuario obligatoria, origen y
+  dominio comprobados, user handle y contador (un contador que retrocede se rechaza y se
+  registra). Migración `0010_passkeys` (credenciales y retos); la retención barre los retos
+  caducados.
+- Cuenta de passkey = cuenta con seudónimo, como las de Apple y Google: la exportación, el
+  borrado (las passkeys se borran en cascada) y las sesiones con rotación funcionan igual.
+- Límites: crear cuentas tiene su propio límite (3 por IP y luego 1 cada 20 minutos; 60 por
+  hora en total), porque cada cuenta nueva trae minutos gratis. Las IPv6 se agrupan por /64
+  con la dirección expandida (antes, una dirección comprimida podía caer en otro grupo).
+- `AuthApi` (cliente): métodos de passkey y corrección de un fallo que rompía todo login en
+  el navegador (`fetch` llamado con otro `this`: "Illegal invocation").
+- Los errores 500 del API ahora se registran (ruta sin ids y tipo de error; nada del usuario).
+- `deploy/web.sh`: configura las passkeys en el gateway (`KOTARU_WEBAUTHN_RP_ID=kotaru.app`,
+  origen `https://app.kotaru.app`), espera a que el gateway responda de verdad y, si algo
+  falla, deja todo como estaba (archivos, sitio de Caddy y `gateway.env`). La política de
+  seguridad de la página apunta al servidor que se configure.
+
+**Cómo se verificó**
+- 15 pruebas del gateway con un autenticador de software que firma como un teléfono (ES256):
+  registro, entrada, reto de un solo uso, otro origen, otro dominio, sin verificación del
+  usuario, firma con otra clave, passkey desconocida, contador que retrocede, user handle
+  ajeno, credencial repetida, cuenta borrada, cuerpos malformados, límite de altas, IPv6.
+  7 pruebas del repositorio; 331 en total en verde, y las 30 contra PostgreSQL real.
+- Playwright con el autenticador virtual de Chromium, contra el gateway empaquetado y
+  PostgreSQL detrás de Caddy con la política de seguridad real: crear cuenta con passkey →
+  hablar con Rio → cerrar sesión → volver a entrar → recargar (sigue la sesión) → borrar la
+  cuenta → la passkey ya no entra.
+- Revisión de seguridad independiente: sin forma de entrar en cuentas ajenas. Corregido lo
+  que señaló: límite de altas, agrupación IPv6, crecimiento de la tabla de retos, vuelta
+  atrás completa de `web.sh` y comprobación real del gateway, y el registro de contadores.
+  Quedan anotados: confiar en `X-Forwarded-For` solo si viene del contenedor de Caddy, y un
+  presupuesto de gasto aparte para el plan gratuito.
+
+**Pendiente**
+- Desplegar: `install.sh` (gateway nuevo y migración 0010) y `web.sh`.
+- Passkeys en la app del teléfono: necesitan el dominio asociado (cuenta de Apple Developer y
+  firma de Android).

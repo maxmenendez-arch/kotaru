@@ -22,6 +22,8 @@ export interface GatewayConfig {
     readonly googleClientIds: readonly string[];
     readonly emailHashKey: Uint8Array;
     readonly emailEncryptionKey: Uint8Array;
+    /** Passkeys (WebAuthn): dominio y origenes aceptados. Ausente si no se configuro. */
+    readonly passkeys?: { readonly rpId: string; readonly origins: readonly string[] };
   };
   readonly trustProxy: boolean;
 }
@@ -164,7 +166,32 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
   const googleClientIds = list('KOTARU_GOOGLE_CLIENT_IDS');
   const emailHashKey = secret32('KOTARU_EMAIL_HASH_KEY');
   const emailEncryptionKey = secret32('KOTARU_EMAIL_ENCRYPTION_KEY');
-  const wantsAuth = appleClientIds.length > 0 || googleClientIds.length > 0;
+  const rpId = env.KOTARU_WEBAUTHN_RP_ID?.trim().toLowerCase() || null;
+  const passkeyOrigins = list('KOTARU_WEBAUTHN_ORIGINS');
+  if (rpId || passkeyOrigins.length > 0) {
+    // `localhost` solo para desarrollo: los navegadores lo tratan como contexto seguro.
+    if (!rpId || (rpId !== 'localhost' && !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(rpId))) {
+      problems.push('KOTARU_WEBAUTHN_RP_ID debe ser un dominio (p. ej. kotaru.app)');
+    }
+    if (passkeyOrigins.length === 0) problems.push('las passkeys necesitan KOTARU_WEBAUTHN_ORIGINS');
+    for (const origin of passkeyOrigins) {
+      if (origin.startsWith('android:apk-key-hash:')) continue;
+      let host: string | null = null;
+      try {
+        const url = new URL(origin);
+        const secure = url.protocol === 'https:' || (rpId === 'localhost' && url.protocol === 'http:');
+        if (secure && url.origin === origin) host = url.hostname;
+      } catch {
+        host = null;
+      }
+      // Una passkey de kotaru.app vale en kotaru.app y sus subdominios, en ningun otro sitio.
+      if (!host || !rpId || (host !== rpId && !host.endsWith(`.${rpId}`))) {
+        problems.push(`KOTARU_WEBAUTHN_ORIGINS: ${origin} no es un origen https de ${rpId ?? 'el dominio'}`);
+      }
+    }
+  }
+  const passkeys = rpId && passkeyOrigins.length > 0 ? { rpId, origins: passkeyOrigins } : undefined;
+  const wantsAuth = appleClientIds.length > 0 || googleClientIds.length > 0 || passkeys !== undefined;
   if (wantsAuth && (!emailHashKey || !emailEncryptionKey)) {
     problems.push('el login necesita KOTARU_EMAIL_HASH_KEY y KOTARU_EMAIL_ENCRYPTION_KEY');
   }
@@ -190,7 +217,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
       .map((o) => o.trim())
       .filter(Boolean),
     ...(wantsAuth && emailHashKey && emailEncryptionKey
-      ? { auth: { appleClientIds, googleClientIds, emailHashKey, emailEncryptionKey } }
+      ? { auth: { appleClientIds, googleClientIds, emailHashKey, emailEncryptionKey, ...(passkeys ? { passkeys } : {}) } }
       : {}),
     trustProxy: flag('KOTARU_TRUST_PROXY'),
   };

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { MemoryStore } from '@kotaru/memory';
 import {
   AccountRepository,
+  PasskeyRepository,
   ConversationRepository,
   deleteAccount,
   exportSubject,
@@ -90,6 +91,12 @@ const server = await startGatewayServer({
     },
     ready: async () => (await sql.query('select 1 as ok')).rows.length === 1,
     corsOrigins: config.corsOrigins,
+    // La ruta sin parametros (sin ids) y el tipo de error: nada del usuario.
+    onError: (route, error) =>
+      log('api_error', {
+        route: route.replace(/[0-9a-f-]{36}/gi, ':id'),
+        error: error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 300) : 'unknown',
+      }),
     trustProxy: config.trustProxy,
     ...(config.auth
       ? {
@@ -108,13 +115,24 @@ const server = await startGatewayServer({
             monthlyHardCapUsd: config.monthlyHardCapUsd,
             deleteAccount: (accountId: string) => deleteAccount(sql, accountId),
             now,
+            ...(config.auth.passkeys
+              ? {
+                  passkeys: {
+                    store: new PasskeyRepository(sql),
+                    rpId: config.auth.passkeys.rpId,
+                    rpName: 'Kotaru',
+                    origins: config.auth.passkeys.origins,
+                    onSecurityEvent: (event: string, fields: Record<string, unknown>) => log(event, fields),
+                  },
+                }
+              : {}),
           },
         }
       : {}),
   },
 });
 
-log('started', { host: config.host, port: server.port, providers: providers.registered, login: config.auth ? 'on' : 'off' });
+log('started', { host: config.host, port: server.port, providers: providers.registered, login: config.auth ? { apple: config.auth.appleClientIds.length > 0, google: config.auth.googleClientIds.length > 0, passkeys: config.auth.passkeys?.rpId ?? false } : 'off' });
 // Un proveedor registrado que el router nunca elegira merece un aviso claro al arrancar.
 for (const blocked of providers.blocked) log('provider_blocked', blocked);
 

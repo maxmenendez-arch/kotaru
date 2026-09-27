@@ -3,6 +3,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { appleIdToken } from './apple';
+import { createPasskey, getPasskey } from './passkey';
 
 /**
  * Servidor de cuentas. Se fija al compilar con `EXPO_PUBLIC_KOTARU_SERVER_URL` (Expo
@@ -94,4 +95,20 @@ export async function signInWithApple(auth: AuthApi): Promise<AuthSession> {
   const result = await appleIdToken(hashed);
   if (result.type === 'cancelled') throw new SignInCancelled();
   return auth.signInWithApple(result.idToken, rawNonce);
+}
+
+/** Crea una cuenta nueva con una passkey (Face ID, huella o PIN del equipo). */
+export async function signUpWithPasskey(auth: AuthApi): Promise<AuthSession> {
+  const { flowId, options } = await auth.passkeyRegistrationOptions();
+  const result = await createPasskey(options);
+  if (result.type === 'cancelled') throw new SignInCancelled();
+  return auth.completePasskeyRegistration(flowId, result.response);
+}
+
+/** Entra con una passkey que ya existe. */
+export async function signInWithPasskey(auth: AuthApi): Promise<AuthSession> {
+  const { flowId, options } = await auth.passkeyLoginOptions();
+  const result = await getPasskey(options);
+  if (result.type === 'cancelled') throw new SignInCancelled();
+  return auth.completePasskeyLogin(flowId, result.response);
 }

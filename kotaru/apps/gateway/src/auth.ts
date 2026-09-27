@@ -2,6 +2,7 @@ import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from 
 import type { Locale } from '@kotaru/ai-contracts';
 import { signAccessToken, signGrant, type SigningKey } from '@kotaru/gateway';
 import { IdentityProviderUnavailable, IdTokenError, type IdTokenVerifier } from './id-token.js';
+import { handlePasskey, type PasskeyDeps } from './passkey.js';
 
 /** Lo que el servicio de cuentas necesita de la base. `AccountRepository` lo cumple. */
 export interface AccountStore {
@@ -39,6 +40,8 @@ export interface AuthDeps {
   readonly monthlyHardCapUsd: number;
   readonly deleteAccount: (accountId: string) => Promise<{ readonly ok: boolean }>;
   readonly now: () => number;
+  /** Passkeys (WebAuthn). Ausente si no se configuro el dominio: esas rutas dan 501. */
+  readonly passkeys?: PasskeyDeps;
 }
 
 export class AuthHttpError extends Error {
@@ -79,6 +82,11 @@ export async function handleLogin(path: string, body: unknown, deps: AuthDeps): 
     return session(ref.subjectId, next, deps, false);
   }
 
+  if (path.startsWith('/v1/auth/passkey/')) {
+    if (!deps.passkeys) throw new AuthHttpError(501, 'provider_not_configured');
+    return handlePasskey(path, body, deps, deps.passkeys);
+  }
+
   const provider = path === '/v1/auth/apple' ? 'apple' : path === '/v1/auth/google' ? 'google' : null;
   if (!provider) throw new AuthHttpError(404, 'not_found');
   const verifier = deps.verifiers[provider];
@@ -110,6 +118,14 @@ export async function handleLogin(path: string, body: unknown, deps: AuthDeps): 
       ? encrypt(identity.email, deps.emailEncryptionKey, `${provider}:${identity.subject}`)
       : null,
   });
+  return openSession(account, deps);
+}
+
+/** Abre una sesion nueva (una familia de tokens de renovacion) para una cuenta. */
+export async function openSession(
+  account: { readonly accountId: string; readonly subjectId: string; readonly created: boolean },
+  deps: AuthDeps,
+): Promise<unknown> {
   const refresh = randomBytes(32).toString('base64url');
   await deps.accounts.storeRefresh(
     account.accountId,

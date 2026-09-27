@@ -1,5 +1,8 @@
 import { ApiError } from './memory-api.js';
 
+/** Opciones de WebAuthn en JSON (PublicKeyCredentialCreationOptionsJSON o ...RequestOptionsJSON). */
+export type PasskeyOptionsJson = Record<string, unknown> & { readonly challenge: string };
+
 export interface AuthSession {
   readonly accessToken: string;
   /** Epoch ms en que caduca el token de acceso. */
@@ -35,7 +38,9 @@ export class AuthApi {
     readonly restore?: { readonly refreshToken: string };
   }) {
     this.#baseUrl = options.baseUrl.replace(/\/$/, '');
-    this.#fetch = options.fetch ?? fetch;
+    // `fetch` del navegador exige llamarse sin otro `this` ("Illegal invocation" si se guarda
+    // como metodo de la clase y se llama como this.#fetch(...)).
+    this.#fetch = options.fetch ?? ((input, init) => fetch(input, init));
     this.#now = options.now ?? Date.now;
     this.#onSession = options.onSession ?? (() => undefined);
     if (options.restore) {
@@ -57,6 +62,33 @@ export class AuthApi {
 
   signInWithGoogle(idToken: string, rawNonce: string): Promise<AuthSession> {
     return this.#login('/v1/auth/google', idToken, rawNonce);
+  }
+
+  /**
+   * Passkeys, en dos pasos cada una: el servidor da las opciones (con un reto de un solo
+   * uso), el sistema operativo o el navegador firman con la passkey, y el servidor lo
+   * verifica. `options` y `response` son el JSON estandar de WebAuthn; la llamada al
+   * autenticador es cosa de la app (en la web, navigator.credentials).
+   */
+  passkeyRegistrationOptions(): Promise<{ flowId: string; options: PasskeyOptionsJson }> {
+    return this.#call('POST', '/v1/auth/passkey/register/options', {});
+  }
+
+  completePasskeyRegistration(flowId: string, response: unknown): Promise<AuthSession> {
+    return this.#passkey('/v1/auth/passkey/register/verify', flowId, response);
+  }
+
+  passkeyLoginOptions(): Promise<{ flowId: string; options: PasskeyOptionsJson }> {
+    return this.#call('POST', '/v1/auth/passkey/login/options', {});
+  }
+
+  completePasskeyLogin(flowId: string, response: unknown): Promise<AuthSession> {
+    return this.#passkey('/v1/auth/passkey/login/verify', flowId, response);
+  }
+
+  async #passkey(path: string, flowId: string, response: unknown): Promise<AuthSession> {
+    const generation = ++this.#generation;
+    return this.#accept(await this.#call('POST', path, { flowId, response }), generation);
   }
 
   /** Token de acceso vigente; lo renueva si falta menos de un minuto. */

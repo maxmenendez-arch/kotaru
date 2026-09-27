@@ -30,7 +30,8 @@ en el servidor:
 cd ~/Kotaru && git pull && cd kotaru && bash deploy/web.sh
 ```
 
-Sin los client id de Google o Apple (pasos 3 y 4) la página carga, pero no deja entrar.
+Con eso ya se puede entrar con **passkey** (Face ID, huella o PIN del equipo), sin
+depender de Google ni de Apple. Los pasos 3 y 4 añaden los botones de Apple y Google.
 
 Aparte: `kotaru.ai` y `getkotaru.com` siguen **sin registrar** (comprobado el 2026-09-27).
 La guía de marca recomendaba reservarlos junto a `kotaru.app`.

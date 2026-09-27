@@ -66,4 +66,21 @@ describe('configuracion', () => {
     expect(ok.auth?.googleClientIds).toEqual(['a', 'b']);
     expect(loadConfig(valid()).auth).toBeUndefined();
   });
+
+  it('passkeys: dominio y origenes https de ese dominio', () => {
+    const keys = { KOTARU_EMAIL_HASH_KEY: k(), KOTARU_EMAIL_ENCRYPTION_KEY: k() };
+    const ok = loadConfig({ ...valid(), ...keys, KOTARU_WEBAUTHN_RP_ID: 'kotaru.app', KOTARU_WEBAUTHN_ORIGINS: 'https://app.kotaru.app,https://kotaru.app' });
+    expect(ok.auth?.passkeys).toEqual({ rpId: 'kotaru.app', origins: ['https://app.kotaru.app', 'https://kotaru.app'] });
+    expect(ok.auth?.appleClientIds).toEqual([]);
+    expect(problems({ ...valid(), ...keys, KOTARU_WEBAUTHN_RP_ID: 'kotaru.app' })).toEqual(['las passkeys necesitan KOTARU_WEBAUTHN_ORIGINS']);
+    expect(problems({ ...valid(), ...keys, KOTARU_WEBAUTHN_RP_ID: 'kotaru.app', KOTARU_WEBAUTHN_ORIGINS: 'http://app.kotaru.app' })).toHaveLength(1);
+    expect(problems({ ...valid(), ...keys, KOTARU_WEBAUTHN_RP_ID: 'kotaru.app', KOTARU_WEBAUTHN_ORIGINS: 'https://kotaru.app.evil.example' })).toHaveLength(1);
+    expect(problems({ ...valid(), ...keys, KOTARU_WEBAUTHN_RP_ID: 'kotaru.app', KOTARU_WEBAUTHN_ORIGINS: 'https://app.kotaru.app/ruta' })).toHaveLength(1);
+    // Desarrollo local: localhost vale, tambien por http.
+    expect(problems({ ...valid(), ...keys, KOTARU_WEBAUTHN_RP_ID: 'localhost', KOTARU_WEBAUTHN_ORIGINS: 'http://localhost:8081' })).toEqual([]);
+    expect(problems({ ...valid(), ...keys, KOTARU_WEBAUTHN_RP_ID: 'kotaru.app', KOTARU_WEBAUTHN_ORIGINS: 'http://localhost:8081' })).toHaveLength(1);
+    expect(problems({ ...valid(), KOTARU_WEBAUTHN_RP_ID: 'kotaru.app', KOTARU_WEBAUTHN_ORIGINS: 'https://app.kotaru.app' })).toEqual([
+      'el login necesita KOTARU_EMAIL_HASH_KEY y KOTARU_EMAIL_ENCRYPTION_KEY',
+    ]);
+  });
 });

@@ -22,7 +22,9 @@ dependencias del servidor. Comparte con el monorepo solo `@kotaru/client`
   navegador con cancelación de eco (AudioWorklet servido desde `public/`) y reproducción con
   Web Audio.
 - **Cuenta:** si la app se compila con `EXPO_PUBLIC_KOTARU_SERVER_URL`, tras la bienvenida
-  pide entrar con Apple o con Google, en iOS, Android y la web (`apple.*.tsx`,
+  pide crear cuenta o entrar con una **passkey** (web; en el teléfono falta el dominio
+  asociado, que depende de las cuentas de Apple y de la firma de Android), o con Apple o
+  Google, en iOS, Android y la web (`apple.*.tsx`,
   `google.*.tsx`; cada botón aparece solo si se compila con su identificador). El nonce se genera en el dispositivo; a Apple va su
   SHA-256 y al servidor el valor original. No se piden nombre ni correo. El token de
   renovación se guarda solo en Keychain/Keystore (`expo-secure-store`, solo este

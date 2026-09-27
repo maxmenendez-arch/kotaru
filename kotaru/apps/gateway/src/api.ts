@@ -14,6 +14,11 @@ import { AuthHttpError, deleteOwnAccount, handleLogin, issueGrant, type AuthDeps
  * - Nunca se registra contenido. Las respuestas de error no repiten lo que se envio.
  */
 export interface ApiDeps {
+  /**
+   * Registro de errores internos (500): solo el tipo y el mensaje del error, nunca el
+   * cuerpo de la peticion. Sin el, un 500 no deja rastro.
+   */
+  readonly onError?: (route: string, error: unknown) => void;
   readonly keys: readonly SigningKey[];
   readonly audience: string;
   readonly memory: MemoryStore;
@@ -62,6 +67,11 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
   const limiter = new TokenBuckets(deps.rateLimit ?? { capacity: 60, refillPerSecond: 1 }, deps.now);
   // Aparte del limite por usuario: un aluvion de logins no puede vaciar los cubos de nadie.
   const loginLimiter = new TokenBuckets({ capacity: 20, refillPerSecond: 0.2 }, deps.now);
+  // Crear cuentas es mas barato que entrar en una: cada cuenta nueva trae minutos de voz
+  // gratis que pagamos. Por IP, 3 seguidas y luego 1 cada 20 minutos; y en total, 60 por
+  // hora para todo el servidor, para que ni muchas IPs juntas puedan agotar el tope de gasto.
+  const signupPerIp = new TokenBuckets({ capacity: 3, refillPerSecond: 1 / 1200 }, deps.now);
+  const signupGlobal = new TokenBuckets({ capacity: 60, refillPerSecond: 60 / 3600 }, deps.now);
 
   const cors = new Set(deps.corsOrigins ?? []);
 
@@ -101,11 +111,18 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       try {
         if (!deps.auth) throw new HttpError(501, 'not_available');
         if (method !== 'POST') throw new HttpError(405, 'method_not_allowed');
-        if (!loginLimiter.take(clientIp(req, deps.trustProxy === true))) throw new HttpError(429, 'rate_limited');
+        const ip = clientIp(req, deps.trustProxy === true);
+        if (!loginLimiter.take(ip)) throw new HttpError(429, 'rate_limited');
+        if (path === '/v1/auth/passkey/register/options' && (!signupPerIp.take(ip) || !signupGlobal.take('all'))) {
+          throw new HttpError(429, 'signup_rate_limited');
+        }
         send(res, 200, await handleLogin(path, await readJson(req), deps.auth));
       } catch (error) {
         if (error instanceof HttpError || error instanceof AuthHttpError) send(res, error.status, { error: error.code });
-        else send(res, 500, { error: 'internal' });
+        else {
+          deps.onError?.(path, error);
+          send(res, 500, { error: 'internal' });
+        }
       }
       return true;
     }
@@ -116,7 +133,10 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       await route(method, path, url, req, res, subjectId, deps);
     } catch (error) {
       if (error instanceof HttpError || error instanceof AuthHttpError) send(res, error.status, { error: error.code });
-      else send(res, 500, { error: 'internal' });
+      else {
+        deps.onError?.(path, error);
+        send(res, 500, { error: 'internal' });
+      }
     }
     return true;
   };
@@ -258,8 +278,26 @@ function clientIp(req: IncomingMessage, trustProxy: boolean): string {
     const last = (Array.isArray(header) ? header.join(',') : header)?.split(',').at(-1)?.trim();
     if (last) ip = last;
   }
-  if (ip.includes(':') && !ip.startsWith('::ffff:')) return ip.split(':').slice(0, 4).join(':') + '::/64';
+  if (ip.startsWith('::ffff:') && ip.includes('.')) return ip.slice(7);
+  if (ip.includes(':')) return ipv6Prefix64(ip);
   return ip;
+}
+
+/**
+ * Los primeros 64 bits de una IPv6, con la direccion expandida: `2001:db8::5:1:2:3` y
+ * `2001:db8:0:0:6::1` comparten /64 aunque escritas no lo parezcan. Una red /64 suele ser
+ * de una sola persona o casa, asi que cuenta como una sola IP para los limites.
+ */
+export function ipv6Prefix64(ip: string): string {
+  const bare = ip.split('%')[0]!.toLowerCase();
+  const [head = '', tail] = bare.split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail !== undefined && tail !== '' ? tail.split(':') : [];
+  // Una IPv4 incrustada al final ocupa dos grupos; para el /64 no importa.
+  const groups = tail === undefined ? left : [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right];
+  const prefix = groups.slice(0, 4).map((g) => (Number.parseInt(g || '0', 16) || 0).toString(16));
+  while (prefix.length < 4) prefix.push('0');
+  return `${prefix.join(':')}::/64`;
 }
 
 function authenticate(req: IncomingMessage, deps: ApiDeps): string {

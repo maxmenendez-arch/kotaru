@@ -9,26 +9,27 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@kotaru/ai-contracts": "0.0.1",
-    "@kotaru/gateway": "0.0.1",
-    "@kotaru/orchestrator": "0.0.1",
-    "@kotaru/billing": "0.0.1",
-    "@kotaru/safety": "0.0.1",
-    "@kotaru/memory": "0.0.1",
-    "@kotaru/telemetry": "0.0.1",
-    "ws": "^8.18.0",
-    "@kotaru/persistence": "0.0.1",
-    "pg": "^8.23.0",
     "@kotaru/ai-adapters-assemblyai": "0.0.1",
     "@kotaru/ai-adapters-gemini": "0.0.1",
-    "@kotaru/ai-adapters-polly": "0.0.1",
-    "@kotaru/ai-router": "0.0.1",
     "@kotaru/ai-adapters-mock": "0.0.1",
-    "@kotaru/persona": "0.0.1"
+    "@kotaru/ai-adapters-polly": "0.0.1",
+    "@kotaru/ai-contracts": "0.0.1",
+    "@kotaru/ai-router": "0.0.1",
+    "@kotaru/billing": "0.0.1",
+    "@kotaru/gateway": "0.0.1",
+    "@kotaru/memory": "0.0.1",
+    "@kotaru/orchestrator": "0.0.1",
+    "@kotaru/persistence": "0.0.1",
+    "@kotaru/persona": "0.0.1",
+    "@kotaru/safety": "0.0.1",
+    "@kotaru/telemetry": "0.0.1",
+    "@simplewebauthn/server": "14.0.3",
+    "pg": "^8.23.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.12",
+    "@kotaru/client": "0.0.1",
     "@types/pg": "^8.23.1",
-    "@kotaru/client": "0.0.1"
+    "@types/ws": "^8.5.12"
   }
 }
