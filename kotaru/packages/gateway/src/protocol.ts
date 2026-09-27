@@ -17,6 +17,8 @@ export type ClientMessage =
   | { readonly type: 'turn_end'; readonly turnId: string }
   /** Barge-in: el usuario habla encima de la respuesta. Cancela sintesis y generacion. */
   | { readonly type: 'interrupt'; readonly turnId: string }
+  /** Turno escrito: la respuesta llega solo como texto (tokens), sin voz. */
+  | { readonly type: 'text_turn'; readonly turnId: string; readonly text: string }
   | { readonly type: 'bye' };
 
 export type ServerMessage =
@@ -68,6 +70,9 @@ export const DEFAULT_BACKPRESSURE: BackpressurePolicy = {
   idleTimeoutMs: 45_000,
 };
 
+/** Largo maximo de un mensaje escrito (caracteres). */
+export const MAX_TEXT_TURN_CHARS = 1000;
+
 export function isClientMessage(value: unknown): value is ClientMessage {
   if (typeof value !== 'object' || value === null) return false;
   const type = (value as { type?: unknown }).type;
@@ -76,6 +81,7 @@ export function isClientMessage(value: unknown): value is ClientMessage {
     type === 'turn_start' ||
     type === 'turn_end' ||
     type === 'interrupt' ||
+    type === 'text_turn' ||
     type === 'bye'
   );
 }

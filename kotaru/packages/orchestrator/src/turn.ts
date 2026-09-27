@@ -44,7 +44,12 @@ export interface TurnDeps {
 export interface TurnInput {
   readonly conversationId: string;
   readonly turnId: string;
-  readonly audio: AsyncIterable<AudioChunk>;
+  /** Voz del usuario. Ausente en un turno escrito (`text`). */
+  readonly audio?: AsyncIterable<AudioChunk>;
+  /** Turno escrito: se salta la transcripcion. */
+  readonly text?: string;
+  /** false: la respuesta solo se escribe, sin sintesis de voz (y sin su costo). */
+  readonly speak?: boolean;
   readonly history: readonly DomainMessage[];
   readonly llmOptions: LlmOptions;
   readonly voice: VoiceConfig;
@@ -187,47 +192,53 @@ async function drive(
   };
 
   try {
-    // ---- 1. Transcripcion -------------------------------------------------
-    const audio = new ReplayableAudio(input.audio);
-    const sttDecision = deps.router.select({
-      capability: 'stt',
-      quality: input.quality,
-      ctx,
-      predicted: input.predicted,
-    });
+    // ---- 1. Transcripcion (solo en turnos de voz) ---------------------------
+    if (input.text !== undefined) {
+      transcript = input.text;
+    } else {
+      // ---- 1. Transcripcion -------------------------------------------------
+      if (!input.audio) throw new Error('turno sin audio ni texto');
+      const audio = new ReplayableAudio(input.audio);
+      const sttDecision = deps.router.select({
+        capability: 'stt',
+        quality: input.quality,
+        ctx,
+        predicted: input.predicted,
+      });
 
-    const stt = await openWithFallback<import('@kotaru/ai-contracts').TranscriptEvent>(
-      'stt',
-      sttDecision,
-      (id) => {
-        const provider = deps.resolve.stt(id);
-        if (!provider) throw new Error(`proveedor STT no registrado: ${id}`);
-        return provider.transcribeStream(audio.stream(), ctx);
-      },
-      deps,
-      out,
-    );
-    providers.stt = stt.providerId;
-    fallbackUsed ||= stt.fellBack;
+      const stt = await openWithFallback<import('@kotaru/ai-contracts').TranscriptEvent>(
+        'stt',
+        sttDecision,
+        (id) => {
+          const provider = deps.resolve.stt(id);
+          if (!provider) throw new Error(`proveedor STT no registrado: ${id}`);
+          return provider.transcribeStream(audio.stream(), ctx);
+        },
+        deps,
+        out,
+      );
+      providers.stt = stt.providerId;
+      fallbackUsed ||= stt.fellBack;
 
-    for (let step = stt.first; step.done !== true; step = await stt.iterator.next()) {
-      const event = step.value;
-      switch (event.type) {
-        case 'partial':
-          out.push({ type: 'transcript_partial', text: event.text });
-          break;
-        case 'endpoint':
-          endpointAt = deps.now();
-          userSpeechMs = event.atMs;
-          break;
-        case 'final':
-          finalAt = deps.now();
-          transcript = event.text;
-          out.push({ type: 'transcript_final', text: event.text });
-          break;
-        case 'usage':
-          account(event.cost, 'stt');
-          break;
+      for (let step = stt.first; step.done !== true; step = await stt.iterator.next()) {
+        const event = step.value;
+        switch (event.type) {
+          case 'partial':
+            out.push({ type: 'transcript_partial', text: event.text });
+            break;
+          case 'endpoint':
+            endpointAt = deps.now();
+            userSpeechMs = event.atMs;
+            break;
+          case 'final':
+            finalAt = deps.now();
+            transcript = event.text;
+            out.push({ type: 'transcript_final', text: event.text });
+            break;
+          case 'usage':
+            account(event.cost, 'stt');
+            break;
+        }
       }
     }
 
@@ -267,12 +278,10 @@ async function drive(
       ctx,
       predicted: input.predicted,
     });
-    const ttsDecision = deps.router.select({
-      capability: 'tts',
-      quality: input.quality,
-      ctx,
-      predicted: input.predicted,
-    });
+    const speak = input.speak !== false;
+    const ttsDecision = speak
+      ? deps.router.select({ capability: 'tts', quality: input.quality, ctx, predicted: input.predicted })
+      : null;
 
     const sentences = new AsyncQueue<TextChunk>();
     let spokenCharacters = 0;
@@ -294,6 +303,7 @@ async function drive(
 
       const buffer = new SentenceBuffer();
       const emit = (text: string): void => {
+        if (!speak) return;
         spokenCharacters += text.length;
         sentences.push({ text, isFinal: false });
       };
@@ -323,6 +333,7 @@ async function drive(
     })();
 
     const synthesis = (async (): Promise<void> => {
+      if (!ttsDecision) return;
       const tts = await openWithFallback<AudioChunk>(
         'tts',
         ttsDecision,

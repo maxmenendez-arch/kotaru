@@ -188,6 +188,22 @@ export class ConversationClient {
     return turnId;
   }
 
+  /**
+   * Escribirle a Rio. La respuesta llega como texto (eventos `reply`), sin voz. Funciona
+   * tambien con la voz en pausa. Devuelve el id del turno, o null si no hay conexion.
+   */
+  sendText(text: string): string | null {
+    const clean = text.trim();
+    if (!clean || this.#socket?.readyState !== OPEN) return null;
+    if (this.#state === 'speaking' || this.#state === 'thinking') this.interrupt();
+    const turnId = this.#o.newTurnId?.() ?? `turn_${Date.now().toString(36)}_${++this.#counter}`;
+    this.#turnId = turnId;
+    this.#reply = '';
+    this.#send({ type: 'text_turn', turnId, text: clean });
+    if (this.#state !== 'limit_reached') this.#set('thinking');
+    return turnId;
+  }
+
   /** PCM 16 bits mono, en trozos pequenos (20-100 ms). */
   sendAudio(pcm: Uint8Array): void {
     if (this.#state !== 'listening' || this.#socket?.readyState !== OPEN) return;

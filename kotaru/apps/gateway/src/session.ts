@@ -14,7 +14,7 @@ import {
   type SpendBudget,
   type PlanId,
 } from '@kotaru/billing';
-import { DEFAULT_BACKPRESSURE, type ClientMessage, type CloseReason, type ServerMessage, type SessionGrant } from '@kotaru/gateway';
+import { DEFAULT_BACKPRESSURE, MAX_TEXT_TURN_CHARS, type ClientMessage, type CloseReason, type ServerMessage, type SessionGrant } from '@kotaru/gateway';
 import { HeuristicExtractor, MemoryStore } from '@kotaru/memory';
 import {
   AsyncQueue,
@@ -69,6 +69,11 @@ export interface SafetyLog {
 
 /** Cuantos mensajes previos se recuperan al retomar una conversacion. */
 const RESUME_MESSAGES = 20;
+/** Mensajes escritos por sesion (una sesion dura como mucho 30 minutos). */
+const TEXT_TURNS_PER_SESSION = 120;
+/** Rafaga de mensajes escritos: como mucho TEXT_BURST en TEXT_BURST_WINDOW_MS. */
+const TEXT_BURST = 4;
+const TEXT_BURST_WINDOW_MS = 10_000;
 
 export interface SessionDeps {
   readonly router: RouterPort;
@@ -113,6 +118,9 @@ export class GatewaySession {
   #lastActivityMs: number;
   #closed = false;
   #turnsCompleted = 0;
+  #textTurns = 0;
+  /** Momentos de los ultimos mensajes escritos (para el limite de rafaga). */
+  #recentTextAtMs: number[] = [];
   /**
    * Consumo leido del libro. Se refresca al abrir la sesion, al empezar cada turno y al
    * terminarlo: ahi es donde puede haber cambiado (otro dispositivo, el turno recien
@@ -194,9 +202,49 @@ export class GatewaySession {
         // real mientras el usuario habla. Esperar a turn_end para mandarlo todo de golpe
         // lo haria llegar mas rapido que el tiempo real, y AssemblyAI cierra la sesion
         // (codigo 3007) cuando eso pasa.
-        this.#running = this.#runTurn(message.turnId, audio, abort).catch(() => {
+        this.#running = this.#runTurn(message.turnId, { audio }, abort).catch(() => {
           // Un fallo del turno (base de datos, proveedor sin alternativa) cierra la sesion
           // con un motivo que la app entiende, igual que antes.
+          if (!this.#closed) {
+            this.#transport.close('server_error');
+            this.#closed = true;
+          }
+        });
+        return;
+      }
+
+      case 'text_turn': {
+        if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(message.turnId) || typeof message.text !== 'string') {
+          this.#transport.close('protocol_error');
+          this.#closed = true;
+          return;
+        }
+        const text = message.text.trim().slice(0, MAX_TEXT_TURN_CHARS);
+        if (text === '') return;
+        // Escribir cuesta poco (solo el modelo de lenguaje), pero no es gratis: como mucho
+        // TEXT_BURST mensajes cada TEXT_BURST_WINDOW_MS (dos mensajes seguidos, "y tu?",
+        // son normales) y TEXT_TURNS_PER_SESSION por sesion. Sigue funcionando cuando la voz
+        // esta en pausa por el tope de gasto: la app sigue en texto.
+        const now = this.#deps.now();
+        this.#recentTextAtMs = this.#recentTextAtMs.filter((at) => now - at < TEXT_BURST_WINDOW_MS);
+        if (this.#recentTextAtMs.length >= TEXT_BURST) {
+          // Se descarta, pero la app no se queda esperando una respuesta que no llegara.
+          this.#transport.send({ type: 'turn_done', turnId: message.turnId });
+          return;
+        }
+        if (this.#textTurns >= TEXT_TURNS_PER_SESSION) {
+          this.#transport.send({ type: 'limit', kind: 'session' });
+          return;
+        }
+        this.#textTurns += 1;
+        this.#recentTextAtMs.push(now);
+        this.#abort?.abort();
+        this.#audio?.close();
+        const abort = new AbortController();
+        this.#turnId = message.turnId;
+        this.#audio = null;
+        this.#abort = abort;
+        this.#running = this.#runTurn(message.turnId, { text }, abort).catch(() => {
           if (!this.#closed) {
             this.#transport.close('server_error');
             this.#closed = true;
@@ -258,10 +306,14 @@ export class GatewaySession {
     return null;
   }
 
-  async #runTurn(turnId: string, audio: AsyncQueue<AudioChunk>, abort: AbortController): Promise<void> {
+  async #runTurn(
+    turnId: string,
+    source: { readonly audio: AsyncQueue<AudioChunk> } | { readonly text: string },
+    abort: AbortController,
+  ): Promise<void> {
     const ctx = this.#context(abort.signal);
 
-    let transcript = '';
+    let transcript = 'text' in source ? source.text : '';
     let reply = '';
     let voiceSeconds = 0;
     const history = await this.#recallIntoHistory();
@@ -275,7 +327,7 @@ export class GatewaySession {
       {
         conversationId: this.#grant.conversationId,
         turnId: turnKey,
-        audio,
+        ...('text' in source ? { text: source.text, speak: false } : { audio: source.audio }),
         history,
         llmOptions: {
           personaId: RIO_V1.id,

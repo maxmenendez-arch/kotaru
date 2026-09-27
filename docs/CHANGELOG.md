@@ -797,3 +797,25 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   llama "Voz en pausa" en vez de culpar siempre al plan.
 - Verificado con Playwright: con `KOTARU_FREE_MONTHLY_CAP_USD=0`, una cuenta nueva con passkey
   conecta y ve "Voz en pausa" con el mensaje del tope de gasto, sin errores en la página.
+
+## 2026-09-27 (tarde) — Chat de texto con Rio
+
+- Debajo de Rio hay una caja "Escríbele a Rio…" con Enviar (o Enter). Si la conversación
+  estaba cerrada, escribir la abre sola. La respuesta llega como texto, sin voz.
+- Sigue funcionando cuando la voz está en pausa (tope de gasto o plan agotado): el mensaje de
+  "Voz en pausa" ahora lo dice. El texto solo usa el modelo de lenguaje (Gemini), sin STT ni
+  TTS, así que cuesta una fracción de un turno de voz y queda en el libro de consumo igual.
+- Protocolo: mensaje nuevo `text_turn {turnId, text}` (hasta 1000 caracteres). El orquestador
+  acepta `text` en lugar de audio y `speak: false` (no elige ni llama al TTS). Mismos pasos
+  que la voz: moderación de entrada, memoria, historial y registro de coste.
+- Límites: 4 mensajes cada 10 s y 120 por sesión. Un mensaje descartado recibe `turn_done`
+  para que la app no se quede esperando.
+- Archivos: `packages/orchestrator/src/turn.ts`, `packages/gateway/src/protocol.ts`,
+  `apps/gateway/src/session.ts`, `packages/client/src/conversation.ts`,
+  `mobile/src/screens/Conversation.tsx`, `mobile/src/i18n.ts`,
+  `apps/gateway/test/text-turn.test.ts` (4 pruebas).
+- Verificado: 342 pruebas + 30 contra PostgreSQL real; lint de arquitectura; Playwright con
+  una cuenta passkey nueva y la voz en pausa: escribir, recibir la respuesta de Rio, segundo
+  mensaje enviado con el botón, sin errores en la página. La prueba encontró un fallo (un
+  segundo mensaje en menos de 1 s se descartaba en silencio y la app quedaba "pensando"),
+  corregido con el límite de ráfaga.

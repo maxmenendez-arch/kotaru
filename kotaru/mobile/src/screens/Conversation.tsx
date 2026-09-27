@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAudio } from '../audio';
 import { createConversation, type Connection } from '../connection';
@@ -38,6 +38,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const [minutes, setMinutes] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [limitNote, setLimitNote] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
   const client = useRef<ConversationClient | null>(null);
   const audio = useRef(createAudio()).current;
   const mic = useRef(audio.input);
@@ -84,8 +85,8 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     }
   };
 
-  const connect = async () => {
-    if (!connection) return;
+  const connect = async (): Promise<boolean> => {
+    if (!connection) return false;
     setError(null);
     speaker.current.unlock?.();
     client.current?.close();
@@ -93,8 +94,26 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     setLimitNote(null);
     try {
       await client.current.connect();
+      return true;
     } catch (err) {
       setError(connectMessage(err, s));
+      return false;
+    }
+  };
+
+  /** Escribirle a Rio. Si la conversacion se cerro (inactividad), se reabre sola. */
+  const sendText = async () => {
+    const text = draft.trim();
+    if (!text || !connection) return;
+    if (!client.current || state === 'closed') {
+      if (!(await connect())) return;
+    }
+    speaker.current.stopNow();
+    if (client.current?.sendText(text)) {
+      setHeard(text);
+      setReply('');
+      setDraft('');
+      setError(null);
     }
   };
 
@@ -147,7 +166,11 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         </Card>
       ) : null}
       {state === 'reconnecting' ? <Body muted>{s.reconnectingNote}</Body> : null}
-      {state === 'limit_reached' ? <Body muted>{limitNote ?? s.limitNote}</Body> : null}
+      {state === 'limit_reached' ? (
+        <View style={styles.limit}>
+          <Body muted>{limitNote ?? s.limitNote}</Body>
+        </View>
+      ) : null}
 
       <View style={styles.captions}>
         {heard ? (
@@ -166,10 +189,36 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
+      {connection ? (
+        <View style={styles.compose}>
+          <TextInput
+            accessibilityLabel={s.writePlaceholder}
+            placeholder={s.writePlaceholder}
+            placeholderTextColor={color.mist}
+            value={draft}
+            onChangeText={setDraft}
+            onSubmitEditing={() => void sendText()}
+            returnKeyType="send"
+            maxLength={1000}
+            style={styles.input}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={s.send}
+            accessibilityState={{ disabled: !draft.trim() }}
+            disabled={!draft.trim()}
+            onPress={() => void sendText()}
+            style={[styles.sendButton, !draft.trim() && styles.sendOff]}
+          >
+            <Text style={styles.sendText}>{s.send}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {!connection ? (
         <Body muted>{s.notConnected}</Body>
       ) : state === 'closed' ? (
-        <Button label={s.connect} onPress={connect} />
+        <Button label={s.connect} onPress={() => void connect()} />
       ) : (
         <>
           <Pressable
@@ -233,7 +282,22 @@ const styles = StyleSheet.create({
   talkText: { ...type.body, fontWeight: '600', color: '#FFFFFF' },
   // Sobre aqua el blanco no contrasta; ink si (10:1).
   talkTextOn: { color: color.ink },
+  limit: { marginBottom: space.m },
   note: { ...type.micro, color: color.mist, textAlign: 'center', marginBottom: space.l },
+  compose: { flexDirection: 'row', gap: space.s, marginBottom: space.m },
+  input: {
+    ...type.body,
+    flex: 1,
+    color: color.cloud,
+    borderWidth: 1,
+    borderColor: color.inkLine,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.l,
+    paddingVertical: space.m,
+  },
+  sendButton: { borderRadius: radius.pill, backgroundColor: color.inkRaised, borderWidth: 1, borderColor: color.iris, paddingHorizontal: space.l, justifyContent: 'center' },
+  sendOff: { borderColor: color.inkLine },
+  sendText: { ...type.support, color: color.cloud, fontWeight: '600' },
   safety: { borderColor: color.mist },
   safetyTitle: { ...type.title, color: color.cloud, marginBottom: space.s },
   error: { ...type.support, color: color.danger, marginBottom: space.s },
