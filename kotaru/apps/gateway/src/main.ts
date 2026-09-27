@@ -91,6 +91,7 @@ const server = await startGatewayServer({
     },
     ready: async () => (await sql.query('select 1 as ok')).rows.length === 1,
     corsOrigins: config.corsOrigins,
+    signupsPerDay: config.signupsPerDay,
     // La ruta sin parametros (sin ids) y el tipo de error: nada del usuario.
     onError: (route, error) =>
       log('api_error', {

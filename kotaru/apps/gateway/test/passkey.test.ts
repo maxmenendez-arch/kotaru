@@ -222,6 +222,49 @@ describe('passkeys', () => {
   });
 });
 
+describe('cupo diario de cuentas nuevas', () => {
+  it('se agota para todo el servidor aunque las peticiones vengan de IPs distintas', async () => {
+    await server.close();
+    const stores = durableStores(sql);
+    const { deps } = buildDeps(undefined, stores.usage, stores.memories);
+    server = await startGatewayServer({
+      port: 0,
+      keys: [grantKey],
+      audience: 'gw',
+      grantClaims: stores.grantClaims,
+      deps: { ...deps, conversations: stores.conversations },
+      api: {
+        keys: [accessKey],
+        audience: 'api',
+        memory: new MemoryStore({ now: Date.now, newId: randomUUID, repository: stores.memories }),
+        now: Date.now,
+        trustProxy: true,
+        signupsPerDay: 2,
+        auth: {
+          accounts: new AccountRepository(sql),
+          verifiers: {},
+          emailHashKey: randomBytes(32),
+          emailEncryptionKey: randomBytes(32),
+          accessKeys: [accessKey],
+          apiAudience: 'api',
+          grantKeys: [grantKey],
+          grantAudience: 'gw',
+          monthlyHardCapUsd: 50,
+          deleteAccount: (id) => deleteAccount(sql, id),
+          now: Date.now,
+          passkeys: { store: new PasskeyRepository(sql), rpId: RP_ID, rpName: 'Kotaru', origins: [ORIGIN] },
+        },
+      },
+    });
+    base = `http://127.0.0.1:${server.port}`;
+    const from = (ip: string) =>
+      fetch(`${base}/v1/auth/passkey/register/options`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': ip }, body: '{}' });
+    expect((await from('203.0.113.1')).status).toBe(200);
+    expect((await from('203.0.113.2')).status).toBe(200);
+    expect((await from('203.0.113.3')).status).toBe(429);
+  });
+});
+
 describe('IPv6: una red /64 cuenta como una sola IP', () => {
   it('expande las direcciones comprimidas antes de cortar', () => {
     expect(ipv6Prefix64('2001:db8::5:1:2:3')).toBe('2001:db8:0:0::/64');

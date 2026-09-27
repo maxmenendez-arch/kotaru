@@ -19,6 +19,8 @@ export interface ApiDeps {
    * cuerpo de la peticion. Sin el, un 500 no deja rastro.
    */
   readonly onError?: (route: string, error: unknown) => void;
+  /** Cupo diario de cuentas nuevas (passkey) para todo el servidor. */
+  readonly signupsPerDay?: number;
   readonly keys: readonly SigningKey[];
   readonly audience: string;
   readonly memory: MemoryStore;
@@ -68,10 +70,12 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
   // Aparte del limite por usuario: un aluvion de logins no puede vaciar los cubos de nadie.
   const loginLimiter = new TokenBuckets({ capacity: 20, refillPerSecond: 0.2 }, deps.now);
   // Crear cuentas es mas barato que entrar en una: cada cuenta nueva trae minutos de voz
-  // gratis que pagamos. Por IP, 3 seguidas y luego 1 cada 20 minutos; y en total, 60 por
-  // hora para todo el servidor, para que ni muchas IPs juntas puedan agotar el tope de gasto.
+  // gratis que pagamos. Por IP, 3 seguidas y luego 1 cada 20 minutos; y en total, un cupo
+  // diario para todo el servidor (30 por defecto), para que ni muchas IPs juntas puedan
+  // agotar el tope de gasto mensual con cuentas de usar y tirar.
+  const signupsPerDay = deps.signupsPerDay ?? 30;
   const signupPerIp = new TokenBuckets({ capacity: 3, refillPerSecond: 1 / 1200 }, deps.now);
-  const signupGlobal = new TokenBuckets({ capacity: 60, refillPerSecond: 60 / 3600 }, deps.now);
+  const signupGlobal = new TokenBuckets({ capacity: signupsPerDay, refillPerSecond: signupsPerDay / 86_400 }, deps.now);
 
   const cors = new Set(deps.corsOrigins ?? []);
 

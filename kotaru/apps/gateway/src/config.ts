@@ -26,6 +26,8 @@ export interface GatewayConfig {
     readonly passkeys?: { readonly rpId: string; readonly origins: readonly string[] };
   };
   readonly trustProxy: boolean;
+  /** Cupo diario de cuentas nuevas con passkey para todo el servidor. */
+  readonly signupsPerDay: number;
 }
 
 /**
@@ -220,6 +222,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
       ? { auth: { appleClientIds, googleClientIds, emailHashKey, emailEncryptionKey, ...(passkeys ? { passkeys } : {}) } }
       : {}),
     trustProxy: flag('KOTARU_TRUST_PROXY'),
+    signupsPerDay: integer('KOTARU_SIGNUPS_PER_DAY', 30, 1, 100_000),
   };
 
   if (problems.length > 0) throw new ConfigError(problems);

@@ -754,3 +754,11 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - `web.sh` genera `/.well-known/apple-app-site-association` y `/.well-known/assetlinks.json`
   cuando `web.env` tiene `KOTARU_APPLE_TEAM_ID` y `KOTARU_ANDROID_CERT_SHA256`; Caddy los
   sirve como JSON. Verificado con `web.sh` simulado (JSON válido) y `caddy validate`.
+
+## 2026-09-27 — Cupo diario de cuentas nuevas
+
+- Además del límite por IP, un cupo diario de cuentas nuevas con passkey para todo el
+  servidor (`KOTARU_SIGNUPS_PER_DAY`, 30 por defecto). Con cuentas de usar y tirar desde
+  muchas IPs, el gasto queda en unos 12 USD al día como mucho (ASSUMPTION: 45 min gratis a
+  ~0,52 USD/h) en vez de poder agotar el tope mensual en horas. Prueba nueva: el cupo se
+  agota aunque las peticiones vengan de IPs distintas. 332 pruebas en verde.

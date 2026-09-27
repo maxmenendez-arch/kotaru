@@ -212,7 +212,10 @@ dominio de las passkeys sirva sus archivos de verificación (`web.sh` los genera
 **No cambiarlo** una vez haya usuarios: las passkeys creadas dejarían de valer. Con eso la webapp ofrece "Crear cuenta con passkey" (Face ID,
 huella o PIN del equipo; sin correo ni contraseña). El servidor solo guarda la clave
 pública. Crear cuentas tiene su propio límite: 3 seguidas por IP y luego 1 cada 20
-minutos, y 60 por hora en todo el servidor, porque cada cuenta trae minutos gratis.
+minutos, y un cupo diario para todo el servidor (`KOTARU_SIGNUPS_PER_DAY`, 30 por defecto),
+porque cada cuenta trae minutos gratis: con 30 cuentas de usar y tirar al día se gastan unos
+12 USD como mucho (ASSUMPTION: 45 min gratis a ~0,52 USD/h), lejos del tope mensual de 50.
+Súbelo cuando haya usuarios de verdad.
 
 Si algo falla a mitad, `web.sh` deja todo como estaba: los archivos anteriores, el sitio
 de Caddy y `gateway.env` (y reinicia el gateway con la configuración vieja).
