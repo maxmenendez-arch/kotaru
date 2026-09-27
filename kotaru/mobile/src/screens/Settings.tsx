@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { createMemoryApi, type DevConnection } from '../connection';
+import { createMemoryApi, type Connection, type DevConnection } from '../connection';
 import type { Lang } from '../i18n';
 import { t } from '../i18n';
 import { color, radius, space, type } from '../theme';
@@ -12,15 +12,44 @@ export function Settings({
   lang,
   connection,
   onConnection,
+  showDevConnection,
 }: {
   lang: Lang;
-  connection: DevConnection | null;
+  connection: Connection | null;
   onConnection: (c: DevConnection) => void;
+  /** En builds de produccion con servidor de cuentas no se ofrece la conexion manual. */
+  showDevConnection: boolean;
 }) {
   const s = t(lang);
   const [days, setDays] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [draft, setDraft] = useState<DevConnection>(connection ?? { serverUrl: '', grant: '', accessToken: '' });
+  const [draft, setDraft] = useState<DevConnection>(
+    connection?.kind === 'dev' ? connection : { kind: 'dev', serverUrl: '', grant: '', accessToken: '' },
+  );
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const account = connection?.kind === 'account' ? connection : null;
+
+  // Al cerrar sesion o borrar la cuenta, `AuthApi` avisa y la app vuelve al login.
+  const signOut = async () => {
+    if (!account || busy) return;
+    setBusy(true);
+    await account.auth.signOut();
+    setBusy(false);
+  };
+
+  const deleteAccount = async () => {
+    if (!account || busy) return;
+    setBusy(true);
+    try {
+      await account.auth.deleteAccount();
+    } catch {
+      setNote(s.error);
+      setConfirmDelete(false);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!connection) return;
@@ -65,6 +94,27 @@ export function Settings({
           </Card>
         ) : null}
 
+        {account ? (
+          <Card>
+            <Text style={styles.label}>{s.account}</Text>
+            <Button label={s.signOut} kind="quiet" onPress={signOut} disabled={busy} />
+            <View style={{ marginTop: space.l }}>
+              {confirmDelete ? (
+                <>
+                  <Body>{s.deleteWarning}</Body>
+                  <View style={styles.choices}>
+                    <Button label={s.deleteConfirm} kind="danger" onPress={deleteAccount} disabled={busy} />
+                    <Button label={s.cancel} kind="quiet" onPress={() => setConfirmDelete(false)} disabled={busy} />
+                  </View>
+                </>
+              ) : (
+                <Button label={s.deleteAccount} kind="danger" onPress={() => setConfirmDelete(true)} disabled={busy} />
+              )}
+            </View>
+          </Card>
+        ) : null}
+
+        {showDevConnection && !account ? (
         <Card>
           <Text style={styles.label}>{s.devConnection}</Text>
           {(
@@ -88,6 +138,7 @@ export function Settings({
           ))}
           <Button label={s.save} onPress={() => onConnection(draft)} disabled={!draft.serverUrl || !draft.grant || !draft.accessToken} />
         </Card>
+        ) : null}
       </ScrollView>
     </Screen>
   );

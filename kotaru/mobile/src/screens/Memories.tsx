@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type MemoryList, type MemoryView } from '@kotaru/client';
-import { createMemoryApi, type DevConnection } from '../connection';
+import { createMemoryApi, type Connection } from '../connection';
 import type { Lang } from '../i18n';
 import { t } from '../i18n';
 import { color, space, type } from '../theme';
@@ -12,7 +12,7 @@ import { Body, Button, Card, Screen, Title } from '../ui/kit';
  * del usuario. Lo propuesto se presenta como una pregunta ("Me gustaria recordar…"),
  * nunca como un hecho consumado.
  */
-export function Memories({ lang, connection }: { lang: Lang; connection: DevConnection | null }) {
+export function Memories({ lang, connection }: { lang: Lang; connection: Connection | null }) {
   const s = t(lang);
   const [data, setData] = useState<MemoryList | null>(null);
   const [error, setError] = useState<string | null>(null);

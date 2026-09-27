@@ -1,12 +1,15 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import type { AuthApi } from '@kotaru/client';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { DevConnection } from './src/connection';
+import { openAccount, SERVER_URL } from './src/auth';
+import type { Connection } from './src/connection';
 import type { Lang } from './src/i18n';
 import { t } from './src/i18n';
 import { Conversation } from './src/screens/Conversation';
 import { Memories } from './src/screens/Memories';
 import { Settings } from './src/screens/Settings';
+import { SignIn } from './src/screens/SignIn';
 import { Welcome } from './src/screens/Welcome';
 import { color, space, type } from './src/theme';
 
@@ -21,8 +24,36 @@ export default function App() {
   const [lang, setLang] = useState<Lang>('es');
   const [welcomed, setWelcomed] = useState(false);
   const [tab, setTab] = useState<Tab>('talk');
-  const [connection, setConnection] = useState<DevConnection | null>(null);
+  const [connection, setConnection] = useState<Connection | null>(null);
+  // Con servidor de cuentas configurado: 'loading' hasta leer la sesion guardada,
+  // 'signin' si no la hay, 'app' dentro. Sin servidor se entra directo (desarrollo).
+  const [gate, setGate] = useState<'loading' | 'signin' | 'app'>(SERVER_URL ? 'loading' : 'app');
+  const [auth, setAuth] = useState<AuthApi | null>(null);
   const s = t(lang);
+  const showDevConnection = __DEV__ || !SERVER_URL;
+
+  useEffect(() => {
+    if (!SERVER_URL) return;
+    const serverUrl = SERVER_URL;
+    let live = true;
+    openAccount(serverUrl, () => {
+      if (!live) return;
+      setConnection(null);
+      setGate('signin');
+    }).then(({ auth: api, restored }) => {
+      if (!live) return;
+      setAuth(api);
+      if (restored) {
+        setConnection({ kind: 'account', serverUrl, auth: api });
+        setGate('app');
+      } else {
+        setGate('signin');
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   if (!welcomed) {
     return (
@@ -30,6 +61,33 @@ export default function App() {
         <StatusBar style="light" />
         <Welcome lang={lang} onLang={setLang} onDone={() => setWelcomed(true)} />
       </>
+    );
+  }
+
+  if (gate !== 'app') {
+    return (
+      <View style={styles.root}>
+        <StatusBar style="light" />
+        {gate === 'signin' && auth && SERVER_URL ? (
+          <SignIn
+            lang={lang}
+            auth={auth}
+            onSignedIn={() => {
+              setConnection({ kind: 'account', serverUrl: SERVER_URL as string, auth });
+              setTab('talk');
+              setGate('app');
+            }}
+            onDevConnection={
+              showDevConnection
+                ? () => {
+                    setTab('settings');
+                    setGate('app');
+                  }
+                : null
+            }
+          />
+        ) : null}
+      </View>
     );
   }
 
@@ -43,6 +101,7 @@ export default function App() {
           <Settings
             lang={lang}
             connection={connection}
+            showDevConnection={showDevConnection}
             onConnection={(c) => {
               setConnection(c);
               setTab('talk');

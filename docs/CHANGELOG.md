@@ -584,3 +584,31 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   10 hallazgos. Pendiente: exigir reautenticación reciente para borrar la cuenta y un margen de
   gracia si se pierde la respuesta de una renovación.
 - 309 pruebas en verde en la nube y en impermax-gl; 30 contra PostgreSQL real.
+
+## 2026-09-27 — La app móvil entra con cuenta (noche, bloque 8)
+
+**Qué cambió**
+- `mobile/src/auth.ts`: login con Apple usando `expo-apple-authentication`. El nonce (32 bytes
+  aleatorios, `expo-crypto`) se genera en el dispositivo; a Apple va su SHA-256 y al servidor el
+  valor original. No se piden nombre ni correo.
+- El token de renovación se guarda solo en Keychain/Keystore (`expo-secure-store`,
+  `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`); en la web no se persiste. Al abrir la app se retoma
+  la sesión guardada; si el servidor la rechaza, la app vuelve a la pantalla de cuenta.
+- `mobile/src/connection.ts`: conexión de desarrollo o con cuenta. Con cuenta, cada sesión de voz
+  pide su grant y las reconexiones retoman la misma conversación; la API de memoria usa el
+  token de acceso que `AuthApi` renueva sola.
+- Pantalla de cuenta tras la bienvenida (si la app se compila con
+  `EXPO_PUBLIC_KOTARU_SERVER_URL`). En Ajustes: cerrar sesión y borrar la cuenta con
+  confirmación. La conexión de desarrollo solo aparece en builds de desarrollo o sin servidor.
+
+**Cómo se verificó**
+- `tsc --noEmit` de la app: OK.
+- Export web y Playwright: con servidor configurado aparece la pantalla de cuenta, Apple figura
+  como no disponible fuera de iOS y el build de producción no ofrece la conexión de desarrollo;
+  sin servidor se entra directo y Ajustes muestra la conexión de desarrollo. Sin errores de página.
+
+**Pendiente**
+- Probar el login con Apple en un iPhone real (build de desarrollo, no Expo Go).
+- Login con Google en la app: necesita el módulo y los client id (decisión del propietario).
+- Reautenticación reciente antes de borrar la cuenta, y margen de gracia si se pierde la
+  respuesta de una renovación (observaciones abiertas de la revisión de cuentas).

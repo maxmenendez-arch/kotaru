@@ -10,7 +10,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.kotaru.mobile",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Kotaru usa el micr\u00f3fono solo mientras mantienes pulsado el bot\u00f3n de hablar."
+        "NSMicrophoneUsageDescription": "Kotaru usa el micrófono solo mientras mantienes pulsado el botón de hablar."
       }
     },
     "android": {
@@ -28,6 +28,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

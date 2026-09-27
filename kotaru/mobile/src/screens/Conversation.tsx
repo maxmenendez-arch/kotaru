@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { SilentSpeaker, SimulatedMicrophone } from '../audio';
-import { createConversation, type DevConnection } from '../connection';
+import { createConversation, type Connection } from '../connection';
 import type { Lang } from '../i18n';
 import { t } from '../i18n';
 import { color, radius, space, type } from '../theme';
@@ -30,7 +30,7 @@ const RING: Record<ConversationState, string> = {
   closed: color.inkLine,
 };
 
-export function Conversation({ lang, connection }: { lang: Lang; connection: DevConnection | null }) {
+export function Conversation({ lang, connection }: { lang: Lang; connection: Connection | null }) {
   const s = t(lang);
   const [state, setState] = useState<ConversationState>('closed');
   const [heard, setHeard] = useState('');
@@ -73,7 +73,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Dev
     if (!connection) return;
     setError(null);
     client.current?.close();
-    client.current = createConversation(connection, onEvent);
+    client.current = createConversation(connection, lang, onEvent);
     try {
       await client.current.connect();
     } catch (err) {
