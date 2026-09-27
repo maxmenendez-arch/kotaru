@@ -41,6 +41,9 @@
       "path": "packages/persistence"
     },
     {
+      "path": "packages/client"
+    },
+    {
       "path": "apps/gateway"
     }
   ]

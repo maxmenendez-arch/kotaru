@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@types/ws": "^8.5.12",
-    "@types/pg": "^8.23.1"
+    "@types/pg": "^8.23.1",
+    "@kotaru/client": "0.0.1"
   }
 }

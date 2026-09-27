@@ -14,6 +14,8 @@ export interface GatewayConfig {
   /** Proveedores de IA habilitados: mock, assemblyai, gemini, polly. */
   readonly providers: readonly string[];
   readonly providerSettings: ProviderSettings;
+  /** Origenes web con acceso a la API (CORS). Vacio salvo para la version web. */
+  readonly corsOrigins: readonly string[];
 }
 
 /**
@@ -148,6 +150,10 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
     infraCostUsdPerTurn: decimal('KOTARU_INFRA_COST_USD_PER_TURN', 0.0003, 0),
     providers,
     providerSettings,
+    corsOrigins: (env.KOTARU_CORS_ORIGINS ?? '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
   };
 
   if (problems.length > 0) throw new ConfigError(problems);

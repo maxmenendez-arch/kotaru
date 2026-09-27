@@ -1,0 +1,11 @@
+{
+  "name": "@kotaru/client",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": "./src/index.ts" },
+  "comment": "Cliente del gateway para la app. Sin dependencias en tiempo de ejecucion: el WebSocket y fetch se inyectan, asi corre igual en React Native, en el navegador y en Node (pruebas). De @kotaru/gateway solo importa TIPOS.",
+  "dependencies": { "@kotaru/gateway": "0.0.1" }
+}

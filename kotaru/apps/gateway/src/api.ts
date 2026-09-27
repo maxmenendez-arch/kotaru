@@ -26,6 +26,11 @@ export interface ApiDeps {
   /** Comprobacion de la base para /readyz. */
   readonly ready?: () => Promise<boolean>;
   readonly rateLimit?: { readonly capacity: number; readonly refillPerSecond: number };
+  /**
+   * Origenes web permitidos (CORS). Vacio por defecto: la app nativa no lo necesita, y
+   * abrir la API a cualquier origen permitiria a una web ajena usar el token de otro.
+   */
+  readonly corsOrigins?: readonly string[];
 }
 
 const MAX_BODY_BYTES = 16 * 1024;
@@ -47,10 +52,27 @@ class HttpError extends Error {
 export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
   const limiter = new TokenBuckets(deps.rateLimit ?? { capacity: 60, refillPerSecond: 1 }, deps.now);
 
+  const cors = new Set(deps.corsOrigins ?? []);
+
   return async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://internal');
     const path = url.pathname;
     const method = req.method ?? 'GET';
+
+    const origin = req.headers.origin;
+    if (origin && cors.has(origin)) {
+      res.setHeader('access-control-allow-origin', origin);
+      res.setHeader('vary', 'origin');
+      if (method === 'OPTIONS') {
+        res.writeHead(204, {
+          'access-control-allow-methods': 'GET, POST, PATCH, PUT, DELETE',
+          'access-control-allow-headers': 'authorization, content-type',
+          'access-control-max-age': '600',
+        });
+        res.end();
+        return true;
+      }
+    }
 
     if (path === '/healthz' && method === 'GET') {
       send(res, 200, { ok: true });

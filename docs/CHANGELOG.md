@@ -461,3 +461,30 @@ npm run demo        # dos turnos completos, con costo y memoria
 - La versión empaquetada arranca con los tres configurados y avisa de los bloqueados.
 - 261 pruebas en verde en la nube y en una copia local en impermax-gl; 27 contra PostgreSQL real.
 - No se probó contra los servicios reales: no hay claves. Es el siguiente paso, y cuesta céntimos.
+
+## 2026-09-27 — Cliente compartido y esqueleto de la app móvil (noche, bloque 4)
+
+**Qué cambió**
+- `@kotaru/client`: cliente del gateway sin dependencias (WebSocket y fetch inyectados), que
+  corre igual en React Native, en el navegador y en Node. Traduce el protocolo a los estados
+  de `09_BRAND` con etiqueta accesible en español e inglés, hace barge-in, empareja cada
+  frame de audio con su `audio_meta`, y reconecta solo con un grant nuevo si el servidor se
+  reinicia. `MemoryApi` cubre el centro de memoria, la exportación y la retención.
+- `mobile/`: app Expo SDK 57 fuera de los workspaces (el servidor no instala React Native).
+  Bienvenida con aviso de IA y 18+ obligatorios, conversación pulsar-para-hablar con estado
+  textual y subtítulos, centro de memoria ("Me gustaría recordar…"), ajustes de retención y
+  exportación, y conexión de desarrollo con los tokens de `bin/token.mjs`.
+- Audio de la app detrás de interfaces con implementaciones simuladas: capturar y reproducir
+  PCM en streaming necesita un módulo nativo. **Decisión pendiente.**
+- CORS opcional en la API (`KOTARU_CORS_ORIGINS`), vacío por defecto: solo lo necesita la web.
+- Icono provisional hecho con los tokens de marca, en lugar del de la plantilla de Expo.
+
+**Cómo se verificó**
+- `@kotaru/client` contra el gateway real: recorrido de estados de un turno, barge-in a mitad
+  de respuesta, reconexión tras reiniciar el servidor y el centro de memoria con sus errores.
+- La versión web de la app, con Playwright contra el gateway empaquetado y PostgreSQL real:
+  el botón de inicio sigue deshabilitado sin confirmar 18+, conecta, completa un turno con
+  subtítulos, aprueba un recuerdo y cambia la retención, sin errores en consola.
+- El paquete web de la app no contiene código del servidor.
+- 269 pruebas en verde en la nube y en una copia local en impermax-gl; `tsc` y exportación web
+  de la app también en impermax-gl.

@@ -1,0 +1,14 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "types": ["node"],
+    "paths": {
+      "@kotaru/client": ["../packages/client/src/index.ts"],
+      "@kotaru/gateway": ["../packages/gateway/src/index.ts"],
+      "@kotaru/ai-contracts": ["../packages/ai-contracts/src/index.ts"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}

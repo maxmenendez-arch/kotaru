@@ -59,6 +59,7 @@ beforeEach(async () => {
         set: async (s, d) => void (d === null ? retentionDays.delete(s) : retentionDays.set(s, d)),
       },
       rateLimit: { capacity: 30, refillPerSecond: 0.001 },
+      corsOrigins: ['https://app.kotaru.test'],
     },
   });
 });
@@ -182,5 +183,20 @@ describe('limite de peticiones', () => {
     for (let i = 0; i < 35; i += 1) if ((await call('GET', '/v1/memories', { sub: alice })).status === 429) limited += 1;
     expect(limited).toBe(5);
     expect((await call('GET', '/v1/memories', { sub: bob })).status).toBe(200);
+  });
+});
+
+describe('CORS', () => {
+  it('solo responde a los origenes permitidos', async () => {
+    const pre = await fetch(`http://127.0.0.1:${server.port}/v1/memories`, {
+      method: 'OPTIONS',
+      headers: { origin: 'https://app.kotaru.test', 'access-control-request-method': 'GET' },
+    });
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get('access-control-allow-origin')).toBe('https://app.kotaru.test');
+    expect(pre.headers.get('access-control-allow-headers')).toContain('authorization');
+
+    const other = await fetch(`http://127.0.0.1:${server.port}/v1/memories`, { headers: { origin: 'https://malicioso.test' } });
+    expect(other.headers.get('access-control-allow-origin')).toBeNull();
   });
 });

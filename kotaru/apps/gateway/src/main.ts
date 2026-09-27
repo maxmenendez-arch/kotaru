@@ -79,6 +79,7 @@ const server = await startGatewayServer({
       set: (subjectId, days) => conversations.setRetentionDays(subjectId, days, new Date().toISOString()),
     },
     ready: async () => (await sql.query('select 1 as ok')).rows.length === 1,
+    corsOrigins: config.corsOrigins,
   },
 });
 
