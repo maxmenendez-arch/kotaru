@@ -117,6 +117,21 @@ export function describeMemoryStore(
         expect(await s.edit(b.id, 'ME GUSTA EL MAR')).toEqual({ ok: false, reason: 'duplicate' });
       });
 
+      it('fijar mientras otra peticion aprueba no deshace la aprobacion', async () => {
+        const s = await store();
+        const m = await proposed(s, 'me gusta el mar');
+        await Promise.all([s.approve(m.id), s.setPinned(m.id, true)]);
+        expect(await s.get(m.id)).toMatchObject({ status: 'approved', pinned: true });
+      });
+
+      it('editar mientras la conversacion usa el recuerdo no pierde el uso contado', async () => {
+        const s = await store();
+        const m = await proposed(s, 'me gusta el mar');
+        await s.approve(m.id);
+        await Promise.all([s.recall({ subjectId: S1, companionId: 'rio', text: 'mar' }), s.edit(m.id, 'me encanta el mar')]);
+        expect(await s.get(m.id)).toMatchObject({ text: 'me encanta el mar', useCount: 1 });
+      });
+
       it('lo fijado sale primero aunque sea menos relevante', async () => {
         const s = await store();
         const pinned = await proposed(s, 'mi cumpleanos es en marzo');

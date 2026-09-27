@@ -7,7 +7,7 @@ import { GeminiLlmProvider } from '../src/index.js';
 let server: Server | null = null;
 let lastRequest: { url: string; headers: IncomingMessage['headers']; body: any } | null = null;
 
-type Reply = { status?: number; chunks?: unknown[]; json?: unknown; delayMs?: number; hang?: boolean };
+type Reply = { status?: number; chunks?: unknown[]; json?: unknown; delayMs?: number; hang?: boolean; noTrailingBlank?: boolean };
 
 async function fakeGemini(reply: Reply): Promise<string> {
   server = createServer(async (req, res) => {
@@ -19,8 +19,11 @@ async function fakeGemini(reply: Reply): Promise<string> {
       return;
     }
     res.writeHead(200, { 'content-type': 'text/event-stream' });
-    for (const chunk of reply.chunks ?? []) {
-      res.write(`data: ${JSON.stringify(chunk)}\r\n\r\n`);
+    const chunks = reply.chunks ?? [];
+    for (const [i, chunk] of chunks.entries()) {
+      // El ultimo sin linea en blanco final, a proposito: el adaptador no debe perderlo.
+      const last = i === chunks.length - 1 && reply.noTrailingBlank;
+      res.write(`data: ${JSON.stringify(chunk)}${last ? '' : '\r\n\r\n'}`);
       if (reply.delayMs) await new Promise((r) => setTimeout(r, reply.delayMs));
     }
     if (reply.hang) return; // deja la conexion abierta
@@ -148,5 +151,15 @@ describe('Gemini streamGenerateContent', () => {
     const base = await fakeGemini({ chunks: [] });
     const error = await collect(provider(base).stream([{ role: 'system', content: 'x' }], opts, ctx())).catch((e: unknown) => e);
     expect(error).toMatchObject({ code: 'no_user_message', retryable: false });
+  });
+
+  it('no pierde el ultimo evento si el stream no termina en linea en blanco', async () => {
+    const base = await fakeGemini({
+      chunks: [chunk('Hola.'), { candidates: [{ finishReason: 'MAX_TOKENS' }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } }],
+      noTrailingBlank: true,
+    });
+    const events = await collect(provider(base).stream([{ role: 'user', content: 'x' }], opts, ctx()));
+    expect(events.find((e) => e.type === 'stop')).toEqual({ type: 'stop', reason: 'length' });
+    expect(events.find((e) => e.type === 'usage')).toMatchObject({ usage: { inputTokens: 10, outputTokens: 5 } });
   });
 });

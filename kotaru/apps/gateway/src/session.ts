@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   type AudioChunk,
   type DomainMessage,
@@ -93,6 +94,8 @@ export class GatewaySession {
   #audio: AsyncQueue<AudioChunk> | null = null;
   #turnId: string | null = null;
   #abort: AbortController | null = null;
+  /** El turno en curso, que corre en segundo plano desde turn_start. */
+  #running: Promise<void> | null = null;
   #lastActivityMs: number;
   #closed = false;
   #turnsCompleted = 0;
@@ -149,6 +152,12 @@ export class GatewaySession {
         return;
 
       case 'turn_start': {
+        // Un id de turno raro (enorme, con espacios o simbolos) no llega a ningun sitio.
+        if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(message.turnId)) {
+          this.#transport.close('protocol_error');
+          this.#closed = true;
+          return;
+        }
         // Sin await aqui a proposito: el audio del turno llega en los frames siguientes y
         // tiene que encontrar la cola ya abierta. La copia del consumo se refresco al
         // cerrar el turno anterior, que es donde cambia.
@@ -157,16 +166,34 @@ export class GatewaySession {
           this.#transport.send({ type: 'limit', kind: this.#limitKind() });
           return;
         }
+        // Un turno nuevo mientras sigue el anterior es un barge-in aunque el cliente no
+        // haya mandado `interrupt`: el anterior se corta.
+        this.#abort?.abort();
+        this.#audio?.close();
+
+        const audio = new AsyncQueue<AudioChunk>();
+        const abort = new AbortController();
         this.#turnId = message.turnId;
-        this.#audio = new AsyncQueue<AudioChunk>();
-        this.#abort = new AbortController();
+        this.#audio = audio;
+        this.#abort = abort;
+        // El turno arranca YA, no al soltar el boton: el STT recibe el audio en tiempo
+        // real mientras el usuario habla. Esperar a turn_end para mandarlo todo de golpe
+        // lo haria llegar mas rapido que el tiempo real, y AssemblyAI cierra la sesion
+        // (codigo 3007) cuando eso pasa.
+        this.#running = this.#runTurn(message.turnId, audio, abort).catch(() => {
+          // Un fallo del turno (base de datos, proveedor sin alternativa) cierra la sesion
+          // con un motivo que la app entiende, igual que antes.
+          if (!this.#closed) {
+            this.#transport.close('server_error');
+            this.#closed = true;
+          }
+        });
         return;
       }
 
       case 'turn_end': {
         if (this.#turnId !== message.turnId || !this.#audio) return;
         this.#audio.close();
-        await this.#runTurn(message.turnId);
         return;
       }
 
@@ -181,6 +208,18 @@ export class GatewaySession {
         this.#closed = true;
         return;
     }
+  }
+
+  /** La conexion se cerro: corta el turno en curso para no seguir pagando proveedores. */
+  dispose(): void {
+    this.#closed = true;
+    this.#abort?.abort();
+    this.#audio?.close();
+  }
+
+  /** Espera a que termine el turno en curso (apagado limpio y pruebas). */
+  async settled(): Promise<void> {
+    await this.#running;
   }
 
   pushAudio(chunk: AudioChunk): void {
@@ -205,20 +244,23 @@ export class GatewaySession {
     return null;
   }
 
-  async #runTurn(turnId: string): Promise<void> {
-    const ctx = this.#context();
-    const audio = this.#audio;
-    if (!audio) return;
+  async #runTurn(turnId: string, audio: AsyncQueue<AudioChunk>, abort: AbortController): Promise<void> {
+    const ctx = this.#context(abort.signal);
 
     let transcript = '';
     let reply = '';
     let voiceSeconds = 0;
     const history = await this.#recallIntoHistory();
+    // El id que manda la app solo es unico dentro de su sesion ("turn_1" lo usan todos).
+    // Para cobrar y medir hace falta uno unico en todo el sistema: se deriva del grant
+    // (unico por sesion) y del id del cliente. Es determinista, asi que un reintento del
+    // mismo turno en la misma sesion sigue sin cobrarse dos veces.
+    const turnKey = createHash('sha256').update(`${this.#grant.jti}\u0000${turnId}`).digest('hex').slice(0, 32);
 
     const events = runTurn(
       {
         conversationId: this.#grant.conversationId,
-        turnId,
+        turnId: turnKey,
         audio,
         history,
         llmOptions: {
@@ -297,7 +339,7 @@ export class GatewaySession {
 
         case 'done':
           await this.#deps.usage.record({
-            turnId,
+            turnId: turnKey,
             subjectId: this.#grant.subjectId,
             voiceSeconds,
             costUsd: event.metric.totalCostUsd,
@@ -333,9 +375,14 @@ export class GatewaySession {
       this.#closed = true;
     }
 
-    this.#audio = null;
-    this.#turnId = null;
-    this.#abort = null;
+    // Solo si sigue siendo el turno actual: mientras este terminaba (guardando memoria,
+    // historial, consumo) pudo empezar otro, y su estado no se toca.
+    if (this.#turnId === turnId) {
+      this.#audio = null;
+      this.#turnId = null;
+      this.#abort = null;
+      this.#running = null;
+    }
   }
 
   async #resumeConversation(): Promise<void> {
@@ -420,7 +467,7 @@ export class GatewaySession {
     this.#usage = { subject, totalCostUsd };
   }
 
-  #context(): ProviderContext {
+  #context(signal: AbortSignal): ProviderContext {
     const used = this.#usage.subject;
     return {
       requestId: `${this.#grant.jti}:${this.#turnsCompleted}`,
@@ -437,7 +484,7 @@ export class GatewaySession {
         hardCapUsd: this.#deps.budget.hardCapUsd,
       },
       deadlineMs: 15_000,
-      signal: this.#abort?.signal ?? new AbortController().signal,
+      signal,
     };
   }
 

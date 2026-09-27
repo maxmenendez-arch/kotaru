@@ -237,6 +237,13 @@ async function drive(
       return;
     }
 
+    if (transcript.trim() === '') {
+      // Silencio o ruido: responder a nada cuesta dinero y confunde. El turno termina aqui.
+      out.push({ type: 'failed', stage: 'stt', reason: 'no_speech' });
+      finish(false);
+      return;
+    }
+
     // ---- 2. Moderacion de entrada ----------------------------------------
     const verdict = await deps.moderation.classify(
       { text: transcript, direction: 'inbound' },

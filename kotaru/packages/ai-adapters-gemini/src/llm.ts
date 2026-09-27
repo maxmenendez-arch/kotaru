@@ -258,4 +258,12 @@ async function* sse(response: Response): AsyncIterable<GeminiChunk> {
       if (data) yield JSON.parse(data) as GeminiChunk;
     }
   }
+  // Un ultimo evento sin linea en blanco final: suele ser el que trae el consumo y el
+  // motivo de parada, asi que no se puede tirar.
+  const rest = (buffer + decoder.decode())
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart())
+    .join('\n');
+  if (rest.trim()) yield JSON.parse(rest) as GeminiChunk;
 }

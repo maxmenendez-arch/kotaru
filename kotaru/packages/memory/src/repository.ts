@@ -7,6 +7,20 @@ export type ApproveOutcome =
 export type SaveOutcome = 'saved' | 'not_found' | 'duplicate';
 
 /**
+ * Cambio parcial. Solo toca los campos que trae: fijar un recuerdo no puede deshacer una
+ * aprobacion que ocurrio mientras tanto, ni perder un uso contado por otra sesion.
+ */
+export interface MemoryPatch {
+  readonly text?: string;
+  readonly pinned?: boolean;
+  readonly status?: 'rejected';
+}
+
+export type UpdateResult =
+  | { readonly outcome: 'saved'; readonly memory: Memory }
+  | { readonly outcome: 'not_found' | 'duplicate' };
+
+/**
  * Donde viven los recuerdos. Solo almacenamiento: las reglas (el guardia de contenido,
  * que nada nazca aprobado, el orden de recuperacion) estan en `MemoryStore` y son las
  * mismas para cualquier implementacion.
@@ -20,8 +34,8 @@ export type SaveOutcome = 'saved' | 'not_found' | 'duplicate';
 export interface MemoryRepository {
   insert(memory: Memory): Promise<'inserted' | 'duplicate'>;
   get(id: string): Promise<Memory | undefined>;
-  /** Reemplaza un recuerdo existente. */
-  save(memory: Memory): Promise<SaveOutcome>;
+  /** Cambia solo los campos del parche y devuelve el recuerdo tal como quedo. */
+  update(id: string, patch: MemoryPatch, atIso: string): Promise<UpdateResult>;
   remove(id: string): Promise<boolean>;
   removeAllFor(subjectId: string): Promise<number>;
   listFor(subjectId: string): Promise<Memory[]>;
@@ -52,11 +66,19 @@ export class InMemoryMemoryRepository implements MemoryRepository {
     return this.#rows.get(id);
   }
 
-  async save(memory: Memory): Promise<SaveOutcome> {
-    if (!this.#rows.has(memory.id)) return 'not_found';
-    if (memory.status !== 'rejected' && this.#conflicts(memory)) return 'duplicate';
-    this.#rows.set(memory.id, memory);
-    return 'saved';
+  async update(id: string, patch: MemoryPatch, atIso: string): Promise<UpdateResult> {
+    const existing = this.#rows.get(id);
+    if (!existing) return { outcome: 'not_found' };
+    const memory: Memory = {
+      ...existing,
+      ...(patch.text !== undefined ? { text: patch.text } : {}),
+      ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
+      updatedAt: atIso,
+    };
+    if (memory.status !== 'rejected' && this.#conflicts(memory)) return { outcome: 'duplicate' };
+    this.#rows.set(id, memory);
+    return { outcome: 'saved', memory };
   }
 
   async remove(id: string): Promise<boolean> {

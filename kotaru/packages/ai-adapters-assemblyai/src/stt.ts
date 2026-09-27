@@ -44,6 +44,8 @@ const DEFAULT_URL = 'wss://streaming.us.assemblyai.com/v3/ws';
 /** Los mensajes de audio deben durar entre 50 y 1000 ms; 100 ms es un buen punto medio. */
 const FRAME_MS = 100;
 const MIN_FRAME_MS = 50;
+const PACE_FACTOR = 1.2;
+const PACE_HEADROOM_MS = 1000;
 
 interface TurnMessage {
   readonly type: 'Turn';
@@ -125,19 +127,31 @@ export class AssemblyAiSttProvider implements SpeechToTextProvider {
     // El audio sale en segundo plano mientras aqui se leen las transcripciones.
     let pending = Buffer.alloc(0);
     let inputDone = false;
+    // AssemblyAI cierra la sesion (3007) si el audio llega mas rapido que ~1.25x tiempo
+    // real. Normalmente llega al ritmo del usuario, pero si se acumula (red lenta, un
+    // reintento) aqui se frena: como mucho 1.2x, con un segundo de margen inicial.
+    const sendStartedAt = Date.now();
+    let sentMs = 0;
+    const pace = async () => {
+      const allowed = (Date.now() - sendStartedAt) * PACE_FACTOR + PACE_HEADROOM_MS;
+      if (sentMs > allowed) await sleep((sentMs - allowed) / PACE_FACTOR);
+    };
     const pump = (async () => {
-      const push = (pcm: Uint8Array) => {
+      const push = async (pcm: Uint8Array) => {
         pending = Buffer.concat([pending, pcm]);
         while (pending.byteLength >= frameBytes) {
+          await pace();
+          if (ctx.signal.aborted) return;
           if (socket.readyState === WebSocket.OPEN) socket.send(pending.subarray(0, frameBytes));
+          sentMs += FRAME_MS;
           pending = pending.subarray(frameBytes);
         }
       };
-      push(first.value.pcm);
+      await push(first.value.pcm);
       for (let next = await iterator.next(); !next.done; next = await iterator.next()) {
         if (ctx.signal.aborted) break;
         if (next.value.sampleRate !== sampleRate) throw new ProviderError(this.descriptor.id, 'sample_rate_changed', false);
-        push(next.value.pcm);
+        await push(next.value.pcm);
       }
       if (pending.byteLength > 0 && socket.readyState === WebSocket.OPEN) {
         // El ultimo trozo tambien debe durar al menos 50 ms: se completa con silencio.
@@ -347,4 +361,8 @@ class Inbox<T extends { type: string }> {
       if (item.type === type) return item;
     }
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

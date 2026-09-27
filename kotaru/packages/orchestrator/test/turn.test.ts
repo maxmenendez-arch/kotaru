@@ -211,3 +211,24 @@ describe('seguridad', () => {
     expect(events.at(-1)?.type).toBe('done');
   });
 });
+
+describe('silencio', () => {
+  it('si el STT no oye palabras no se llama al LLM ni al TTS, y el turno termina medido', async () => {
+    const h = harness();
+    const silent = new MockSttProvider(' ');
+    const llmCalls: unknown[] = [];
+    const resolve: ProviderResolver = {
+      ...h.resolve,
+      stt: () => silent,
+      llm: (id) => {
+        llmCalls.push(id);
+        return h.resolve.llm(id);
+      },
+    };
+    const events = await collect(runTurn(input(), ctx(), { ...h, resolve, infraCostUsd: 0 }));
+    expect(events).toContainEqual({ type: 'failed', stage: 'stt', reason: 'no_speech' });
+    expect(events.some((e) => e.type === 'token' || e.type === 'audio')).toBe(false);
+    expect(llmCalls).toEqual([]);
+    expect(events.at(-1)?.type).toBe('done');
+  });
+});

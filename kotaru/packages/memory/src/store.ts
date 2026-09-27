@@ -1,6 +1,6 @@
 import { guardMemoryText, type BlockedReason } from './guard.js';
 import { InMemoryMemoryRepository, type ApproveOutcome, type MemoryRepository } from './repository.js';
-import type { Memory, MemoryCandidate, MemoryStatus } from './types.js';
+import type { Memory, MemoryCandidate } from './types.js';
 
 export interface MemoryStoreOptions {
   readonly now: () => number;
@@ -104,8 +104,9 @@ export class MemoryStore {
     return (await this.#repo.countApproved(subjectId)) >= this.#max;
   }
 
-  reject(id: string): Promise<Memory | undefined> {
-    return this.#transition(id, 'rejected');
+  async reject(id: string): Promise<Memory | undefined> {
+    const result = await this.#repo.update(id, { status: 'rejected' }, this.#isoNow());
+    return result.outcome === 'saved' ? result.memory : undefined;
   }
 
   /** El usuario corrige el texto. Vuelve a pasar por el guardia y por el duplicado. */
@@ -116,17 +117,14 @@ export class MemoryStore {
     const verdict = guardMemoryText(text);
     if (!verdict.allowed) return { ok: false, reason: verdict.reason! };
 
-    const updated: Memory = { ...existing, text, updatedAt: this.#isoNow() };
-    const outcome = await this.#repo.save(updated);
-    if (outcome !== 'saved') return { ok: false, reason: outcome };
-    return { ok: true, memory: updated };
+    const result = await this.#repo.update(id, { text }, this.#isoNow());
+    if (result.outcome !== 'saved') return { ok: false, reason: result.outcome };
+    return { ok: true, memory: result.memory };
   }
 
   async setPinned(id: string, pinned: boolean): Promise<Memory | undefined> {
-    const existing = await this.#repo.get(id);
-    if (!existing) return undefined;
-    const updated: Memory = { ...existing, pinned, updatedAt: this.#isoNow() };
-    return (await this.#repo.save(updated)) === 'saved' ? updated : undefined;
+    const result = await this.#repo.update(id, { pinned }, this.#isoNow());
+    return result.outcome === 'saved' ? result.memory : undefined;
   }
 
   /** Busca uno. La API lo usa para comprobar de quien es antes de tocarlo. */
@@ -183,13 +181,6 @@ export class MemoryStore {
 
   countApproved(subjectId: string): Promise<number> {
     return this.#repo.countApproved(subjectId);
-  }
-
-  async #transition(id: string, status: MemoryStatus): Promise<Memory | undefined> {
-    const existing = await this.#repo.get(id);
-    if (!existing) return undefined;
-    const updated: Memory = { ...existing, status, updatedAt: this.#isoNow() };
-    return (await this.#repo.save(updated)) === 'saved' ? updated : undefined;
   }
 
   #isoNow(): string {

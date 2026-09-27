@@ -1,4 +1,4 @@
-import type { ApproveOutcome, Memory, MemoryKind, MemoryRepository, MemoryStatus, SaveOutcome } from '@kotaru/memory';
+import type { ApproveOutcome, Memory, MemoryKind, MemoryPatch, MemoryRepository, MemoryStatus, UpdateResult } from '@kotaru/memory';
 import type { SqlClient } from './client.js';
 
 interface MemoryRow {
@@ -65,18 +65,31 @@ export class SqlMemoryRepository implements MemoryRepository {
     return rows[0] ? toMemory(rows[0]) : undefined;
   }
 
-  async save(memory: Memory): Promise<SaveOutcome> {
+  async update(id: string, patch: MemoryPatch, atIso: string): Promise<UpdateResult> {
+    // Una sola sentencia que toca solo lo que cambia: sin leer-y-reescribir, no hay
+    // ventana en la que otra escritura (una aprobacion, un uso contado) se pierda.
+    const sets: string[] = ['updated_at = $2'];
+    const values: unknown[] = [id, atIso];
+    if (patch.text !== undefined) {
+      values.push(patch.text);
+      sets.push(`text = $${values.length}`);
+    }
+    if (patch.pinned !== undefined) {
+      values.push(patch.pinned);
+      sets.push(`pinned = $${values.length}`);
+    }
+    if (patch.status !== undefined) {
+      values.push(patch.status);
+      sets.push(`status = $${values.length}`);
+    }
     try {
-      const { rows } = await this.#sql.query<{ id: string }>(
-        `update app.memories set subject_id=$2, companion_id=$3, kind=$4, text=$5, status=$6, pinned=$7,
-           confidence=$8, source_turn_id=$9, use_count=$10, last_used_at=$11, created_at=$12,
-           updated_at=$13, expires_at=$14
-         where id = $1 returning id`,
-        params(memory),
+      const { rows } = await this.#sql.query<MemoryRow>(
+        `update app.memories set ${sets.join(', ')} where id = $1 returning ${COLUMNS}`,
+        values,
       );
-      return rows.length > 0 ? 'saved' : 'not_found';
+      return rows[0] ? { outcome: 'saved', memory: toMemory(rows[0]) } : { outcome: 'not_found' };
     } catch (error) {
-      if (isUniqueViolation(error)) return 'duplicate';
+      if (isUniqueViolation(error)) return { outcome: 'duplicate' };
       throw error;
     }
   }

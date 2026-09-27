@@ -23,9 +23,12 @@ say() { printf '\n==> %s\n' "$*"; }
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "hay que correrlo como root"
-command -v node >/dev/null || die "falta Node.js"
-NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]')
+NODE_BIN=$(command -v node) || die "falta Node.js"
+NODE_BIN=$(readlink -f "$NODE_BIN")
+NODE_MAJOR=$("$NODE_BIN" -p 'process.versions.node.split(".")[0]')
 [ "$NODE_MAJOR" -ge 22 ] || die "Node $NODE_MAJOR es viejo; hace falta 22 o superior"
+# El servicio corre con ProtectHome: un Node instalado bajo /root o /home (nvm) no lo vera.
+case "$NODE_BIN" in /root/*|/home/*) die "Node esta en $NODE_BIN; el servicio no puede usarlo. Instala Node 22 del sistema (NodeSource)." ;; esac
 command -v psql >/dev/null || die "falta PostgreSQL (apt install -y postgresql)"
 
 say "Compilando"
@@ -43,15 +46,19 @@ else
 fi
 
 say "Version $COMMIT"
-RELEASE="$ROOT/releases/$COMMIT"
+# Nombre unico aunque se reinstale el mismo commit: nunca se pisa la version en marcha, y
+# siempre hay una anterior distinta a la que volver.
+RELEASE="$ROOT/releases/$COMMIT-$(date +%Y%m%d%H%M%S)"
 PREVIOUS=$(readlink -f "$ROOT/current" 2>/dev/null || true)
 mkdir -p "$ROOT/releases"
-rm -rf "$RELEASE"
-cp -r "$REPO_DIR/dist/gateway" "$RELEASE"
-cp "$REPO_DIR/deploy/README.md" "$RELEASE/README-deploy.md"
-(cd "$RELEASE" && npm install --omit=dev --no-audit --no-fund --silent)
-chown -R root:kotaru "$RELEASE"
-chmod -R g+rX,o-rwx "$RELEASE"
+STAGING="$RELEASE.tmp"
+rm -rf "$STAGING"
+cp -r "$REPO_DIR/dist/gateway" "$STAGING"
+cp "$REPO_DIR/deploy/README.md" "$STAGING/README-deploy.md"
+(cd "$STAGING" && npm install --omit=dev --no-audit --no-fund --silent)
+chown -R root:kotaru "$STAGING"
+chmod -R g+rX,o-rwx "$STAGING"
+mv "$STAGING" "$RELEASE"
 
 say "Configuracion"
 mkdir -p /etc/kotaru
@@ -80,17 +87,22 @@ chown root:kotaru "$ENV_FILE"
 chmod 640 "$ENV_FILE"
 
 say "Migraciones"
-set -a
-# shellcheck disable=SC1090
-. "$ENV_FILE"
-set +a
-runuser -u kotaru -- node "$RELEASE/bin/migrate.mjs"
+# Se lee como lo lee systemd (CLAVE=valor, literal), sin ejecutarlo con bash: un $ o una
+# comilla en una contrasena no se expanden, y el archivo no corre como codigo de root.
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in ''|'#'*) continue ;; esac
+  key=${line%%=*}
+  value=${line#*=}
+  [[ $key =~ ^[A-Z_][A-Z0-9_]*$ ]] && export "$key=$value"
+done < "$ENV_FILE"
+runuser -u kotaru -- "$NODE_BIN" "$RELEASE/bin/migrate.mjs"
 
 say "Servicios"
 ln -sfn "$RELEASE" "$ROOT/current"
-install -m 644 "$REPO_DIR/deploy/systemd/kotaru-gateway.service" /etc/systemd/system/
-install -m 644 "$REPO_DIR/deploy/systemd/kotaru-retention.service" /etc/systemd/system/
-install -m 644 "$REPO_DIR/deploy/systemd/kotaru-retention.timer" /etc/systemd/system/
+for unit in kotaru-gateway.service kotaru-retention.service kotaru-retention.timer; do
+  sed "s|/usr/bin/node|$NODE_BIN|g" "$REPO_DIR/deploy/systemd/$unit" > "/etc/systemd/system/$unit"
+  chmod 644 "/etc/systemd/system/$unit"
+done
 systemctl daemon-reload
 systemctl enable --now kotaru-retention.timer >/dev/null
 systemctl enable kotaru-gateway >/dev/null
@@ -103,12 +115,12 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 # runuser sin -l conserva el entorno ya cargado de $ENV_FILE.
-if runuser -u kotaru -- node "$RELEASE/bin/smoke.mjs" "http://127.0.0.1:$PORT_NOW"; then
+if runuser -u kotaru -- "$NODE_BIN" "$RELEASE/bin/smoke.mjs" "http://127.0.0.1:$PORT_NOW"; then
   say "Listo: version $COMMIT en marcha"
   systemctl --no-pager --lines=0 status kotaru-gateway | head -5
   # Conserva las 5 ultimas versiones para poder volver atras.
   # shellcheck disable=SC2012
-  ls -1dt "$ROOT"/releases/* | tail -n +6 | xargs -r rm -rf
+  ls -1dt "$ROOT"/releases/*/ | tail -n +6 | xargs -r rm -rf
 else
   echo "La prueba de humo fallo. Ultimas lineas del servicio:" >&2
   journalctl -u kotaru-gateway --no-pager -n 30 >&2 || true

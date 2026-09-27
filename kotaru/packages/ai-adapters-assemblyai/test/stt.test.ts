@@ -193,4 +193,18 @@ describe('AssemblyAI streaming v3', () => {
     const p = new AssemblyAiSttProvider({ apiKey: 'k', zeroRetentionConfirmed: true, speechModel: 'universal-streaming-english' });
     expect(p.descriptor.locales).toEqual(['en-US']);
   });
+
+  it('si le llega audio acumulado, no lo manda a mas de 1.2x tiempo real', async () => {
+    const { url, seen } = await fakeServer({});
+    // 3 s de audio entregados de golpe, como tras un corte de red.
+    async function* burst(): AsyncIterable<AudioChunk> {
+      for (let i = 0; i < 150; i += 1) yield { pcm: new Uint8Array(960), sampleRate: 24000, seq: i };
+    }
+    const started = Date.now();
+    await collect(provider(url).transcribeStream(burst(), ctx()));
+    const elapsed = Date.now() - started;
+    // 3000 ms de audio con 1000 ms de margen a 1.2x: al menos ~1650 ms de envio.
+    expect(elapsed).toBeGreaterThanOrEqual(1500);
+    expect(seen.frameBytes.reduce((a, b) => a + b, 0)).toBe(150 * 960);
+  });
 });

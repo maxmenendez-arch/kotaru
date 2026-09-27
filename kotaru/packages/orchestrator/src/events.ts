@@ -6,6 +6,8 @@ export type TurnStage = Extract<Capability, 'stt' | 'llm' | 'tts' | 'moderation'
 export type TurnFailure =
   | 'no_viable_route'
   | 'provider_failed_mid_stream'
+  /** El STT no oyo palabras (silencio, ruido). No se llama al LLM: no hay nada que responder. */
+  | 'no_speech'
   | 'cancelled'
   | 'budget_exhausted';
 

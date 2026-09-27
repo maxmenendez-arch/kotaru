@@ -138,7 +138,7 @@ describe('retencion', () => {
     );
     await sql.query('insert into app.used_grants (jti, expires_at) values ($1, $2)', ['viejo', at(1)]);
     const report = await runRetention(sql, at(60));
-    expect(report).toMatchObject({ memories: 1, usedGrants: 1, ranAt: at(60) });
+    expect(report).toMatchObject({ memories: 1, usedGrants: 1, lateWritesOfErased: 0, ranAt: at(60) });
   });
 });
 
@@ -170,5 +170,40 @@ describe('cobertura del borrado de cuenta', () => {
     );
     const inSchema = rows.map((r) => `app.${r.table_name}`).sort();
     expect([...SUBJECT_TABLES].sort()).toEqual(inSchema);
+  });
+});
+
+describe('escrituras tardias tras borrar una cuenta', () => {
+  it('lo que escribe una sesion que seguia abierta se barre en la siguiente retencion', async () => {
+    const { deleteAccount } = await import('../src/deletion.js');
+    const accountId = randomUUID();
+    const subjectId = randomUUID();
+    await sql.query(
+      `insert into identity.accounts (id, auth_provider, auth_subject, email_hash, email_encrypted)
+       values ($1,'apple',$2, decode('00','hex'), decode('00','hex'))`,
+      [accountId, `s_${accountId}`],
+    );
+    await sql.query('insert into identity.subject_links (account_id, subject_id) values ($1,$2)', [accountId, subjectId]);
+    expect((await deleteAccount(sql, accountId)).ok).toBe(true);
+
+    // La sesion de voz de esa persona seguia viva y guardo un recuerdo y consumo.
+    await sql.query(
+      `insert into app.memories (id, subject_id, companion_id, kind, text, confidence, source_turn_id)
+       values (gen_random_uuid(), $1, 'rio', 'fact', 'tarde', 0.5, 't')`,
+      [subjectId],
+    );
+    await new UsageRepository(sql).record({ turnId: 'tardio', subjectId, voiceSeconds: 1, costUsd: 0.0001 });
+
+    const report = await runRetention(sql, new Date().toISOString());
+    expect(report.lateWritesOfErased).toBe(2);
+    const left = await sql.query('select 1 from app.memories where subject_id = $1', [subjectId]);
+    expect(left.rows).toHaveLength(0);
+  });
+
+  it('la lapida se olvida pasados 30 dias', async () => {
+    const id = randomUUID();
+    await sql.query("insert into app.erased_subjects (erased_subject_id, erased_at) values ($1, now() - interval '31 days')", [id]);
+    await runRetention(sql, new Date().toISOString());
+    expect((await sql.query('select 1 from app.erased_subjects where erased_subject_id = $1', [id])).rows).toHaveLength(0);
   });
 });

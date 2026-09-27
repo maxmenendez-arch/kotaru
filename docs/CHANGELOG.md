@@ -488,3 +488,42 @@ npm run demo        # dos turnos completos, con costo y memoria
 - El paquete web de la app no contiene código del servidor.
 - 269 pruebas en verde en la nube y en una copia local en impermax-gl; `tsc` y exportación web
   de la app también en impermax-gl.
+
+## 2026-09-27 — Correcciones de la revisión independiente (noche, bloque 5)
+
+Una revisión hecha por un agente que no escribió el código encontró 12 problemas; se
+corrigieron 10. Cada corrección tiene su prueba de regresión.
+
+**Corregido**
+- **El STT recibía el audio de golpe al soltar el botón** (alta). Con AssemblyAI real eso
+  habría cerrado cada sesión con el código 3007. Ahora el turno arranca en `turn_start` y el
+  audio fluye en tiempo real; el adaptador además frena a 1,2× si le llega audio acumulado.
+- **Un turno que empezaba mientras el anterior terminaba de guardarse se perdía** (alta):
+  pasaba en cada barge-in. El cierre de un turno solo limpia su propio estado.
+- **La prueba de humo habría fallado siempre con proveedores reales** y dejaba un usuario de
+  prueba en la base de producción en cada despliegue. Ahora el turno de voz solo se prueba con
+  simulados (o con `--voz`), y el usuario de prueba se borra al terminar.
+- **Dos usuarios con el mismo id de turno**: el segundo no se cobraba (el libro de consumo
+  usa `turn_id` como clave). Ahora la clave se deriva del grant de la sesión y del turno.
+- **Fijar o editar un recuerdo podía deshacer una aprobación simultánea** o perder un uso
+  contado: se reescribía la fila entera. Ahora cada cambio toca solo sus columnas.
+- **Escrituras tardías tras borrar una cuenta**: una sesión que seguía abierta podía dejar
+  datos huérfanos. Migración 0008: lápida del seudónimo durante 30 días; la retención los
+  vuelve a barrer.
+- **Cerrar la app a mitad de turno no cortaba a los proveedores**, que seguían cobrando.
+- **Un segundo `hello` en el mismo socket** podía abrir otra sesión.
+- **Silencio**: con transcripción vacía ya no se llama al LLM ni al TTS (`no_speech`).
+- **Gemini**: no se pierde el último evento del stream si no termina en línea en blanco.
+- **install.sh**: usa el Node del sistema también en systemd (y se niega si está bajo /root),
+  lee la configuración como systemd sin ejecutarla con bash, no pisa la versión en marcha al
+  reinstalar el mismo commit, y la vuelta atrás automática quedó probada.
+
+**Pendiente**
+- Registrar costo estimado cuando un turno se cancela a mitad (hoy se subestima un poco).
+- Revocar al instante sesiones y tokens de una cuenta borrada (hoy caducan solos en 15 min;
+  la lápida limpia lo que escriban).
+
+**Cómo se verificó**
+- 283 pruebas en verde en la nube y en impermax-gl; 29 contra PostgreSQL 16 real.
+- `install.sh` con systemd simulado: instalación limpia, reinstalación y un despliegue fallido
+  que vuelve solo a la versión anterior.

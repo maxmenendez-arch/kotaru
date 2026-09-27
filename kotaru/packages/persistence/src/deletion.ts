@@ -31,22 +31,33 @@ export async function deleteAccount(sql: SqlClient, accountId: string): Promise<
     if (link.rows.length === 0) return { ok: false, reason: 'no_subject_link' };
 
     const subjectId = link.rows[0]!.subject_id;
-    let rowsDeleted = 0;
-
-    // En orden de dependencia. `messages` cae con `conversations` por cascada.
-    for (const table of SUBJECT_TABLES) {
-      const result = await tx.query<{ ok: number }>(
-        `delete from ${table} where subject_id = $1 returning 1 as ok`,
-        [subjectId],
-      );
-      rowsDeleted += result.rows.length;
-    }
+    const rowsDeleted = await purgeSubject(tx, subjectId);
+    // La lapida permite volver a barrer lo que escriban sesiones que seguian abiertas.
+    await tx.query(
+      'insert into app.erased_subjects (erased_subject_id) values ($1) on conflict do nothing',
+      [subjectId],
+    );
 
     await tx.query('delete from identity.subject_links where account_id = $1', [accountId]);
     await tx.query('delete from identity.accounts where id = $1', [accountId]);
 
     return { ok: true, subjectId, rowsDeleted };
   });
+}
+
+/**
+ * Borra todo el contenido de un seudonimo, en orden de dependencia (`messages` cae con
+ * `conversations` por cascada). Devuelve cuantas filas borro. No toca la identidad.
+ */
+export async function purgeSubject(sql: SqlClient, subjectId: string): Promise<number> {
+  let rowsDeleted = 0;
+  for (const table of SUBJECT_TABLES) {
+    const result = await sql.query<{ ok: number }>(`delete from ${table} where subject_id = $1 returning 1 as ok`, [
+      subjectId,
+    ]);
+    rowsDeleted += result.rows.length;
+  }
+  return rowsDeleted;
 }
 
 /**

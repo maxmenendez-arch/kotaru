@@ -79,7 +79,7 @@ describe('gateway con PostgreSQL', () => {
     expect(usageOf(second.collected.messages).remainingSeconds).toBe(after);
     second.socket.close();
 
-    const { rows } = await sql.query<{ n: string }>("select count(*)::text as n from app.usage_ledger where turn_id = 'turn_persist'");
+    const { rows } = await sql.query<{ n: string }>('select count(*)::text as n from app.usage_ledger where subject_id = $1', [claims.subjectId]);
     expect(rows[0]!.n).toBe('1');
 
     // Lo que el turno propuso recordar quedo en la base, en `proposed`, esperando al usuario.
@@ -235,5 +235,20 @@ describe('gateway con PostgreSQL', () => {
     const exported = (await (await fetch(`${base}/v1/export`, { headers: auth })).json()) as { memories: unknown[]; settings: unknown };
     expect(exported.memories).toHaveLength(1);
     expect(exported.settings).toEqual({ messageRetentionDays: 14 });
+  });
+
+  it('dos usuarios con el mismo id de turno se cobran los dos', async () => {
+    server = await bootGateway();
+    const other = { ...claims, subjectId: randomUUID(), conversationId: randomUUID() };
+    for (const who of [claims, other]) {
+      const conn = await hello(server.port, signGrant(who, key, { nowSeconds: Math.floor(Date.now() / 1000) }));
+      conn.socket.send(JSON.stringify({ type: 'turn_start', turnId: 'turn_1' }));
+      for (let i = 0; i < 8; i += 1) conn.socket.send(Buffer.alloc(24000 * 2 * 0.02), { binary: true });
+      conn.socket.send(JSON.stringify({ type: 'turn_end', turnId: 'turn_1' }));
+      await waitFor(conn.collected, (m) => m.filter((x) => x.type === 'usage').length >= 2);
+      conn.socket.close();
+    }
+    const { rows } = await sql.query<{ subject_id: string }>('select subject_id::text from app.usage_ledger');
+    expect(rows.map((r) => r.subject_id).sort()).toEqual([claims.subjectId, other.subjectId].sort());
   });
 });

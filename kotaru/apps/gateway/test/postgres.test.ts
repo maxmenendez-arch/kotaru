@@ -168,7 +168,7 @@ describe.skipIf(!URL_ENV)('PostgreSQL real', () => {
     expect(remaining(fresh.collected.messages)).toBe(after);
     fresh.socket.close();
 
-    const { rows } = await sql.query<{ n: string }>('select count(*)::text as n from app.usage_ledger where turn_id = $1', [turnId]);
+    const { rows } = await sql.query<{ n: string }>('select count(*)::text as n from app.usage_ledger where subject_id = $1', [claims.subjectId]);
     expect(rows[0]!.n).toBe('1');
   });
 });

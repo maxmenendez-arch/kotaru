@@ -62,6 +62,9 @@ export async function startGatewayServer(
 
   wss.on('connection', (socket: WebSocket) => {
     let session: GatewaySession | null = null;
+    // Se marca en el acto, antes de cualquier await: un segundo `hello` que llegue mientras
+    // se verifica el primero no puede abrir una segunda sesion en el mismo socket.
+    let helloSeen = false;
     let inboundSeq = 0;
     let deadlineTimer: NodeJS.Timeout | null = null;
 
@@ -79,8 +82,11 @@ export async function startGatewayServer(
       // Un fallo de la base (o de cualquier dependencia) no puede quedar como promesa
       // rechazada sin dueno: cerraria el proceso o dejaria al cliente colgado. Se cierra
       // la sesion con un motivo que el cliente entiende.
-      void handleMessage(data, isBinary).catch(() => {
-        send({ type: 'closing', reason: 'server_error' });
+      void handleMessage(data, isBinary).catch((error: unknown) => {
+        // Un id de conversacion ajeno no se arregla reconectando: es error de protocolo,
+        // no de servidor, para que la app no reintente con grants nuevos.
+        const ownership = error instanceof Error && error.name === 'ConversationOwnershipError';
+        send({ type: 'closing', reason: ownership ? 'protocol_error' : 'server_error' });
         shutdown();
       });
     });
@@ -113,7 +119,8 @@ export async function startGatewayServer(
         }
 
         if (parsed.type === 'hello') {
-          if (session) return;
+          if (helloSeen) return;
+          helloSeen = true;
           if (parsed.protocolVersion !== PROTOCOL_VERSION) {
             send({ type: 'closing', reason: 'protocol_error' });
             shutdown();
@@ -171,6 +178,8 @@ export async function startGatewayServer(
 
     socket.on('close', () => {
       if (deadlineTimer) clearInterval(deadlineTimer);
+      // El cliente se fue: lo que estuviera generando ya no lo oira nadie y cuesta dinero.
+      session?.dispose();
     });
   });
 
