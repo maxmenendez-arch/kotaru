@@ -1,0 +1,22 @@
+# Bloque de Kotaru para un Caddy que YA existe en el servidor y atiende otros sitios
+# (en srv1987174: el contenedor rapimula-caddy-1, que importa
+# /etc/caddy/otros-sitios/*.caddy). Se copia a esa carpeta como kotaru.caddy.
+#
+# El gateway escucha en la IP del puente de Docker de esa red (172.18.0.1): el contenedor
+# no ve el 127.0.0.1 del servidor, y esa IP no es alcanzable desde internet.
+api.kotaru.app {
+	# Sin registro de accesos (privacidad): el gateway ya registra lo necesario sin contenido.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	reverse_proxy 172.18.0.1:8787 {
+		# Caddy reemplaza X-Forwarded-For con la IP real del cliente; el gateway, con
+		# KOTARU_TRUST_PROXY=true, usa la ultima de la lista.
+		# Al recargar Caddy, las conversaciones de voz abiertas siguen hasta 5 minutos.
+		stream_close_delay 5m
+	}
+}

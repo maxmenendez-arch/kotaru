@@ -1,7 +1,7 @@
 [Unit]
 Description=Kotaru gateway (voz en tiempo real y API)
 Documentation=file:///opt/kotaru/current/README-deploy.md
-After=network-online.target postgresql.service
+After=network-online.target postgresql.service docker.service
 Wants=network-online.target
 
 [Service]
