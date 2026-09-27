@@ -2,7 +2,7 @@
   "name": "kotaru",
   "private": true,
   "version": "0.0.1",
-  "description": "Kotaru — AI companion. Monorepo root.",
+  "description": "Kotaru \u2014 AI companion. Monorepo root.",
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint:arch": "node tools/check-architecture.mjs",
-    "demo": "tsx apps/gateway/src/demo.ts"
+    "demo": "tsx apps/gateway/src/demo.ts",
+    "db:migrate": "tsx apps/gateway/src/migrate-cli.ts",
+    "test:pg": "vitest run apps/gateway/test/postgres.test.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

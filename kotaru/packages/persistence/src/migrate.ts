@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { SqlClient } from './client.js';
 
 export interface Migration {
@@ -13,6 +14,9 @@ export interface Migration {
  * Sin DSL de ORM a proposito. El esquema es la interfaz entre el codigo y los datos, y
  * debe poder leerlo alguien que sepa SQL y no sepa nada de este repositorio.
  */
+/** Carpeta de migraciones del paquete, resuelta desde este archivo (src o dist). */
+export const MIGRATIONS_DIR = fileURLToPath(new URL('../migrations', import.meta.url));
+
 export function loadMigrations(directory: string): Migration[] {
   return readdirSync(directory)
     .filter((name) => name.endsWith('.sql'))

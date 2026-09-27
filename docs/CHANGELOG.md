@@ -340,3 +340,24 @@ npm run demo        # dos turnos completos, con costo y memoria
 **Pendiente**
 - Cliente PostgreSQL de producción (node-postgres) detrás de `SqlClient`, y configuración.
 - Repositorio SQL de memoria.
+
+## 2026-09-26 — Cliente PostgreSQL de producción
+
+**Qué cambió**
+- `pgClient` (apps/gateway, sobre node-postgres): implementa `SqlClient`. Las transacciones
+  retienen una sola conexión del pool; las anidadas usan SAVEPOINT. Un error de conexión
+  ociosa ya no tumba el proceso.
+- `npm run db:migrate`: aplica las migraciones a `DATABASE_URL`. Idempotente; nunca imprime
+  la URL porque lleva la contraseña.
+- `npm run test:pg`: pruebas contra un PostgreSQL real. Se saltan si no hay
+  `KOTARU_TEST_DATABASE_URL`, y se niegan a correr contra una base cuyo nombre no termine en
+  `_test`, porque la preparación borra los esquemas.
+- `MIGRATIONS_DIR` exportado desde `@kotaru/persistence`.
+
+**Cómo se verificó**
+- Contra PostgreSQL 16.13 real: 5 pruebas en verde. Diez conexiones cobrando el mismo turno a
+  la vez (solo una gana), rollback de una transacción fallida, borrado de cuenta completo, y
+  el gateway conservando consumo y grants usados tras reiniciar.
+- `db:migrate` probado: primera vez aplica 5, segunda ninguna; sin URL sale con código 2;
+  con contraseña mala, con código 1 y mensaje claro.
+- En impermax-gl (sin PostgreSQL): 154 en verde y las 5 de PostgreSQL saltadas.
