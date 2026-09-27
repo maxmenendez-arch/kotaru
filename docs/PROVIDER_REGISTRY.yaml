@@ -293,3 +293,63 @@ meta:
     - "La apertura de cuenta bancaria exige presencia fisica en Panama"
     - "Panama sigue en la lista de jurisdicciones fiscales no cooperativas de la UE (17 feb 2026)"
   conclusion: "No desbloquea ningun proveedor. Se mantiene la entidad estadounidense."
+
+# ------------------------------------------------- ADAPTADORES IMPLEMENTADOS 2026-09-27
+# Los tres primeros proveedores reales tienen adaptador (packages/ai-adapters-*). Siguen
+# enabled: false en la practica: el router solo los elige cuando el operador confirma
+# las garantias en /etc/kotaru/gateway.env (ver deploy/README.md).
+- provider: assemblyai
+  capability: stt
+  model: universal-streaming-multilingual
+  adapter: packages/ai-adapters-assemblyai
+  endpoint: wss://streaming.us.assemblyai.com/v3/ws
+  languages: "en, es, fr, de, it, pt (el modelo universal-streaming-english es solo ingles)"
+  price: 0.15
+  unit: hora de SESION abierta (no de audio enviado)
+  verified_at: 2026-09-27
+  pricing_source: https://www.assemblyai.com/pricing
+  billing_source: https://www.assemblyai.com/docs/faq/how-does-universal-streaming-session-based-pricing-work
+  data_retention: "cero en streaming si la cuenta de pago desactiva el entrenamiento (Dashboard → Data Controls); los usuarios gratuitos no pueden"
+  retention_source: https://www.assemblyai.com/docs/data-retention-and-model-training
+  gate: KOTARU_ASSEMBLYAI_ZERO_RETENTION_CONFIRMED
+  notes:
+    - "Audio en tramos de 50 a 1000 ms (el adaptador rearma a 100 ms); mas rapido que 1.25x tiempo real cierra con 3007"
+    - "Sesiones de 3 h maximo, facturadas enteras: el adaptador cierra con Terminate al acabar cada turno"
+
+- provider: google
+  capability: llm
+  model: gemini-3.1-flash-lite
+  adapter: packages/ai-adapters-gemini
+  status_model: estable (sin sufijo preview)
+  price_input: 0.25
+  price_output: 1.50
+  price_cached_input: 0.025
+  unit: millon de tokens (nivel de pago Standard)
+  thinking: "no se puede apagar en Gemini 3; thinkingLevel=minimal. Los tokens de razonamiento se facturan como salida"
+  verified_at: 2026-09-27
+  pricing_source: https://ai.google.dev/gemini-api/docs/pricing
+  data_use: "nivel de pago: no se usa para mejorar productos; nivel gratuito: SI, con revision humana"
+  abuse_retention: "55 dias (https://ai.google.dev/gemini-api/docs/usage-policies)"
+  gate: KOTARU_GEMINI_PAID_TIER_CONFIRMED
+  notes:
+    - "generateContent figura como Legacy frente a la Interactions API, sin fecha de retiro"
+    - "Google recomienda temperatura 1.0 en Gemini 3; el adaptador no la envia"
+    - "Los filtros de seguridad de Google vienen apagados por defecto en Gemini 3"
+    - "Alternativa estable: gemini-3.5-flash-lite (0.30 / 2.50). gemini-2.5-flash-lite ya no admite proyectos nuevos"
+    - "Flex paid aparece como 'usado para mejorar productos': NO VERIFICADO, evitar Flex"
+
+- provider: aws
+  capability: tts
+  model: polly-neural
+  adapter: packages/ai-adapters-polly
+  output: "PCM 16 kHz mono 16 bits (PCM solo admite 8 y 16 kHz)"
+  voices: "es-419→Mia/Andres, es-US→Lupe/Pedro, es-ES→Lucia/Sergio, en-US→Joanna/Matthew"
+  price: 16.00
+  unit: millon de caracteres (SSML no se factura; speech marks SI se facturan)
+  verified_at: 2026-09-27
+  pricing_source: https://aws.amazon.com/polly/pricing/
+  quotas: "neural: 8 TPS, rafaga 10, 18 peticiones concurrentes por cuenta — pedir aumento antes de lanzar"
+  gates: [KOTARU_POLLY_AI_OPT_OUT_CONFIRMED, KOTARU_POLLY_COMMERCIAL_TERMS_REVIEWED]
+  notes:
+    - "Sin visemas: pedirlos es una segunda peticion facturada; la boca se anima por amplitud (ADR-001)"
+    - "Existe StartSpeechSynthesisStream (marzo 2026), bidireccional, solo motor generativo (30 USD/M) y sin speech marks"

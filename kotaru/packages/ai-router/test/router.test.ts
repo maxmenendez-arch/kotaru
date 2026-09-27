@@ -78,6 +78,18 @@ describe('restricciones duras', () => {
     expect(decision.excluded).toContainEqual({ providerId: 'sin-retencion', reason: 'retention_unknown' });
   });
 
+  it('excluye a quien puede entrenar con el contenido del usuario, o no lo sabemos', () => {
+    const router = new DefaultAiRouter()
+      .register(provider('entrena', 0.001, { trainingOptOut: false }))
+      .register(provider('quien-sabe', 0.002, { trainingOptOut: 'unknown' }))
+      .register(provider('excluido', 0.38));
+
+    const decision = router.select(req);
+    expect(decision.providerId).toBe('excluido');
+    expect(decision.excluded).toContainEqual({ providerId: 'entrena', reason: 'training_not_excluded' });
+    expect(decision.excluded).toContainEqual({ providerId: 'quien-sabe', reason: 'training_not_excluded' });
+  });
+
   it('excluye derechos comerciales de audio desconocidos en tts', () => {
     const router = new DefaultAiRouter()
       .register(provider('sin-derechos', 0.05, { commercialAudioRights: 'unknown' }))

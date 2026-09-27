@@ -19,6 +19,7 @@ export type HardConstraint =
   | 'capability_missing'
   | 'sensitivity_unsupported'
   | 'retention_unknown'
+  | 'training_not_excluded'
   | 'commercial_rights_unknown'
   | 'spend_cap_exceeded'
   | 'kill_switch'

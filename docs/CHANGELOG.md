@@ -425,3 +425,39 @@ npm run demo        # dos turnos completos, con costo y memoria
 - `install.sh` ejecutado dos veces seguidas con systemd simulado: la segunda no cambia nada y
   pasa la prueba de humo. ShellCheck sin avisos.
 - En impermax-gl: 226 pruebas en verde y 5 de PostgreSQL real saltadas.
+
+## 2026-09-27 — Adaptadores reales de IA (noche, bloque 3)
+
+**Qué cambió**
+- `@kotaru/ai-adapters-assemblyai`: STT por WebSocket v3, modelo multilingüe (EN y ES). Junta
+  en un solo final los tramos que AssemblyAI corta por pausas, rearma el audio en tramos de
+  100 ms, cierra la sesión al terminar el turno y cobra por duración de sesión, como factura.
+- `@kotaru/ai-adapters-gemini`: `gemini-3.1-flash-lite` por SSE con fetch (sin SDK). Clave en
+  cabecera, razonamiento en `minimal` y cobrado como salida, cancelación inmediata.
+- `@kotaru/ai-adapters-polly`: Polly Neural en PCM 16 kHz, una petición por oración con el
+  audio reenviado en trozos de 100 ms. La velocidad va por SSML con el texto escapado.
+- `ProviderError` en los contratos: código, reintentable o no, estado. Nunca lleva contenido
+  ni claves.
+- Router: nueva restricción dura `training_not_excluded`; un proveedor que puede entrenar con
+  el contenido, o del que no se sabe, no se elige.
+- Gateway: `KOTARU_PROVIDERS=assemblyai,gemini,polly` con sus claves. Cada proveedor exige una
+  confirmación del operador (retención cero, nivel de pago, exclusión de IA en AWS, términos
+  de audio); sin ella arranca, avisa `provider_blocked` y el router no lo usa.
+- Tarifas re-verificadas el 2026-09-27 en `docs/PROVIDER_REGISTRY.yaml`.
+
+**Hallazgos de la verificación**
+- AssemblyAI factura el tiempo que el WebSocket está abierto, no el audio: una sesión olvidada
+  abierta cuesta. El adaptador la cierra en cada turno.
+- Gemini 3 no permite apagar el razonamiento, y sus filtros de seguridad vienen apagados por
+  defecto: la seguridad de Kotaru no puede depender de ellos (no depende).
+- Polly solo da PCM a 8 o 16 kHz, y pedir visemas duplica el costo de voz.
+- El SDK de AWS no se puede empaquetar en un .mjs: queda como dependencia instalada.
+
+**Cómo se verificó**
+- Cada adaptador contra un servidor falso que implementa el protocolo documentado:
+  AssemblyAI 10 pruebas, Gemini 9, Polly 9, estables en 3 ejecuciones seguidas.
+- Un turno completo por el gateway con los tres adaptadores reales a la vez: transcripción,
+  respuesta, audio a 16 kHz y costo por componente con tarifas verificadas.
+- La versión empaquetada arranca con los tres configurados y avisa de los bloqueados.
+- 261 pruebas en verde en la nube y en una copia local en impermax-gl; 27 contra PostgreSQL real.
+- No se probó contra los servicios reales: no hay claves. Es el siguiente paso, y cuesta céntimos.

@@ -11,6 +11,15 @@
       "path": "packages/ai-adapters-mock"
     },
     {
+      "path": "packages/ai-adapters-assemblyai"
+    },
+    {
+      "path": "packages/ai-adapters-gemini"
+    },
+    {
+      "path": "packages/ai-adapters-polly"
+    },
+    {
       "path": "packages/ai-router"
     },
     {

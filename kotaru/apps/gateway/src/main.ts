@@ -48,7 +48,7 @@ const stores = durableStores(sql, { defaultRetentionDays: config.messageRetentio
 const memory = new MemoryStore({ now, newId: randomUUID, repository: stores.memories });
 const conversations = new ConversationRepository(sql, { defaultRetentionDays: config.messageRetentionDays });
 const sink = new SqlMetricSink(sql);
-const providers = buildProviders(config.providers, now);
+const providers = buildProviders(config.providers, config.providerSettings, now);
 
 const server = await startGatewayServer({
   port: config.port,
@@ -83,6 +83,8 @@ const server = await startGatewayServer({
 });
 
 log('started', { host: config.host, port: server.port, providers: providers.registered });
+// Un proveedor registrado que el router nunca elegira merece un aviso claro al arrancar.
+for (const blocked of providers.blocked) log('provider_blocked', blocked);
 
 let stopping = false;
 async function shutdown(signal: string): Promise<void> {

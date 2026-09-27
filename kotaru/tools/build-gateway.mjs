@@ -11,7 +11,7 @@
  *   bin/token.mjs     emite grant y token de acceso de prueba
  *   bin/smoke.mjs     prueba de humo contra el gateway en marcha
  *   migrations/       los .sql (bin/ los busca en ../migrations)
- *   package.json      solo las dependencias de terceros
+ *   package.json      solo las dependencias de terceros (pg, ws, SDK de Polly)
  */
 import { build } from 'esbuild';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -20,7 +20,9 @@ const out = 'dist/gateway';
 rmSync(out, { recursive: true, force: true });
 mkdirSync(`${out}/bin`, { recursive: true });
 
-const external = ['pg', 'ws', 'pg-native'];
+// Fuera del paquete: se instalan en el servidor. El SDK de AWS es CommonJS con require()
+// dinamicos que un .mjs empaquetado no puede resolver.
+const external = ['pg', 'ws', 'pg-native', '@aws-sdk/client-polly'];
 await build({
   entryPoints: {
     gateway: 'apps/gateway/src/main.ts',
@@ -44,7 +46,8 @@ await build({
 cpSync('packages/persistence/migrations', `${out}/migrations`, { recursive: true });
 
 const app = JSON.parse(readFileSync('apps/gateway/package.json', 'utf8'));
-const pick = (name) => app.dependencies[name];
+const polly = JSON.parse(readFileSync('packages/ai-adapters-polly/package.json', 'utf8'));
+const pick = (name) => app.dependencies[name] ?? polly.dependencies[name];
 writeFileSync(
   `${out}/package.json`,
   JSON.stringify(
@@ -53,7 +56,7 @@ writeFileSync(
       private: true,
       type: 'module',
       engines: { node: '>=22' },
-      dependencies: { pg: pick('pg'), ws: pick('ws') },
+      dependencies: { pg: pick('pg'), ws: pick('ws'), '@aws-sdk/client-polly': pick('@aws-sdk/client-polly') },
     },
     null,
     2,

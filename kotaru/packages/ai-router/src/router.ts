@@ -200,6 +200,9 @@ export class DefaultAiRouter implements AiRouter {
       return 'sensitivity_unsupported';
     }
     if (!descriptor.retentionKnown) return 'retention_unknown';
+    // Regla del proyecto (06_SAFETY): solo proveedores que NO entrenan con el contenido
+    // del usuario. `unknown` cuenta como no: se falla cerrado.
+    if (descriptor.trainingOptOut !== true) return 'training_not_excluded';
     if (
       (req.capability === 'tts' || req.capability === 'realtime') &&
       descriptor.commercialAudioRights !== true

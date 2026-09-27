@@ -11,9 +11,27 @@ export interface GatewayConfig {
   readonly monthlyHardCapUsd: number;
   readonly messageRetentionDays: number;
   readonly infraCostUsdPerTurn: number;
-  /** Proveedores de IA habilitados. `mock` siempre existe; los reales se activan aqui. */
+  /** Proveedores de IA habilitados: mock, assemblyai, gemini, polly. */
   readonly providers: readonly string[];
+  readonly providerSettings: ProviderSettings;
 }
+
+/**
+ * Claves y confirmaciones de cada proveedor real. Las confirmaciones las da el operador
+ * tras hacer el trabajo fuera del codigo (activar la exclusion de entrenamiento, revisar
+ * terminos). Sin ellas el adaptador se registra pero el router no lo elige.
+ */
+export interface ProviderSettings {
+  readonly assemblyai?: { readonly apiKey: string; readonly zeroRetentionConfirmed: boolean };
+  readonly gemini?: { readonly apiKey: string; readonly model: string; readonly paidTierConfirmed: boolean };
+  readonly polly?: {
+    readonly region: string;
+    readonly aiOptOutConfirmed: boolean;
+    readonly commercialTermsReviewed: boolean;
+  };
+}
+
+const KNOWN_PROVIDERS = new Set(['mock', 'assemblyai', 'gemini', 'polly']);
 
 export class ConfigError extends Error {
   constructor(readonly problems: readonly string[]) {
@@ -79,6 +97,44 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
     .map((p) => p.trim())
     .filter(Boolean);
 
+  const flag = (name: string): boolean => {
+    const raw = env[name]?.trim().toLowerCase();
+    if (raw === undefined || raw === '') return false;
+    if (raw === 'true' || raw === 'false') return raw === 'true';
+    problems.push(`${name} debe ser true o false`);
+    return false;
+  };
+
+  for (const id of providers) if (!KNOWN_PROVIDERS.has(id)) problems.push(`KOTARU_PROVIDERS: proveedor desconocido "${id}"`);
+  if (providers.length === 0) problems.push('KOTARU_PROVIDERS esta vacio');
+
+  const providerSettings: ProviderSettings = {
+    ...(providers.includes('assemblyai')
+      ? { assemblyai: { apiKey: required('ASSEMBLYAI_API_KEY'), zeroRetentionConfirmed: flag('KOTARU_ASSEMBLYAI_ZERO_RETENTION_CONFIRMED') } }
+      : {}),
+    ...(providers.includes('gemini')
+      ? {
+          gemini: {
+            apiKey: required('GEMINI_API_KEY'),
+            model: env.GEMINI_MODEL?.trim() || 'gemini-3.1-flash-lite',
+            paidTierConfirmed: flag('KOTARU_GEMINI_PAID_TIER_CONFIRMED'),
+          },
+        }
+      : {}),
+    ...(providers.includes('polly')
+      ? {
+          polly: {
+            region: env.AWS_REGION?.trim() || 'us-east-1',
+            aiOptOutConfirmed: flag('KOTARU_POLLY_AI_OPT_OUT_CONFIRMED'),
+            commercialTermsReviewed: flag('KOTARU_POLLY_COMMERCIAL_TERMS_REVIEWED'),
+          },
+        }
+      : {}),
+  };
+  if (providers.includes('polly') && !(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY)) {
+    problems.push('polly necesita AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY');
+  }
+
   const config: GatewayConfig = {
     host: env.HOST?.trim() || '127.0.0.1',
     port: integer('PORT', 8080, 1, 65535),
@@ -91,6 +147,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
     messageRetentionDays: integer('KOTARU_MESSAGE_RETENTION_DAYS', 30, 1, 3650),
     infraCostUsdPerTurn: decimal('KOTARU_INFRA_COST_USD_PER_TURN', 0.0003, 0),
     providers,
+    providerSettings,
   };
 
   if (problems.length > 0) throw new ConfigError(problems);

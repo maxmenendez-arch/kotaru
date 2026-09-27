@@ -1,0 +1,11 @@
+{
+  "name": "@kotaru/ai-adapters-gemini",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": "./src/index.ts" },
+  "comment": "Sin SDK: la API REST con SSE se habla con fetch. Una dependencia menos que auditar.",
+  "dependencies": { "@kotaru/ai-contracts": "0.0.1" }
+}

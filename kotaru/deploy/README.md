@@ -80,6 +80,29 @@ más largo) y quita la vieja. La primera firma; todas verifican.
 openssl rand -base64 32   # genera una clave
 ```
 
+## Activar los proveedores reales
+
+El código de AssemblyAI (voz a texto), Gemini (conversación) y Polly (texto a voz) ya
+está. Lo que falta no es código: son cuentas, claves y tres comprobaciones que solo puede
+hacer el dueño de las cuentas. Sin ellas el gateway arranca, avisa en el registro
+(`provider_blocked`) y el router no los usa. Así, un proveedor nunca recibe conversaciones
+de usuarios sin haber cumplido las garantías del proyecto.
+
+| Proveedor | Qué hacer | Variable que lo confirma |
+|---|---|---|
+| AssemblyAI | Cuenta de pago. Dashboard → Data Controls → desactivar el uso para entrenamiento (así la retención en streaming es cero) | `KOTARU_ASSEMBLYAI_ZERO_RETENTION_CONFIRMED=true` |
+| Gemini | Clave de un proyecto de Google con facturación activa. En el nivel gratuito Google usa las conversaciones para mejorar sus productos | `KOTARU_GEMINI_PAID_TIER_CONFIRMED=true` |
+| Polly | Usuario IAM con permiso `polly:SynthesizeSpeech` y política de exclusión de servicios de IA en AWS Organizations | `KOTARU_POLLY_AI_OPT_OUT_CONFIRMED=true` |
+| Polly | Revisar los términos de AWS sobre uso comercial del audio generado | `KOTARU_POLLY_COMMERCIAL_TERMS_REVIEWED=true` |
+
+Luego, en `/etc/kotaru/gateway.env`: pon `KOTARU_PROVIDERS=assemblyai,gemini,polly` y las
+claves (ver `deploy/gateway.env.example`), y reinicia. La prueba de humo con proveedores
+reales **gasta** (céntimos por ejecución).
+
+Costo verificado el 2026-09-27: AssemblyAI 0,15 USD por hora de sesión abierta; Gemini 3.1
+Flash-Lite 0,25 / 1,50 USD por millón de tokens de entrada / salida; Polly Neural 16 USD por
+millón de caracteres. Cada turno registra su costo en `app.turn_metrics`.
+
 ## Siguiente paso: exponerlo a internet
 
 Pendiente de decidir el subdominio (por ejemplo `api.kotaru.app`) y apuntar su DNS a la IP
