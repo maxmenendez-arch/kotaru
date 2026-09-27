@@ -1,9 +1,10 @@
-# Plantilla de /etc/caddy/Caddyfile: deploy/expose.sh sustituye __DOMAIN__ y __EMAIL__.
+# Plantilla de /etc/caddy/Caddyfile: deploy/expose.sh sustituye __DOMAIN__, __EMAIL__ y
+# __PORT__ (el PORT de /etc/kotaru/gateway.env).
 # Caddy saca y renueva solo el certificado TLS (Let's Encrypt) en cuanto el DNS del
 # dominio apunta a este servidor.
 #
-# El unico acceso publico al gateway es este: el gateway escucha en 127.0.0.1:8080 y el
-# firewall no abre el 8080.
+# El unico acceso publico al gateway es este: el gateway escucha solo en 127.0.0.1 y el
+# firewall no abre su puerto.
 {
 	# Correo para avisos de Let's Encrypt (caducidad, incidencias).
 	email __EMAIL__
@@ -20,7 +21,7 @@ __DOMAIN__ {
 		-Server
 	}
 
-	reverse_proxy 127.0.0.1:8080 {
+	reverse_proxy 127.0.0.1:__PORT__ {
 		# Caddy reemplaza X-Forwarded-For con la IP real del cliente (no se fia de la que
 		# venga de fuera); el gateway, con KOTARU_TRUST_PROXY=true, usa la ultima de la lista.
 		#

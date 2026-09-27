@@ -72,7 +72,7 @@ DATABASE_URL=$DB_URL
 KOTARU_GRANT_KEYS=g1:$(openssl rand -base64 32)
 KOTARU_ACCESS_KEYS=a1:$(openssl rand -base64 32)
 HOST=127.0.0.1
-PORT=8080
+PORT=8787
 KOTARU_GRANT_AUDIENCE=kotaru-gateway
 KOTARU_API_AUDIENCE=kotaru-api
 KOTARU_MONTHLY_HARD_CAP_USD=50
@@ -103,6 +103,18 @@ while IFS= read -r line || [ -n "$line" ]; do
 done < "$ENV_FILE"
 runuser -u kotaru -- "$NODE_BIN" "$RELEASE/bin/migrate.mjs"
 
+say "Puerto"
+# Otro programa en el mismo puerto hace que el gateway no arranque (EADDRINUSE) y que la
+# prueba de humo hable con ese otro programa. Se comprueba antes de tocar los servicios.
+PORT_NOW=${PORT:-8787}
+OWNER=$(ss -Hltnp "sport = :$PORT_NOW" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true)
+if [ -n "$OWNER" ] && [ "$(ps -o user= -p "$OWNER" 2>/dev/null | tr -d ' ')" != "kotaru" ]; then
+  echo "El puerto $PORT_NOW lo usa otro programa:" >&2
+  ps -o pid=,user=,args= -p "$OWNER" >&2 || true
+  die "cambia PORT en $ENV_FILE (por ejemplo PORT=8787) y vuelve a correr install.sh"
+fi
+echo "libre: $PORT_NOW"
+
 say "Servicios"
 ln -sfn "$RELEASE" "$ROOT/current"
 for unit in kotaru-gateway.service kotaru-retention.service kotaru-retention.timer; do
@@ -115,7 +127,6 @@ systemctl enable kotaru-gateway >/dev/null
 systemctl restart kotaru-gateway
 
 say "Comprobacion"
-PORT_NOW=${PORT:-8080}
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:$PORT_NOW/readyz" >/dev/null 2>&1; then break; fi
   sleep 1

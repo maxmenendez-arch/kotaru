@@ -25,7 +25,7 @@ toca: los cambios de configuración se hacen editando ese archivo y reiniciando.
 
 | Pieza | Dónde |
 |---|---|
-| Servicio | `kotaru-gateway` (systemd), usuario `kotaru` sin login, escucha en `127.0.0.1:8080` |
+| Servicio | `kotaru-gateway` (systemd), usuario `kotaru` sin login, escucha en `127.0.0.1:8787` (`PORT` en `gateway.env`) |
 | Configuración y claves | `/etc/kotaru/gateway.env` (640, root:kotaru) |
 | Versiones | `/opt/kotaru/releases/`, la activa en `/opt/kotaru/current` (se guardan 5) |
 | Retención | `kotaru-retention.timer`, cada día a las 03:30 |
@@ -41,14 +41,14 @@ systemctl status kotaru-gateway              # ¿está vivo?
 journalctl -u kotaru-gateway -n 50           # últimos registros
 journalctl -u kotaru-retention -n 5          # informes de retención
 systemctl restart kotaru-gateway             # tras editar /etc/kotaru/gateway.env
-curl -s http://127.0.0.1:8080/readyz         # {"ok":true} si la base responde
+curl -s http://127.0.0.1:8787/readyz         # {"ok":true} si la base responde
 ```
 
 Prueba de humo a mano (sesión de voz, turno, centro de memoria, exportación):
 
 ```bash
 set -a; . /etc/kotaru/gateway.env; set +a
-node /opt/kotaru/current/bin/smoke.mjs http://127.0.0.1:8080
+node /opt/kotaru/current/bin/smoke.mjs http://127.0.0.1:8787
 ```
 
 Token de prueba para la app mientras no exista el servicio de login:
@@ -129,7 +129,7 @@ identificadores en Apple y Google están en `docs/PASOS_DEL_PROPIETARIO.md`.
 
 ## Publicarlo en internet: `api.kotaru.app`
 
-El gateway escucha solo en `127.0.0.1:8080`. Lo publica Caddy, con HTTPS automático
+El gateway escucha solo en `127.0.0.1` (puerto `PORT`, 8787 por defecto). Lo publica Caddy, con HTTPS automático
 (Let's Encrypt) y WebSocket sin configuración extra. Subdominio elegido: **`api.kotaru.app`**
 (`kotaru.app` está en Hostinger; la raíz queda libre para la web del producto).
 
@@ -147,7 +147,7 @@ oficial, escribe `/etc/caddy/Caddyfile` desde `deploy/Caddyfile` (validándolo a
 guardando copia del anterior), abre 80 y 443 si ufw está activo, pone
 `KOTARU_TRUST_PROXY=true` y espera a que `https://api.kotaru.app/readyz` responda. Se puede
 repetir sin riesgo. Si Hostinger tiene firewall en su panel, abre allí 80 y 443 (TCP, y UDP
-443 para HTTP/3); **nunca el 8080**.
+443 para HTTP/3); **nunca el del gateway**.
 
 Qué hace la configuración de Caddy, y cómo se comprobó el 2026-09-27 con Caddy 2.10.2 delante
 de un servidor de prueba: reemplaza la cabecera `X-Forwarded-For` que mande el cliente por su
