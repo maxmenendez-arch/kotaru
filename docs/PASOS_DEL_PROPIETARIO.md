@@ -7,29 +7,21 @@ generar claves. Todo lo demás ya está hecho en el código. Actualizado el 2026
 (`/etc/kotaru/gateway.env`), nunca al chat, al repositorio, a un correo ni a la app. Los
 *client id* de Apple y Google no son secretos (van dentro de la app).
 
-Orden recomendado: 1 → 2 → 3 → 4 → 5. Cada bloque se puede hacer por separado; el gateway
+Orden recomendado: 2 → 3 → 4 → 5 (el 1 ya está hecho). Cada bloque se puede hacer por separado; el gateway
 arranca igual con lo que falte y avisa en el registro.
 
 ---
 
-## 1. Publicar el servidor en `api.kotaru.app` (10 minutos)
+## 1. Publicar el servidor en `api.kotaru.app` — HECHO el 2026-09-27
 
-`kotaru.app` ya está registrado en Hostinger (sus DNS apuntan a Hostinger).
+`https://api.kotaru.app` responde con HTTPS. Registro DNS A `api` → `2.25.230.90` en
+Hostinger. El gateway escucha en `172.18.0.1:8787` y lo publica el Caddy que ya servía los
+otros sitios (`rapimula-caddy-1`), con `/etc/caddy/otros-sitios/kotaru.caddy`. Detalle en
+`kotaru/deploy/README.md`, "Caddy compartido".
 
-1. hPanel → **Dominios** → `kotaru.app` → **DNS / Nameservers** → añadir registro:
-   tipo **A**, nombre **`api`**, apunta a **`2.25.230.90`**, TTL **300**.
-2. Si el VPS tiene firewall en el panel de Hostinger: abrir **80/TCP**, **443/TCP** y
-   **443/UDP**. No abrir el 8080.
-3. En el servidor (`ssh root@2.25.230.90`):
-
-   ```bash
-   cd ~/Kotaru && git pull && cd kotaru
-   bash deploy/install.sh                            # si aún no está instalado
-   bash deploy/expose.sh api.kotaru.app TU_CORREO    # correo para avisos de Let's Encrypt
-   ```
-
-   Termina con `ok: https://api.kotaru.app responde`. Si dice que el DNS no resuelve, espera
-   unos minutos y repítelo.
+**El VPS srv1987174 caduca el 2026-10-17**: renovarlo o activar la renovación automática en
+Hostinger. También tiene un reinicio pendiente del sistema (`apt upgrade -y && reboot` en un
+momento tranquilo: el gateway y Caddy vuelven solos).
 
 Aparte: `kotaru.ai` y `getkotaru.com` siguen **sin registrar** (comprobado el 2026-09-27).
 La guía de marca recomendaba reservarlos junto a `kotaru.app`.

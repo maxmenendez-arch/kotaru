@@ -649,3 +649,24 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Todo lo del propietario en `docs/PASOS_DEL_PROPIETARIO.md`.
 - Primera prueba en teléfono: audio real y los dos logins.
 - `kotaru.ai` y `getkotaru.com` siguen sin registrar.
+
+## 2026-09-27 — Gateway publicado en https://api.kotaru.app
+
+**Qué cambió**
+- DNS: registro A `api.kotaru.app` → `2.25.230.90` en Hostinger.
+- srv1987174 ya tenía los puertos 80/443 ocupados por un Caddy en Docker (`rapimula-caddy-1`)
+  y el 8080 por nginx. Kotaru no instala su propio Caddy ahí: el gateway escucha en
+  `172.18.0.1:8787` (puente de la red `rapimula_default`, inaccesible desde internet) y se
+  añade como un sitio más en `/etc/caddy/otros-sitios/kotaru.caddy`, que el despliegue de
+  RapiMula no reescribe.
+- `install.sh`: puerto 8787 por defecto, comprueba si el puerto lo usa otro programa y prueba
+  el gateway en su `HOST`. El servicio arranca después de Docker.
+
+**Cómo se verificó**
+- Instalación con prueba de humo en el servidor; `caddy validate` antes de `caddy reload`
+  (los otros sitios no se cortan); `https://api.kotaru.app/readyz` → `{"ok":true}`.
+
+**Pendiente**
+- El VPS caduca el 2026-10-17. Reinicio del sistema pendiente.
+- Nota: las conexiones por IPv6 pasan por `docker-proxy`, que oculta la IP real; el límite por
+  IP las contaría juntas. Afecta también a los otros sitios de ese Caddy.
