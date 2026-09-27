@@ -10,6 +10,7 @@ import {
   type SigningKey,
   verifyAndClaimGrant,
 } from '@kotaru/gateway';
+import { createApiHandler, type ApiDeps } from './api.js';
 import { GatewaySession, type SessionDeps } from './session.js';
 
 export interface GatewayServerOptions {
@@ -25,6 +26,8 @@ export interface GatewayServerOptions {
    * en produccion va la tabla, para que un grant no sirva dos veces tras un despliegue.
    */
   readonly grantClaims?: GrantClaimStore;
+  /** API HTTP (centro de memoria, exportacion, ajustes, salud) en el mismo puerto. */
+  readonly api?: ApiDeps;
 }
 
 export interface GatewayServerHandle {
@@ -42,7 +45,15 @@ export interface GatewayServerHandle {
 export async function startGatewayServer(
   options: GatewayServerOptions,
 ): Promise<GatewayServerHandle> {
-  const http: Server = createServer();
+  const api = options.api ? createApiHandler(options.api) : null;
+  const http: Server = createServer((req, res) => {
+    void (async () => {
+      if (api && (await api(req, res))) return;
+      res.writeHead(404, { 'content-type': 'application/json' }).end('{"error":"not_found"}');
+    })().catch(() => {
+      if (!res.headersSent) res.writeHead(500).end();
+    });
+  });
   const wss = new WebSocketServer({ server: http });
   const sampleRate = options.sampleRate ?? 24000;
   const grantClaims = options.grantClaims ?? new ReplayGuard();

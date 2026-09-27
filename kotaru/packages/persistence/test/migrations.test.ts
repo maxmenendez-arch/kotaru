@@ -18,17 +18,17 @@ describe('migraciones', () => {
     const { result } = await migrated();
     expect(result.applied).toEqual([
       '0001_identity', '0002_app_conversation', '0003_app_memory',
-      '0004_app_usage', '0005_app_safety',
+      '0004_app_usage', '0005_app_safety', '0006_companion_slugs', '0007_conversation_retention',
     ]);
     expect(result.skipped).toEqual([]);
   });
 
   it('son idempotentes: la segunda vez no aplica nada', async () => {
     const { client, result } = await migrated();
-    expect(result.applied).toHaveLength(5);
+    expect(result.applied).toHaveLength(MIGRATIONS.length);
     const again = await runMigrations(client, MIGRATIONS);
     expect(again.applied).toEqual([]);
-    expect(again.skipped).toHaveLength(5);
+    expect(again.skipped).toHaveLength(MIGRATIONS.length);
   });
 
   it('crean los dos esquemas separados', async () => {

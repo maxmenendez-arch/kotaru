@@ -361,3 +361,41 @@ npm run demo        # dos turnos completos, con costo y memoria
 - `db:migrate` probado: primera vez aplica 5, segunda ninguna; sin URL sale con código 2;
   con contraseña mala, con código 1 y mensaje claro.
 - En impermax-gl (sin PostgreSQL): 154 en verde y las 5 de PostgreSQL saltadas.
+
+## 2026-09-27 — Memoria, conversaciones y centro de memoria en PostgreSQL (noche, bloque 1)
+
+**Qué cambió**
+- `@kotaru/memory`: las reglas (`MemoryStore`) quedan separadas del almacenamiento
+  (`MemoryRepository`). La API de `MemoryStore` pasa a ser asíncrona.
+- La especificación de la memoria (`describeMemoryStore`, 22 pruebas) corre contra tres
+  almacenes: en memoria, PGlite y PostgreSQL 16 real. `SqlMemoryRepository` la cumple entera.
+- El tope de recuerdos aprobados es atómico en la base (candado por usuario): cinco
+  aprobaciones simultáneas con tope 2 dejan exactamente 2.
+- Migración 0006: los companions se referencian por slug (`rio`), el duplicado ignora espacios
+  de borde igual que la aplicación, `confidence` pasa a doble precisión y se siembra `rio`.
+- Migración 0007: ajustes de retención por usuario y `turn_id` en mensajes (guardar un turno
+  dos veces no lo duplica).
+- `ConversationRepository`: conversaciones y mensajes con vencimiento. 30 días por defecto
+  (ASSUMPTION); turnos sensibles, 24 horas (ASSUMPTION). Acortar la retención se aplica a lo ya
+  guardado. Un id de conversación ajeno no sirve para leer ni escribir.
+- El gateway guarda cada turno y, al abrir sesión, retoma los últimos 20 mensajes: la
+  conversación continúa entre sesiones y reinicios.
+- `runRetention` + `npm run db:retention`: borra mensajes, recuerdos y grants vencidos e
+  imprime un informe JSON sin contenido.
+- `exportSubject`: exportación completa del usuario (`kotaru-export@1`), sin costos internos.
+- `SUBJECT_TABLES`: una prueba compara la lista de borrado de cuenta con information_schema;
+  una tabla nueva con subject_id que no se borre rompe el build.
+- API HTTP en el mismo puerto: `/healthz`, `/readyz`, `/v1/memories` (listar, aprobar,
+  rechazar, editar, fijar, borrar), `/v1/export`, `/v1/settings/retention`. Token de acceso
+  propio (`typ: kotaru-access`), distinto del grant de voz: ninguno sirve por el otro. Lo ajeno
+  responde 404, cuerpo máximo 16 KB, límite de peticiones por usuario.
+
+**Defectos encontrados en el camino**
+- `real` en `confidence` devolvía 0.6 como 0.6000000238; lo cazó la prueba de fidelidad.
+- `edit` de un recuerdo inexistente respondía `duplicate`; ahora `not_found`.
+- Rescatar un recuerdo rechazado cuyo texto ya tenía gemelo vivo creaba un duplicado.
+
+**Cómo se verificó**
+- En impermax-gl: 217 pruebas en verde (5 de PostgreSQL real saltadas por no haber base).
+- En la nube contra PostgreSQL 16.13: 27 pruebas de PostgreSQL real en verde.
+- Migraciones 0006 y 0007 aplicadas sobre una base que ya tenía 0001–0005, como el servidor.

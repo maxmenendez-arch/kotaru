@@ -115,3 +115,47 @@ describe('grants de sesion', () => {
     expect(guard.size).toBe(1);
   });
 });
+
+describe('token de acceso a la API', () => {
+  const k = { kid: 'a1', secret: new Uint8Array(32).fill(7) };
+  const now = 1_790_000_000;
+
+  it('firma y verifica', async () => {
+    const { signAccessToken, verifyAccessToken } = await import('../src/index.js');
+    const token = signAccessToken({ sub: 'subj', aud: 'api' }, k, { nowSeconds: now });
+    const result = verifyAccessToken(token, [k], { nowSeconds: now + 60, audience: 'api' });
+    expect(result).toMatchObject({ ok: true, claims: { sub: 'subj' } });
+  });
+
+  it('caduca, y no sirve para otra audiencia', async () => {
+    const { signAccessToken, verifyAccessToken } = await import('../src/index.js');
+    const token = signAccessToken({ sub: 'subj', aud: 'api' }, k, { nowSeconds: now, ttlSeconds: 60 });
+    expect(verifyAccessToken(token, [k], { nowSeconds: now + 200, audience: 'api' })).toEqual({ ok: false, reason: 'expired' });
+    expect(verifyAccessToken(token, [k], { nowSeconds: now, audience: 'otra' })).toEqual({ ok: false, reason: 'wrong_audience' });
+  });
+
+  it('un token de acceso no abre una sesion de voz, y un grant no sirve de token de acceso', async () => {
+    const { signAccessToken, verifyAccessToken, signGrant, verifyGrant } = await import('../src/index.js');
+    const access = signAccessToken({ sub: 'subj', aud: 'x' }, k, { nowSeconds: now });
+    expect(verifyGrant(access, [k], { nowSeconds: now, audience: 'x' })).toEqual({ ok: false, reason: 'malformed' });
+
+    const grant = signGrant(
+      {
+        subjectId: 'subj', conversationId: 'c', plan: 'close', region: 'us', locale: 'es-419',
+        sensitivity: 'standard', quality: 'balanced',
+        budget: { sessionRemainingUsd: 1, monthlyRemainingUsd: 1, hardCapUsd: 1 },
+        maxSessionSeconds: 60, aud: 'x',
+      },
+      k,
+      { nowSeconds: now },
+    );
+    expect(verifyAccessToken(grant, [k], { nowSeconds: now, audience: 'x' })).toEqual({ ok: false, reason: 'malformed' });
+  });
+
+  it('una firma alterada no pasa', async () => {
+    const { signAccessToken, verifyAccessToken } = await import('../src/index.js');
+    const token = signAccessToken({ sub: 'subj', aud: 'api' }, k, { nowSeconds: now });
+    const forged = token.slice(0, -2) + (token.endsWith('AA') ? 'BB' : 'AA');
+    expect(verifyAccessToken(forged, [k], { nowSeconds: now, audience: 'api' })).toEqual({ ok: false, reason: 'bad_signature' });
+  });
+});

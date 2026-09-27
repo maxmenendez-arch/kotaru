@@ -198,7 +198,7 @@ console.log(`  Presupuesto       │ ${(spend.spentFraction * 100).toFixed(4)}% 
 console.log(`  Calidad efectiva  │ ${entitlement.quality}`);
 console.log(`  Voz disponible    │ ${entitlement.canStartVoice ? 'sí' : `no (${entitlement.denial})`}`);
 
-const proposals = memory.list('subj_demo');
+const proposals = await memory.list('subj_demo');
 console.log(`\n  Centro de memoria │ ${proposals.length} recuerdo(s) propuesto(s), ninguno activo todavía:`);
 for (const item of proposals) {
   console.log(`    · [${item.status}] ${item.kind}: "${item.text}"`);

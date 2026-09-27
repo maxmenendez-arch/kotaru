@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
 import { DefaultAiRouter } from '@kotaru/ai-router';
 import {
@@ -8,7 +8,7 @@ import {
   MockTtsProvider,
 } from '@kotaru/ai-adapters-mock';
 import { InMemoryUsageLedger, UsageMeter, type UsageLedger } from '@kotaru/billing';
-import { MemoryStore } from '@kotaru/memory';
+import { MemoryStore, type MemoryRepository } from '@kotaru/memory';
 import { InMemorySink } from '@kotaru/telemetry';
 import type { ServerMessage, SessionGrant, SigningKey } from '@kotaru/gateway';
 
@@ -28,7 +28,11 @@ export const claims: Omit<SessionGrant, 'iat' | 'exp' | 'jti'> = {
   aud: AUDIENCE,
 };
 
-export function buildDeps(sttScript = 'me gusta el mar en invierno', usage?: UsageLedger) {
+export function buildDeps(
+  sttScript = 'me gusta el mar en invierno',
+  usage?: UsageLedger,
+  memoryRepository?: MemoryRepository,
+) {
   const stt = new MockSttProvider(sttScript);
   const llm = new MockLlmProvider('Qué bonito. Cuéntame más sobre eso.');
   const tts = new MockTtsProvider();
@@ -41,8 +45,11 @@ export function buildDeps(sttScript = 'me gusta el mar en invierno', usage?: Usa
 
   const meter = new UsageMeter();
   const sink = new InMemorySink();
-  let counter = 0;
-  const memory = new MemoryStore({ now, newId: () => `mem_${++counter}` });
+  const memory = new MemoryStore({
+    now,
+    newId: () => randomUUID(),
+    ...(memoryRepository ? { repository: memoryRepository } : {}),
+  });
 
   return {
     meter,

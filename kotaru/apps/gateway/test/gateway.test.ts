@@ -71,10 +71,10 @@ describe('gateway de extremo a extremo', () => {
     expect(JSON.stringify(sink.turns[0])).not.toContain('mar');
 
     // La memoria propuso algo, y quedo esperando aprobacion del usuario.
-    const proposed = memory.list('subj_int');
+    const proposed = await memory.list('subj_int');
     expect(proposed.length).toBeGreaterThan(0);
     expect(proposed.every((m) => m.status === 'proposed')).toBe(true);
-    expect(memory.recall({ subjectId: 'subj_int', companionId: 'rio', text: 'mar' })).toHaveLength(0);
+    expect(await memory.recall({ subjectId: 'subj_int', companionId: 'rio', text: 'mar' })).toHaveLength(0);
 
     socket.close();
   });

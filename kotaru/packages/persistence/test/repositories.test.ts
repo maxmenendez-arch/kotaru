@@ -38,8 +38,8 @@ async function seedAccount(): Promise<{ accountId: string; subjectId: string; co
      values ($1,'rio','Rio','0.1.0') on conflict (slug) do nothing`,
     [companionId],
   );
-  const existing = await sql.query<{ id: string }>("select id from app.companions where slug = 'rio'");
-  return { accountId, subjectId, companionId: existing.rows[0]!.id };
+  // Desde 0006 el companion se referencia por su slug.
+  return { accountId, subjectId, companionId: 'rio' };
 }
 
 describe('libro de consumo', () => {

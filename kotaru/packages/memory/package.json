@@ -5,6 +5,11 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@kotaru/ai-contracts": "0.0.1" }
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./test/spec.ts"
+  },
+  "dependencies": {
+    "@kotaru/ai-contracts": "0.0.1"
+  }
 }

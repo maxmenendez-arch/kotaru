@@ -34,16 +34,11 @@ export async function deleteAccount(sql: SqlClient, accountId: string): Promise<
     let rowsDeleted = 0;
 
     // En orden de dependencia. `messages` cae con `conversations` por cascada.
-    const statements: readonly string[] = [
-      'delete from app.safety_events where subject_id = $1',
-      'delete from app.usage_ledger where subject_id = $1',
-      'delete from app.purchases where subject_id = $1',
-      'delete from app.entitlements where subject_id = $1',
-      'delete from app.memories where subject_id = $1',
-      'delete from app.conversations where subject_id = $1',
-    ];
-    for (const statement of statements) {
-      const result = await tx.query<{ ok: number }>(`${statement} returning 1 as ok`, [subjectId]);
+    for (const table of SUBJECT_TABLES) {
+      const result = await tx.query<{ ok: number }>(
+        `delete from ${table} where subject_id = $1 returning 1 as ok`,
+        [subjectId],
+      );
       rowsDeleted += result.rows.length;
     }
 
@@ -54,14 +49,25 @@ export async function deleteAccount(sql: SqlClient, accountId: string): Promise<
   });
 }
 
+/**
+ * Toda tabla de `app` con columna subject_id, en orden de borrado. Una prueba compara
+ * esta lista con information_schema: una tabla nueva con datos del usuario que no este
+ * aqui rompe el build, en vez de sobrevivir en silencio a un borrado de cuenta.
+ */
+export const SUBJECT_TABLES: readonly string[] = [
+  'app.safety_events',
+  'app.usage_ledger',
+  'app.purchases',
+  'app.entitlements',
+  'app.memories',
+  'app.subject_settings',
+  'app.conversations',
+];
+
 /** Comprueba que no quedo nada del seudonimo. Se usa para verificar un borrado. */
 export async function countRemainingFor(sql: SqlClient, subjectId: string): Promise<number> {
-  const tables = [
-    'app.safety_events', 'app.usage_ledger', 'app.purchases',
-    'app.entitlements', 'app.memories', 'app.conversations',
-  ];
   let total = 0;
-  for (const table of tables) {
+  for (const table of SUBJECT_TABLES) {
     const { rows } = await sql.query<{ n: string }>(
       `select count(*)::text as n from ${table} where subject_id = $1`,
       [subjectId],

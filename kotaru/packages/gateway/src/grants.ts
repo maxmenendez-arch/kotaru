@@ -106,8 +106,11 @@ export function verifyGrant(
 
   let kid: string;
   try {
-    const parsed = JSON.parse(fromB64url(header)) as { kid?: unknown };
+    const parsed = JSON.parse(fromB64url(header)) as { kid?: unknown; typ?: unknown };
     if (typeof parsed.kid !== 'string') return { ok: false, reason: 'malformed' };
+    // Un grant no lleva `typ`. Si lo lleva, es otro tipo de token (por ejemplo uno de
+    // acceso a la API) y no abre una sesion de voz aunque la firma sea valida.
+    if (parsed.typ !== undefined) return { ok: false, reason: 'malformed' };
     kid = parsed.kid;
   } catch {
     return { ok: false, reason: 'malformed' };

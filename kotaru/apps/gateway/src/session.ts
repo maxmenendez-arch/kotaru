@@ -23,6 +23,39 @@ import {
 import { evaluateSafety, statesMinorAge } from '@kotaru/safety';
 import type { MetricSink } from '@kotaru/telemetry';
 
+/**
+ * Donde se guarda la conversacion. `ConversationRepository` de @kotaru/persistence la
+ * cumple. Opcional: sin ella la sesion funciona igual, solo que sin continuidad entre
+ * sesiones y sin historial guardado.
+ */
+export interface ConversationLog {
+  open(input: {
+    readonly conversationId: string;
+    readonly subjectId: string;
+    readonly companionId: string;
+    readonly atIso: string;
+  }): Promise<unknown>;
+  recentMessages(
+    conversationId: string,
+    subjectId: string,
+    limit: number,
+    nowIso: string,
+  ): Promise<readonly { readonly role: 'user' | 'companion'; readonly content: string }[]>;
+  appendTurn(turn: {
+    readonly conversationId: string;
+    readonly subjectId: string;
+    readonly turnId: string;
+    readonly locale: string;
+    readonly userText: string;
+    readonly companionText: string;
+    readonly atIso: string;
+    readonly sensitive: boolean;
+  }): Promise<unknown>;
+}
+
+/** Cuantos mensajes previos se recuperan al retomar una conversacion. */
+const RESUME_MESSAGES = 20;
+
 export interface SessionDeps {
   readonly router: RouterPort;
   readonly resolve: ProviderResolver;
@@ -34,6 +67,7 @@ export interface SessionDeps {
   readonly budget: SpendBudget;
   readonly now: () => number;
   readonly infraCostUsd?: number;
+  readonly conversations?: ConversationLog;
 }
 
 export interface SessionTransport {
@@ -91,6 +125,7 @@ export class GatewaySession {
 
   async start(): Promise<void> {
     await this.#refreshUsage();
+    await this.#resumeConversation();
     const entitlement = this.#entitlement();
     this.#transport.send({
       type: 'ready',
@@ -178,13 +213,14 @@ export class GatewaySession {
     let transcript = '';
     let reply = '';
     let voiceSeconds = 0;
+    const history = await this.#recallIntoHistory();
 
     const events = runTurn(
       {
         conversationId: this.#grant.conversationId,
         turnId,
         audio,
-        history: this.#recallIntoHistory(),
+        history,
         llmOptions: {
           personaId: 'rio-v1',
           promptVersion: '0.1.0',
@@ -281,7 +317,8 @@ export class GatewaySession {
     if (transcript && reply) {
       this.#history.push({ role: 'user', content: transcript });
       this.#history.push({ role: 'companion', content: reply });
-      if (!suppressMemory) this.#proposeMemories(transcript, reply, turnId);
+      if (!suppressMemory) await this.#proposeMemories(transcript, reply, turnId);
+      await this.#saveTurn(turnId, transcript, reply, suppressMemory);
     }
 
     await this.#refreshUsage();
@@ -301,22 +338,64 @@ export class GatewaySession {
     this.#abort = null;
   }
 
-  #proposeMemories(userText: string, companionText: string, turnId: string): void {
+  async #resumeConversation(): Promise<void> {
+    const log = this.#deps.conversations;
+    if (!log) return;
+    const nowIso = new Date(this.#deps.now()).toISOString();
+    await log.open({
+      conversationId: this.#grant.conversationId,
+      subjectId: this.#grant.subjectId,
+      companionId: 'rio',
+      atIso: nowIso,
+    });
+    const previous = await log.recentMessages(
+      this.#grant.conversationId,
+      this.#grant.subjectId,
+      RESUME_MESSAGES,
+      nowIso,
+    );
+    for (const message of previous) this.#history.push({ role: message.role, content: message.content });
+  }
+
+  /**
+   * Guarda el turno. `sensitive` cuando la politica de seguridad aparto el turno de la
+   * memoria: esos mensajes se guardan con retencion corta. Si guardar falla, la
+   * conversacion sigue; perder el historial de un turno es mejor que cortarlo.
+   */
+  async #saveTurn(turnId: string, userText: string, companionText: string, sensitive: boolean): Promise<void> {
+    await this.#deps.conversations
+      ?.appendTurn({
+        conversationId: this.#grant.conversationId,
+        subjectId: this.#grant.subjectId,
+        turnId,
+        locale: this.#grant.locale,
+        userText,
+        companionText,
+        atIso: new Date(this.#deps.now()).toISOString(),
+        sensitive,
+      })
+      .catch(() => undefined);
+  }
+
+  async #proposeMemories(userText: string, companionText: string, turnId: string): Promise<void> {
     const candidates = new HeuristicExtractor().extract({ userText, companionText, turnId });
     for (const candidate of candidates) {
-      // Quedan en `proposed`: el usuario los aprueba en el centro de memoria.
-      this.#deps.memory.propose({
-        subjectId: this.#grant.subjectId,
-        companionId: 'rio',
-        candidate,
-        sourceTurnId: turnId,
-      });
+      // Quedan en `proposed`: el usuario los aprueba en el centro de memoria. Si guardar
+      // falla, la conversacion sigue: perder una propuesta es mejor que cortar el turno.
+      await this.#deps.memory
+        .propose({
+          subjectId: this.#grant.subjectId,
+          companionId: 'rio',
+          candidate,
+          sourceTurnId: turnId,
+        })
+        .catch(() => undefined);
     }
   }
 
-  #recallIntoHistory(): readonly DomainMessage[] {
+  async #recallIntoHistory(): Promise<readonly DomainMessage[]> {
     const last = this.#history.at(-1);
-    const recalled = this.#deps.memory.recall({
+    const recalled = await this.#deps.memory.recall({
       subjectId: this.#grant.subjectId,
       companionId: 'rio',
       text: typeof last?.content === 'string' ? last.content : '',

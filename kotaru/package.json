@@ -14,7 +14,8 @@
     "lint:arch": "node tools/check-architecture.mjs",
     "demo": "tsx apps/gateway/src/demo.ts",
     "db:migrate": "tsx apps/gateway/src/migrate-cli.ts",
-    "test:pg": "vitest run apps/gateway/test/postgres.test.ts"
+    "test:pg": "vitest run apps/gateway/test/postgres.test.ts",
+    "db:retention": "tsx apps/gateway/src/retention-cli.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

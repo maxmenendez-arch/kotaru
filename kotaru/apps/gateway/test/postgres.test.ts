@@ -9,6 +9,8 @@ import {
   runMigrations,
   UsageRepository,
 } from '@kotaru/persistence';
+import { describeMemoryStore } from '@kotaru/memory/testing';
+import { SqlMemoryRepository } from '@kotaru/persistence';
 import { durableStores, pgClient, startGatewayServer, type GatewayServerHandle, type PgSqlClient } from '../src/index.js';
 import { AUDIENCE, buildDeps, claims as baseClaims, connect, key, waitFor } from './helpers.js';
 
@@ -27,33 +29,50 @@ if (URL_ENV && !dbName.endsWith('_test')) {
   throw new Error(`KOTARU_TEST_DATABASE_URL apunta a "${dbName}". Solo se aceptan bases *_test.`);
 }
 
-describe.skipIf(!URL_ENV)('PostgreSQL real', () => {
-  let sql: PgSqlClient;
-  let server: GatewayServerHandle | null = null;
+let sql: PgSqlClient;
 
+if (URL_ENV) {
   beforeAll(async () => {
-    sql = pgClient({ connectionString: URL_ENV!, max: 10 });
+    sql = pgClient({ connectionString: URL_ENV, max: 10 });
     await sql.exec(`
       drop schema if exists app cascade;
       drop schema if exists identity cascade;
       drop table if exists schema_migrations;
     `);
     await runMigrations(sql, loadMigrations(MIGRATIONS_DIR));
-  });
-
-  afterEach(async () => {
-    await server?.close();
-    server = null;
+    await sql.query(
+      "insert into app.companions (id, slug, display_name, persona_version) values (gen_random_uuid(),'nova','Nova','0.1.0') on conflict do nothing",
+    );
   });
 
   afterAll(async () => {
     await sql?.close();
   });
 
+  // La especificacion completa de la memoria, contra el servidor real. Cada almacen
+  // empieza con la tabla vacia: las pruebas corren en serie dentro de este archivo.
+  describeMemoryStore(
+    'PostgreSQL real',
+    async () => {
+      await sql.exec('delete from app.memories');
+      return new SqlMemoryRepository(sql);
+    },
+    { subject: (n) => `00000000-0000-4000-9000-${String(n).padStart(12, '0')}` },
+  );
+}
+
+describe.skipIf(!URL_ENV)('PostgreSQL real', () => {
+  let server: GatewayServerHandle | null = null;
+
+  afterEach(async () => {
+    await server?.close();
+    server = null;
+  });
+
   it('las migraciones son idempotentes contra el servidor real', async () => {
     const again = await runMigrations(sql, loadMigrations(MIGRATIONS_DIR));
     expect(again.applied).toEqual([]);
-    expect(again.skipped).toHaveLength(5);
+    expect(again.skipped).toHaveLength(loadMigrations(MIGRATIONS_DIR).length);
   });
 
   it('diez conexiones cobrando el mismo turno a la vez: solo una gana', async () => {
@@ -100,11 +119,17 @@ describe.skipIf(!URL_ENV)('PostgreSQL real', () => {
   });
 
   it('el gateway conserva consumo y grants usados entre reinicios', async () => {
-    const claims = { ...baseClaims, subjectId: randomUUID() };
+    const claims = { ...baseClaims, subjectId: randomUUID(), conversationId: randomUUID() };
     const boot = () => {
       const stores = durableStores(sql);
-      const { deps } = buildDeps(undefined, stores.usage);
-      return startGatewayServer({ port: 0, keys: [key], audience: AUDIENCE, deps, grantClaims: stores.grantClaims });
+      const { deps } = buildDeps(undefined, stores.usage, stores.memories);
+      return startGatewayServer({
+        port: 0,
+        keys: [key],
+        audience: AUDIENCE,
+        deps: { ...deps, conversations: stores.conversations },
+        grantClaims: stores.grantClaims,
+      });
     };
     const hello = async (port: number, grant: string) => {
       const conn = await connect(port);
