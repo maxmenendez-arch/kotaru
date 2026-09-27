@@ -51,7 +51,7 @@ export function SignIn({
       onSignedIn();
     } catch (err) {
       if (err instanceof SignInCancelled) return;
-      setError(err instanceof ApiError && err.status === 409 ? s.passkeyExists : s.signInFailed);
+      setError(messageFor(err, s));
     } finally {
       setBusy(false);
     }
@@ -102,6 +102,19 @@ export function SignIn({
       ) : null}
     </Screen>
   );
+}
+
+/** Un mensaje que diga que paso y que hacer, no un error generico. */
+function messageFor(err: unknown, s: ReturnType<typeof t>): string {
+  if (err instanceof ApiError) {
+    if (err.status === 409) return s.passkeyExists;
+    if (err.status === 429) return s.tooManyAttempts;
+    if (err.code === 'invalid_passkey') return s.passkeyUnknown;
+    return s.signInFailed;
+  }
+  // fetch sin respuesta (sin red, servidor caido): TypeError en navegadores y React Native.
+  if (err instanceof TypeError) return s.offline;
+  return s.signInFailed;
 }
 
 const styles = StyleSheet.create({
