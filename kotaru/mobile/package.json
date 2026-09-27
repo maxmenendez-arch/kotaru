@@ -12,6 +12,9 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-audio-api": "~0.13.6",
+    "react-native-nitro-google-signin": "2.3.0",
+    "react-native-nitro-modules": "~0.37.1",
     "react-native-web": "~0.21.0"
   },
   "devDependencies": {
@@ -25,7 +28,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "build:web": "expo export --platform web"
+    "build:web": "expo export --platform web",
+    "test": "node --test test/*.test.ts"
   },
   "private": true
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
-import { SilentSpeaker, SimulatedMicrophone } from '../audio';
+import { createAudio } from '../audio';
 import { createConversation, type Connection } from '../connection';
 import type { Lang } from '../i18n';
 import { t } from '../i18n';
@@ -38,10 +38,18 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const [minutes, setMinutes] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const client = useRef<ConversationClient | null>(null);
-  const mic = useRef(new SimulatedMicrophone());
-  const speaker = useRef(new SilentSpeaker());
+  const audio = useRef(createAudio()).current;
+  const mic = useRef(audio.input);
+  const speaker = useRef(audio.output);
 
-  useEffect(() => () => client.current?.close(), []);
+  useEffect(
+    () => () => {
+      client.current?.close();
+      audio.input.stop();
+      audio.output.dispose();
+    },
+    [audio],
+  );
 
   const onEvent = (e: ClientEvent) => {
     switch (e.type) {
@@ -85,8 +93,18 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     if (!client.current || state === 'closed' || state === 'limit_reached') return;
     setHeard('');
     setReply('');
+    // Barge-in: Rio calla en cuanto se pulsa, sin esperar al servidor.
+    speaker.current.stopNow();
     client.current.startTalking();
-    mic.current.start((pcm) => client.current?.sendAudio(pcm));
+    mic.current.start((pcm) => client.current?.sendAudio(pcm)).then(
+      (ok) => {
+        if (!ok) {
+          setError(s.micDenied);
+          client.current?.stopTalking();
+        }
+      },
+      () => setError(s.error),
+    );
   };
   const pressOut = () => {
     mic.current.stop();
@@ -153,7 +171,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
           >
             <Text style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.releaseToSend : s.holdToTalk}</Text>
           </Pressable>
-          <Text style={styles.note}>{s.simulatedMic}</Text>
+          {audio.simulated ? <Text style={styles.note}>{s.simulatedMic}</Text> : null}
         </>
       )}
     </Screen>

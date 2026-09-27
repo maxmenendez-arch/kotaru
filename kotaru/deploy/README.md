@@ -114,7 +114,8 @@ escribir.
 Para encenderlo, en `/etc/kotaru/gateway.env`:
 - `KOTARU_APPLE_CLIENT_IDS=app.kotaru.mobile` (el bundle id de iOS; añade el Services ID si
   hay login web).
-- `KOTARU_GOOGLE_CLIENT_IDS=` los client ids de OAuth de Google (iOS, Android, web).
+- `KOTARU_GOOGLE_CLIENT_IDS=` los client ids de OAuth de Google, separados por coma: el de
+  tipo **web** (en Android es la audiencia del token) y el de **iOS**.
 - Las dos claves del correo las generó `install.sh`. **No las cambies nunca**: con otra clave,
   los correos guardados quedan ilegibles.
 
@@ -123,20 +124,36 @@ o a Google (tal cual), y lo manda junto al id token. Así un token interceptado 
 abrir otra sesión. Las sesiones duran 60 días sin uso y 180 como máximo; reusar un token de
 renovación ya gastado revoca la sesión entera (señal de copia robada).
 
-Falta del lado de la app: las pantallas de login con los módulos nativos de Apple y Google
-(`@kotaru/client` ya trae `AuthApi` con renovación automática).
+La app ya trae las dos pantallas de login (ver `mobile/README.md`). Los pasos para crear los
+identificadores en Apple y Google están en `docs/PASOS_DEL_PROPIETARIO.md`.
 
-## Siguiente paso: exponerlo a internet
+## Publicarlo en internet: `api.kotaru.app`
 
-Pendiente de decidir el subdominio (por ejemplo `api.kotaru.app`) y apuntar su DNS a la IP
-del servidor. Con eso, Caddy da TLS automático en tres líneas:
+El gateway escucha solo en `127.0.0.1:8080`. Lo publica Caddy, con HTTPS automático
+(Let's Encrypt) y WebSocket sin configuración extra. Subdominio elegido: **`api.kotaru.app`**
+(`kotaru.app` está en Hostinger; la raíz queda libre para la web del producto).
 
-```
-api.kotaru.app {
-    reverse_proxy 127.0.0.1:8080
-}
-```
+1. En Hostinger (hPanel → Dominios → kotaru.app → DNS / Nameservers), añade un registro
+   **A**: nombre `api`, apunta a `2.25.230.90`, TTL 300.
+2. En el servidor, una vez que el DNS responde:
 
-Caddy reenvía WebSocket sin configuración extra. No abrir el puerto 8080 en el firewall: el
-único acceso público debe ser el 443 de Caddy. Con Caddy delante, poner
-`KOTARU_TRUST_PROXY=true` para que el límite de peticiones por IP vea la IP real.
+   ```bash
+   cd ~/Kotaru/kotaru && git pull
+   sudo bash deploy/expose.sh api.kotaru.app TU_CORREO
+   ```
+
+`expose.sh` comprueba que el DNS apunta a este servidor, instala Caddy de su repositorio
+oficial, escribe `/etc/caddy/Caddyfile` desde `deploy/Caddyfile` (validándolo antes y
+guardando copia del anterior), abre 80 y 443 si ufw está activo, pone
+`KOTARU_TRUST_PROXY=true` y espera a que `https://api.kotaru.app/readyz` responda. Se puede
+repetir sin riesgo. Si Hostinger tiene firewall en su panel, abre allí 80 y 443 (TCP, y UDP
+443 para HTTP/3); **nunca el 8080**.
+
+Qué hace la configuración de Caddy, y cómo se comprobó el 2026-09-27 con Caddy 2.10.2 delante
+de un servidor de prueba: reemplaza la cabecera `X-Forwarded-For` que mande el cliente por su
+IP real (una falsa no llega al gateway), reenvía WebSocket con mensajes de texto y binarios,
+añade HSTS y quita la cabecera `Server`. No guarda registro de accesos (privacidad): el
+gateway ya registra lo necesario sin contenido. Al recargar la configuración, las
+conversaciones abiertas siguen hasta 5 minutos en vez de cortarse.
+
+La app se compila entonces con `EXPO_PUBLIC_KOTARU_SERVER_URL=https://api.kotaru.app`.

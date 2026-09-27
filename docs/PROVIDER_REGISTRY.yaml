@@ -331,6 +331,8 @@ meta:
   data_use: "nivel de pago: no se usa para mejorar productos; nivel gratuito: SI, con revision humana"
   abuse_retention: "55 dias (https://ai.google.dev/gemini-api/docs/usage-policies)"
   gate: KOTARU_GEMINI_PAID_TIER_CONFIRMED
+  paid_tier_how: "AI Studio → Projects → Set up billing (prepago minimo 5 USD o pospago); verificado 2026-09-27"
+  paid_tier_source: https://ai.google.dev/gemini-api/docs/billing
   notes:
     - "generateContent figura como Legacy frente a la Interactions API, sin fecha de retiro"
     - "Google recomienda temperatura 1.0 en Gemini 3; el adaptador no la envia"
@@ -350,6 +352,8 @@ meta:
   pricing_source: https://aws.amazon.com/polly/pricing/
   quotas: "neural: 8 TPS, rafaga 10, 18 peticiones concurrentes por cuenta — pedir aumento antes de lanzar"
   gates: [KOTARU_POLLY_AI_OPT_OUT_CONFIRMED, KOTARU_POLLY_COMMERCIAL_TERMS_REVIEWED]
+  ai_opt_out: "Polly figura en la lista de servicios cubiertos por las politicas de exclusion de AWS Organizations (verificado 2026-09-27)"
+  ai_opt_out_source: https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_ai-opt-out_all.html
   notes:
     - "Sin visemas: pedirlos es una segunda peticion facturada; la boca se anima por amplitud (ADR-001)"
     - "Existe StartSpeechSynthesisStream (marzo 2026), bidireccional, solo motor generativo (30 USD/M) y sin speech marks"

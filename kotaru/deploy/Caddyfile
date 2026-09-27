@@ -1,0 +1,31 @@
+# Plantilla de /etc/caddy/Caddyfile: deploy/expose.sh sustituye __DOMAIN__ y __EMAIL__.
+# Caddy saca y renueva solo el certificado TLS (Let's Encrypt) en cuanto el DNS del
+# dominio apunta a este servidor.
+#
+# El unico acceso publico al gateway es este: el gateway escucha en 127.0.0.1:8080 y el
+# firewall no abre el 8080.
+{
+	# Correo para avisos de Let's Encrypt (caducidad, incidencias).
+	email __EMAIL__
+}
+
+__DOMAIN__ {
+	# Sin registro de accesos a proposito (privacidad): el gateway ya registra lo necesario
+	# sin contenido. Caddy solo registra sus errores en el journal.
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:8080 {
+		# Caddy reemplaza X-Forwarded-For con la IP real del cliente (no se fia de la que
+		# venga de fuera); el gateway, con KOTARU_TRUST_PROXY=true, usa la ultima de la lista.
+		#
+		# Al recargar la configuracion, las conversaciones de voz abiertas (WebSocket) siguen
+		# hasta 5 minutos en vez de cortarse en seco.
+		stream_close_delay 5m
+	}
+}

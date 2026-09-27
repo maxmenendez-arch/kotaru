@@ -11,7 +11,8 @@
       "bundleIdentifier": "app.kotaru.mobile",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Kotaru usa el micrófono solo mientras mantienes pulsado el botón de hablar."
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +31,17 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-apple-authentication",
+      "expo-secure-store",
+      [
+        "react-native-audio-api",
+        {
+          "iosBackgroundMode": false,
+          "androidForegroundService": false,
+          "androidPermissions": [],
+          "disableFFmpeg": true
+        }
+      ]
     ]
   }
 }

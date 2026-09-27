@@ -612,3 +612,40 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Login con Google en la app: necesita el módulo y los client id (decisión del propietario).
 - Reautenticación reciente antes de borrar la cuenta, y margen de gracia si se pierde la
   respuesta de una renovación (observaciones abiertas de la revisión de cuentas).
+
+## 2026-09-27 — Audio real, login con Google, publicación en api.kotaru.app y guía del propietario
+
+**Qué cambió**
+- Audio de la app (ADR-003): `react-native-audio-api` para micrófono y altavoz. Sube PCM 16 bits
+  a 24 kHz en trozos de 20 ms (con remuestreo si el hardware entrega otra frecuencia) y
+  reproduce en cola lo que llega. Sesión `playAndRecord` + `voiceChat` (cancelación de eco en
+  iOS). Pulsar mientras Rio habla lo corta al instante. Sin modo de audio en segundo plano ni
+  FFmpeg. Si falta el permiso del micrófono, la app lo dice. En la web sigue el micrófono simulado.
+- Login con Google en la app con `react-native-nitro-google-signin` 2.3.0 (fijada): la única
+  opción gratuita con flujo nativo y nonce en iOS y Android. Aislada en
+  `mobile/src/google.native.tsx`. El plugin solo se añade si existe el client id de iOS
+  (`app.config.ts`). La app declara Sign in with Apple (`usesAppleSignIn`).
+- Publicación: `deploy/Caddyfile` y `deploy/expose.sh` (comprueba el DNS, instala Caddy, valida la
+  configuración, abre 80/443 si ufw está activo y pone `KOTARU_TRUST_PROXY=true`). Subdominio
+  elegido: `api.kotaru.app` (`kotaru.app` está en Hostinger).
+- `docs/PASOS_DEL_PROPIETARIO.md`: altas de AssemblyAI, Gemini y AWS con el ajuste exacto que
+  evita el uso de los datos para entrenamiento, identificadores de Apple y Google, DNS y
+  prueba en teléfono.
+
+**Cómo se verificó**
+- App: `tsc --noEmit` OK; 6 pruebas de conversión de PCM (`npm test`); bundles de iOS y Android
+  exportados (el nativo usa `audio.native.ts`; el web no incluye las librerías nativas);
+  Playwright en la web con y sin servidor de cuentas, sin errores.
+- `expo config`: sin modo de audio en segundo plano, derecho de Sign in with Apple presente,
+  esquema de URL de Google solo con client id.
+- Caddy 2.10.2 con la configuración real delante de un servidor de prueba: TLS, WebSocket de
+  texto y binario, un `X-Forwarded-For` falso reemplazado por la IP real, HSTS, sin cabecera
+  `Server`. `expose.sh` pasa shellcheck.
+- Documentación oficial consultada hoy: Polly está cubierto por la política de exclusión de
+  servicios de IA de AWS Organizations; Gemini pasa a nivel de pago con "Set up billing" en AI
+  Studio.
+
+**Pendiente**
+- Todo lo del propietario en `docs/PASOS_DEL_PROPIETARIO.md`.
+- Primera prueba en teléfono: audio real y los dos logins.
+- `kotaru.ai` y `getkotaru.com` siguen sin registrar.

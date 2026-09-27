@@ -14,8 +14,14 @@ dependencias del servidor. Comparte con el monorepo solo `@kotaru/client`
   límite de plan y apoyo en crisis. Barge-in: pulsar mientras Rio habla corta su respuesta.
 - **Memoria:** lo que Rio quiere recordar aparece como pregunta ("Me gustaría recordar…"),
   con Recordar / Ahora no; lo aprobado se puede fijar u olvidar.
+- **Audio:** en iOS y Android, micrófono y altavoz reales con `react-native-audio-api`
+  (`src/audio.native.ts`): PCM 16 bits a 24 kHz en trozos de 20 ms hacia el gateway, y
+  reproducción en cola de lo que responde Rio. Una sola librería gobierna la sesión de audio
+  (`playAndRecord` + `voiceChat`, con cancelación de eco en iOS). Pulsar mientras Rio habla
+  lo corta al instante. No se guarda audio. En la web el micrófono sigue simulado.
 - **Cuenta:** si la app se compila con `EXPO_PUBLIC_KOTARU_SERVER_URL`, tras la bienvenida
-  pide entrar con Apple (iPhone/iPad). El nonce se genera en el dispositivo; a Apple va su
+  pide entrar con Apple (iPhone/iPad) o con Google (iOS y Android, si se compila con sus
+  client id). El nonce se genera en el dispositivo; a Apple va su
   SHA-256 y al servidor el valor original. No se piden nombre ni correo. El token de
   renovación se guarda solo en Keychain/Keystore (`expo-secure-store`, solo este
   dispositivo); en la web no se guarda. Cada sesión de voz pide su propio grant y las
@@ -27,13 +33,9 @@ dependencias del servidor. Comparte con el monorepo solo `@kotaru/client`
 
 ## Lo que falta (y por qué)
 
-- **Audio real.** El micrófono y el altavoz están detrás de interfaces (`src/audio.ts`) con
-  implementaciones simuladas: el micrófono envía silencio y el altavoz no suena. El SDK
-  base de Expo no captura PCM en streaming (expo-audio graba a archivo), así que hace falta
-  un módulo nativo con config plugin. **Decisión pendiente:** elegir ese módulo y probarlo
-  en un dispositivo real. Todo el camino de red ya funciona con el simulado.
-- **Login con Google.** Falta el módulo de Google Sign-In y los client id de la consola
-  de Google (decisión del propietario). El servidor ya lo acepta (`/v1/auth/google`).
+- **Probar en un teléfono.** El audio real y el login con Apple y Google necesitan un build
+  de desarrollo (`npx expo run:ios` / `run:android` o EAS), no Expo Go, y aún no se han
+  probado en un dispositivo.
 - **Arte del personaje e identidad.** El retrato es un marcador abstracto y el icono es
   provisional (un anillo `iris` con un punto `pulse`, hecho con los tokens de marca) hasta
   tener arte original y la identidad visual encargada tras la búsqueda de marca.
@@ -46,13 +48,23 @@ cd mobile
 npm install
 npx expo start          # Expo Go o simulador
 npm run typecheck
+npm test                # conversiones de PCM (node --test)
 npm run build:web       # exporta la versión web a dist/
 ```
 
-Con cuentas: `EXPO_PUBLIC_KOTARU_SERVER_URL=https://api.ejemplo npx expo start --clear`
-(`--clear` porque Metro guarda en caché el valor anterior). El login con Apple necesita un
-build de desarrollo en iOS (`npx expo run:ios`), no Expo Go, y que el gateway tenga
-configurado el client id de Apple (el bundle id `app.kotaru.mobile`).
+Con cuentas y audio real (build de desarrollo, no Expo Go):
+
+```bash
+export EXPO_PUBLIC_KOTARU_SERVER_URL=https://api.kotaru.app
+export EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=....apps.googleusercontent.com   # opcional
+export EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=....apps.googleusercontent.com   # opcional
+npx expo run:ios        # o run:android
+```
+
+Ninguno de estos valores es secreto: van dentro de la app. Metro guarda en caché los
+`EXPO_PUBLIC_*`: al cambiarlos, arranca con `--clear`. El plugin de Google solo se añade si
+existe el client id de iOS (`app.config.ts`). Cómo obtener cada identificador:
+`docs/PASOS_DEL_PROPIETARIO.md`.
 
 Sin cuentas, para conectar con un gateway local: arráncalo con `KOTARU_CORS_ORIGINS` apuntando al origen
 de la web (solo la versión web lo necesita), genera tokens con `bin/token.mjs` y pégalos en

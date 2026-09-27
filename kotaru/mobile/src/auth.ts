@@ -3,6 +3,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { googleIdToken } from './google';
 
 /**
  * Servidor de cuentas. Se fija al compilar con `EXPO_PUBLIC_KOTARU_SERVER_URL` (Expo
@@ -86,4 +87,12 @@ export async function signInWithApple(auth: AuthApi): Promise<AuthSession> {
   }
   if (!credential.identityToken) throw new Error('apple_no_identity_token');
   return auth.signInWithApple(credential.identityToken, rawNonce);
+}
+
+/** Login con Google. El nonce va tal cual dentro del token y tal cual al servidor. */
+export async function signInWithGoogle(auth: AuthApi): Promise<AuthSession> {
+  const rawNonce = newRawNonce();
+  const result = await googleIdToken(rawNonce);
+  if (result.type === 'cancelled') throw new SignInCancelled();
+  return auth.signInWithGoogle(result.idToken, rawNonce);
 }
