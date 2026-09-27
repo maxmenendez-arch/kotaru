@@ -866,3 +866,9 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Verificado: 9 pruebas del adaptador, 2 nuevas del gateway (354 en total); simulación del
   script: sin Gemini se niega; con Gemini arranca con `mock-stt, gemini-3.1-flash-lite,
   together-kokoro`. Sin clave real no se ha oído todavía la voz: eso es la prueba D-011.
+
+## 2026-09-27 (noche) — deploy/gemini.sh acepta el formato nuevo de clave
+
+- AI Studio emite ahora claves con otro formato (`AQ.` + caracteres, con un punto); el script
+  solo aceptaba el clásico (`AIza…`, 39 caracteres). Acepta los dos. Probado en simulación
+  con una clave inventada del formato nuevo.

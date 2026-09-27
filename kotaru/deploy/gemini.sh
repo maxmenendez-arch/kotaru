@@ -27,8 +27,10 @@ case "$paid" in s|S|si|SI|sí|Sí) ;; *) echo "Sin facturación activa no se act
 read -r -s -p "Pega la clave de Gemini (no se verá) y pulsa Enter: " key
 echo
 key="$(printf '%s' "$key" | tr -d '[:space:]')"
-if ! printf '%s' "$key" | grep -Eq '^[A-Za-z0-9_-]{30,60}$'; then
-  echo "Eso no parece una clave de Gemini (suelen empezar por AIza y tener 39 caracteres). Nada cambió." >&2
+# Dos formatos: el clasico (AIza..., 39 caracteres) y el nuevo de AI Studio (AQ.Ab8...,
+# con un punto).
+if ! printf '%s' "$key" | grep -Eq '^[A-Za-z0-9_.-]{30,128}$'; then
+  echo "Eso no parece una clave de Gemini (empiezan por AIza o por AQ.). Nada cambió." >&2
   exit 1
 fi
 
