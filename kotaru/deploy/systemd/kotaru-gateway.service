@@ -1,0 +1,36 @@
+[Unit]
+Description=Kotaru gateway (voz en tiempo real y API)
+Documentation=file:///opt/kotaru/current/README-deploy.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kotaru
+Group=kotaru
+WorkingDirectory=/opt/kotaru/current
+EnvironmentFile=/etc/kotaru/gateway.env
+ExecStart=/usr/bin/node /opt/kotaru/current/bin/gateway.mjs
+Restart=on-failure
+RestartSec=3
+# SIGTERM -> apagado limpio (avisa a las sesiones, vacia metricas, cierra la base).
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# Endurecimiento: el proceso no necesita escribir en disco ni ver /home.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

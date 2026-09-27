@@ -399,3 +399,29 @@ npm run demo        # dos turnos completos, con costo y memoria
 - En impermax-gl: 217 pruebas en verde (5 de PostgreSQL real saltadas por no haber base).
 - En la nube contra PostgreSQL 16.13: 27 pruebas de PostgreSQL real en verde.
 - Migraciones 0006 y 0007 aplicadas sobre una base que ya tenía 0001–0005, como el servidor.
+
+## 2026-09-27 — Gateway listo para el servidor (noche, bloque 2)
+
+**Qué cambió**
+- `main.ts`: proceso de producción. Valida la configuración entera al arrancar (y nunca
+  imprime valores), se niega a arrancar si hay migraciones pendientes, apaga limpio con
+  SIGTERM avisando `server_shutdown` a las sesiones abiertas.
+- `config.ts`: `KOTARU_GRANT_KEYS` y `KOTARU_ACCESS_KEYS` separadas (rechaza reutilizar
+  una), claves de 32 bytes mínimo, rotación por kid.
+- `SqlMetricSink`: latencia y costo de cada turno en `app.turn_metrics`, con el guardia de
+  contenido antes de escribir. Un fallo se cuenta, no corta la conversación.
+- `npm run build:gateway`: empaqueta con esbuild en `dist/gateway/` (bin/*.mjs +
+  migrations/ + package.json solo con pg y ws). Producción no necesita tsx ni TypeScript.
+- CLIs: `migrate`, `retention`, `token` (grant + token de acceso de prueba) y `smoke` (prueba
+  de humo contra un gateway en marcha: salud, voz, memoria, exportación, 401 sin token).
+- `deploy/`: `install.sh` idempotente con vuelta atrás automática si la prueba de humo falla,
+  unidades systemd endurecidas (usuario `kotaru` sin login, ProtectSystem=strict), temporizador
+  de retención diario y guía de operación en `deploy/README.md`.
+
+**Cómo se verificó**
+- La versión empaquetada, contra PostgreSQL 16 real: se niega a arrancar sin migrar (código 3),
+  rechaza configuración inválida (código 2), arranca, pasa la prueba de humo completa, escribe
+  la métrica del turno y apaga limpio con SIGTERM.
+- `install.sh` ejecutado dos veces seguidas con systemd simulado: la segunda no cambia nada y
+  pasa la prueba de humo. ShellCheck sin avisos.
+- En impermax-gl: 226 pruebas en verde y 5 de PostgreSQL real saltadas.

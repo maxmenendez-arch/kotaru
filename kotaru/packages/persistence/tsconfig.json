@@ -13,6 +13,9 @@
   "references": [
     {
       "path": "../memory"
+    },
+    {
+      "path": "../telemetry"
     }
   ]
 }

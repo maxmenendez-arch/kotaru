@@ -6,3 +6,4 @@ export * from './memory-repository.js';
 export * from './conversation-repository.js';
 export * from './retention.js';
 export * from './export.js';
+export * from './metric-sink.js';

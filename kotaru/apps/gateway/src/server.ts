@@ -15,6 +15,8 @@ import { GatewaySession, type SessionDeps } from './session.js';
 
 export interface GatewayServerOptions {
   readonly port: number;
+  /** Interfaz de red. Por defecto todas; en produccion 127.0.0.1 detras del proxy TLS. */
+  readonly host?: string;
   readonly keys: readonly SigningKey[];
   readonly audience: string;
   readonly deps: SessionDeps;
@@ -172,7 +174,11 @@ export async function startGatewayServer(
     });
   });
 
-  await new Promise<void>((resolve) => http.listen(options.port, resolve));
+  await new Promise<void>((resolve, reject) => {
+    http.once('error', reject);
+    if (options.host) http.listen(options.port, options.host, resolve);
+    else http.listen(options.port, resolve);
+  });
   const address = http.address();
   const port = typeof address === 'object' && address !== null ? address.port : options.port;
 
@@ -180,8 +186,22 @@ export async function startGatewayServer(
     port,
     close: () =>
       new Promise<void>((resolve) => {
-        wss.clients.forEach((client) => client.terminate());
-        wss.close(() => http.close(() => resolve()));
+        // Avisar antes de cortar: la app distingue "el servidor se reinicia, reconecta"
+        // de "se cayo la red". Despues se corta igual, sin esperar al cliente.
+        const shutdownNotice = JSON.stringify({ type: 'closing', reason: 'server_shutdown' } satisfies ServerMessage);
+        wss.clients.forEach((client) => {
+          if (client.readyState === client.OPEN) {
+            client.send(shutdownNotice);
+            client.close(1001, 'server_shutdown');
+          }
+        });
+        const hard = setTimeout(() => wss.clients.forEach((client) => client.terminate()), 500);
+        hard.unref();
+        wss.close(() => {
+          clearTimeout(hard);
+          http.close(() => resolve());
+          http.closeAllConnections?.();
+        });
       }),
   };
 }

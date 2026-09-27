@@ -1,0 +1,15 @@
+[Unit]
+Description=Kotaru: borra mensajes, recuerdos y grants vencidos
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=kotaru
+Group=kotaru
+WorkingDirectory=/opt/kotaru/current
+EnvironmentFile=/etc/kotaru/gateway.env
+ExecStart=/usr/bin/node /opt/kotaru/current/bin/retention.mjs
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true

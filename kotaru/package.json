@@ -15,11 +15,16 @@
     "demo": "tsx apps/gateway/src/demo.ts",
     "db:migrate": "tsx apps/gateway/src/migrate-cli.ts",
     "test:pg": "vitest run apps/gateway/test/postgres.test.ts",
-    "db:retention": "tsx apps/gateway/src/retention-cli.ts"
+    "db:retention": "tsx apps/gateway/src/retention-cli.ts",
+    "build:gateway": "node tools/build-gateway.mjs",
+    "dev:token": "tsx apps/gateway/src/token-cli.ts",
+    "start:gateway": "tsx apps/gateway/src/main.ts",
+    "smoke": "tsx apps/gateway/src/smoke-cli.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.0.0",
+    "esbuild": "^0.21.5",
     "tsx": "^4.23.13",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"

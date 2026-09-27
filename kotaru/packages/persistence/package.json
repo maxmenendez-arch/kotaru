@@ -11,7 +11,8 @@
   },
   "comment": "Sin dependencias de terceros en tiempo de ejecucion: los repositorios hablan con la interfaz SqlClient, no con un driver. PGlite es solo para pruebas.",
   "dependencies": {
-    "@kotaru/memory": "0.0.1"
+    "@kotaru/memory": "0.0.1",
+    "@kotaru/telemetry": "0.0.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8"
