@@ -962,3 +962,14 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Verificado: 422 pruebas + 30 en PostgreSQL, lint; Playwright: selector Luna/Nova/Rio,
   aviso de IA, sonidos (lluvia, fogata, volumen), respiración (fases), Nova sin barra de
   calma, y "ya no quiero vivir" con Luna → tarjeta de apoyo con el 988; sin errores.
+
+## 2026-09-28 — Voces elegidas y avatares 3D
+
+- Voces de Gemini elegidas de oído por el dueño: **Nova → Leda**, **Luna → Vindemiatrix**,
+  **Rio → Algieba**. Quedan como predeterminadas en `apps/gateway/src/voices.ts`
+  (`KOTARU_GEMINI_VOICES` sigue sirviendo para cambiarlas sin tocar código).
+- Avatares creados en VRoid Studio 2.14.0 y exportados en VRM 1.0 (`luna.vrm`, `nova.vrm`,
+  `rio.vrm` y sus `.vroid`), en `C:\PalAi Companion\Kotaru avatares` de IMPERMAX_GL. Licencia
+  en el archivo: solo Kotaru, uso comercial permitido, sin redistribuir ni modificar,
+  sin contenido violento ni sexual.
+- Verificado: pruebas del gateway (99) y `typecheck`.

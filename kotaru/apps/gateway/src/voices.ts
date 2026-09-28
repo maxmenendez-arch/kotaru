@@ -14,13 +14,13 @@ export const GEMINI_VOICE_NAMES = [
 ] as const;
 
 /**
- * Nova: "Upbeat" (coqueta, alegre); Luna: "Soft" (serena, transmite paz); Rio: "Friendly"
- * (descripciones de Google). Se eligen definitivamente de oido con deploy/muestras-voz.sh.
+ * Elegidas de oido por el dueño el 2026-09-28 con deploy/muestras-voz.sh: Nova "Leda"
+ * (Youthful), Luna "Vindemiatrix" (Gentle, transmite paz) y Rio "Algieba" (Smooth, masculina).
  */
 export const DEFAULT_GEMINI_VOICES: Readonly<Record<CompanionSlug, string>> = {
-  nova: 'Laomedeia',
-  luna: 'Achernar',
-  rio: 'Achird',
+  nova: 'Leda',
+  luna: 'Vindemiatrix',
+  rio: 'Algieba',
 };
 
 /** Voz de Gemini y estilo de lectura de cada personaje. */
