@@ -177,6 +177,28 @@ export class ConversationRepository {
     });
   }
 
+  /** La persona activo el coqueteo sensual (Ajustes). */
+  async sensualFlirtingFor(subjectId: string): Promise<boolean> {
+    const { rows } = await this.#sql.query<{ enabled: boolean }>(
+      'select sensual_flirting_since is not null as enabled from app.subject_settings where subject_id = $1',
+      [subjectId],
+    );
+    return rows[0]?.enabled ?? false;
+  }
+
+  /** Activa (guardando cuando se consintio) o desactiva el coqueteo sensual. */
+  async setSensualFlirting(subjectId: string, on: boolean, atIso: string): Promise<void> {
+    await this.#sql.query(
+      `insert into app.subject_settings (subject_id, sensual_flirting_since, updated_at)
+       values ($1, $2, $3)
+       on conflict (subject_id) do update
+         set sensual_flirting_since = case when $2::timestamptz is null then null
+                                           else coalesce(app.subject_settings.sensual_flirting_since, $2::timestamptz) end,
+             updated_at = $3`,
+      [subjectId, on ? atIso : null, atIso],
+    );
+  }
+
   async #retentionDays(sql: SqlClient, subjectId: string): Promise<number> {
     const { rows } = await sql.query<{ days: number | null }>(
       'select message_retention_days as days from app.subject_settings where subject_id = $1',

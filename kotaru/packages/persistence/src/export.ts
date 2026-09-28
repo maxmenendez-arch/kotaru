@@ -7,7 +7,7 @@ export interface SubjectExport {
   readonly format: 'kotaru-export@1';
   readonly subjectId: string;
   readonly exportedAt: string;
-  readonly settings: { readonly messageRetentionDays: number | null } | null;
+  readonly settings: { readonly messageRetentionDays: number | null; readonly sensualFlirtingSince: string | null } | null;
   readonly conversations: readonly {
     readonly id: string;
     readonly companionId: string;
@@ -29,8 +29,9 @@ export interface SubjectExport {
  * de login) viven en otro esquema y los exporta quien tiene acceso a el.
  */
 export async function exportSubject(sql: SqlClient, subjectId: string, nowIso: string): Promise<SubjectExport> {
-  const settings = await sql.query<{ days: number | null }>(
-    'select message_retention_days as days from app.subject_settings where subject_id = $1',
+  const settings = await sql.query<{ days: number | null; sensual_since: string | null }>(
+    `select message_retention_days as days, ${ISO('sensual_flirting_since', 'sensual_since')}
+     from app.subject_settings where subject_id = $1`,
     [subjectId],
   );
 
@@ -77,7 +78,7 @@ export async function exportSubject(sql: SqlClient, subjectId: string, nowIso: s
     format: 'kotaru-export@1',
     subjectId,
     exportedAt: nowIso,
-    settings: settings.rows[0] ? { messageRetentionDays: settings.rows[0].days } : null,
+    settings: settings.rows[0] ? { messageRetentionDays: settings.rows[0].days, sensualFlirtingSince: settings.rows[0].sensual_since } : null,
     conversations: conversations.rows.map((c) => ({
       id: c.id,
       companionId: c.companion_id,

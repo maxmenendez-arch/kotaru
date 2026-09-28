@@ -3,7 +3,7 @@ import type { Locale } from '@kotaru/ai-contracts';
 import { signAccessToken, signGrant, type SigningKey } from '@kotaru/gateway';
 import { IdentityProviderUnavailable, IdTokenError, type IdTokenVerifier } from './id-token.js';
 import { handlePasskey, type PasskeyDeps } from './passkey.js';
-import { DEFAULT_COMPANION, isCompanion } from '@kotaru/persona';
+import { COMPANIONS, DEFAULT_COMPANION, isCompanion, PERSONAS } from '@kotaru/persona';
 
 /** Lo que el servicio de cuentas necesita de la base. `AccountRepository` lo cumple. */
 export interface AccountStore {
@@ -29,6 +29,8 @@ export interface AccountStore {
 }
 
 export interface AuthDeps {
+  /** Si la persona activo el coqueteo sensual (Ajustes). Sin esto, nunca es sensual. */
+  readonly sensualFlirting?: (subjectId: string) => Promise<boolean>;
   readonly accounts: AccountStore;
   readonly verifiers: { readonly apple?: IdTokenVerifier; readonly google?: IdTokenVerifier };
   /** 32 bytes. HMAC del correo para buscarlo sin guardarlo en claro. */
@@ -138,6 +140,9 @@ export async function openSession(
   return session(account.subjectId, refresh, deps, account.created);
 }
 
+/** Personajes con coqueteo (manuales de Nova y Rio); Luna nunca coquetea. */
+const FLIRTING_COMPANIONS: ReadonlySet<string> = new Set(COMPANIONS.filter((slug) => PERSONAS[slug].flirts));
+
 /** POST /v1/session/grant (autenticado): un grant de voz de un solo uso. */
 export async function issueGrant(subjectId: string, body: unknown, deps: AuthDeps): Promise<unknown> {
   const input = (body ?? {}) as { conversationId?: unknown; locale?: unknown; companion?: unknown };
@@ -161,11 +166,14 @@ export async function issueGrant(subjectId: string, body: unknown, deps: AuthDep
   }
 
   const plan = await deps.accounts.currentPlan(subjectId, iso(deps));
+  // Solo con los personajes que coquetean y si la persona lo activo. Luna, nunca.
+  const sensual = FLIRTING_COMPANIONS.has(companion) && (await deps.sensualFlirting?.(subjectId)) === true;
   const grant = signGrant(
     {
       subjectId,
       conversationId,
       companionId: companion,
+      ...(sensual ? { intimacy: 'sensual' as const } : {}),
       plan,
       region: 'us',
       locale: locale as Locale,

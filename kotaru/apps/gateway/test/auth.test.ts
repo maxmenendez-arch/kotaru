@@ -112,6 +112,8 @@ beforeEach(async () => {
         grantAudience: 'gw',
         monthlyHardCapUsd: 50,
         deleteAccount: (id) => deleteAccount(sql, id),
+        sensualFlirting: async (subjectId) =>
+          (await sql.query<{ enabled: boolean }>('select sensual_flirting_since is not null as enabled from app.subject_settings where subject_id = $1', [subjectId])).rows[0]?.enabled ?? false,
         now: Date.now,
       },
     },
@@ -226,6 +228,19 @@ describe('grant de voz', () => {
     expect(again.status).toBe(200);
     const mixed = await post('/v1/session/grant', { conversationId: issued.body.conversationId, companion: 'luna' }, login.body.accessToken);
     expect(mixed.status).toBe(409);
+  });
+
+  it('el coqueteo sensual viaja en el grant solo si la persona lo activo y solo con Nova o Rio', async () => {
+    const login = await post('/v1/auth/apple', { idToken: apple('apple-023') });
+    const claims = (grant: string) => JSON.parse(Buffer.from(grant.split('.')[1]!, 'base64url').toString('utf8')) as { intimacy?: string; subjectId: string };
+    const before = await post('/v1/session/grant', { companion: 'nova' }, login.body.accessToken);
+    expect(claims(before.body.grant).intimacy).toBeUndefined();
+    const subjectId = claims(before.body.grant).subjectId;
+    await sql.query('insert into app.subject_settings (subject_id, sensual_flirting_since) values ($1, now())', [subjectId]);
+    for (const [companion, expected] of [['nova', 'sensual'], ['rio', 'sensual'], ['luna', undefined]] as const) {
+      const issued = await post('/v1/session/grant', { companion }, login.body.accessToken);
+      expect(claims(issued.body.grant).intimacy).toBe(expected);
+    }
   });
 
   it('sin token no hay grant', async () => {

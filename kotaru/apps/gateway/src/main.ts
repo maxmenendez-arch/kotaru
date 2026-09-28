@@ -94,6 +94,10 @@ const server = await startGatewayServer({
       get: (subjectId) => conversations.retentionDaysFor(subjectId),
       set: (subjectId, days) => conversations.setRetentionDays(subjectId, days, new Date().toISOString()),
     },
+    intimacy: {
+      get: (subjectId) => conversations.sensualFlirtingFor(subjectId),
+      set: (subjectId, sensual) => conversations.setSensualFlirting(subjectId, sensual, new Date().toISOString()),
+    },
     ready: async () => (await sql.query('select 1 as ok')).rows.length === 1,
     corsOrigins: config.corsOrigins,
     signupsPerDay: config.signupsPerDay,
@@ -121,6 +125,7 @@ const server = await startGatewayServer({
             grantAudience: config.grantAudience,
             monthlyHardCapUsd: config.monthlyHardCapUsd,
             deleteAccount: (accountId: string) => deleteAccount(sql, accountId),
+            sensualFlirting: (subjectId: string) => conversations.sensualFlirtingFor(subjectId),
             now,
             ...(config.auth.passkeys
               ? {

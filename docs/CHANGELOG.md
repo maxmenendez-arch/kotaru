@@ -1052,3 +1052,27 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   el estado pasaba a "límite" y la tarjeta con el 988 desaparecía. Ahora la tarjeta se queda;
   el límite se avisa igual y se aplica al siguiente turno. Prueba nueva en el cliente y en
   Playwright (tarjeta visible con el límite activo).
+
+## 2026-09-28 — Los tres personajes se rigen por sus manuales
+
+- Manuales del dueño en `docs/personajes/MANUAL_{LUNA,NOVA,RIO}.md` (v1.0). Las fichas pasan a
+  **Luna v2**, **Nova v3** y **Rio v4**, con reglas **rules@1.3.0**:
+  - **Luna**: triaje primero (señales médicas rojas → emergencias, sin llamarlo pánico; riesgo de
+    autolesión → protocolo de crisis), una pregunta o instrucción por turno en crisis, pide
+    permiso antes de cada ejercicio y comprueba si ayuda, biblioteca de ejercicios del manual
+    (sin "respira hondo" ni cerrar los ojos a la fuerza), soledad, angustia, insomnio, duelo;
+    no finge vivencias, no crea dependencia, nunca coquetea. Voz: sin susurros.
+  - **Nova**: coqueteo por niveles (social, coqueto y, solo con el ajuste, sensual); observación
+    concreta antes de la frase con intención, sin sermones dentro de la escena; para en el acto
+    ante "no" o "para"; honesta si le preguntan si es real.
+  - **Rio**: amigo aventurero por defecto (aventuras interactivas, misterios, retos) y coqueteo
+    solo si lo invitan, igual con cualquier persona adulta, sin estereotipos.
+- **Coqueteo sensual** (nivel 2 de los manuales): desactivado por defecto; la persona lo activa
+  en Ajustes reconfirmando que es mayor de edad (`PUT /v1/settings/intimacy` exige
+  `adultConfirmed`), se guarda cuándo lo consintió (migración 0014) y va en el grant solo para
+  Nova y Rio. Aun activado: nada explícito ni gráfico, nada con menores, coerción, intoxicación
+  o violencia; se para ante un "no" o una crisis.
+- Reglas comunes nuevas: no inventar vivencias propias, no prometer encuentros, fotos ni
+  llamadas, corregirse en una frase.
+- `prueba-voz.sh "frase" --personaje=nova --sensual --mostrar`: prueba de voz con cualquier
+  personaje y nivel, mostrando la respuesta.

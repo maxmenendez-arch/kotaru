@@ -31,6 +31,11 @@ export interface ApiDeps {
     get(subjectId: string): Promise<number>;
     set(subjectId: string, days: number | null): Promise<void>;
   };
+  /** Coqueteo sensual (Nova y Rio): la persona adulta lo activa o desactiva en Ajustes. */
+  readonly intimacy?: {
+    get(subjectId: string): Promise<boolean>;
+    set(subjectId: string, sensual: boolean): Promise<void>;
+  };
   /** Comprobacion de la base para /readyz. */
   readonly ready?: () => Promise<boolean>;
   readonly rateLimit?: { readonly capacity: number; readonly refillPerSecond: number };
@@ -268,6 +273,24 @@ async function route(
       }
       await deps.retention.set(subjectId, days);
       send(res, 200, { messageRetentionDays: await deps.retention.get(subjectId) });
+      return;
+    }
+    throw new HttpError(405, 'method_not_allowed');
+  }
+
+  if (path === '/v1/settings/intimacy') {
+    if (!deps.intimacy) throw new HttpError(501, 'not_available');
+    if (method === 'GET') {
+      send(res, 200, { sensual: await deps.intimacy.get(subjectId) });
+      return;
+    }
+    if (method === 'PUT') {
+      const body = (await readJson(req)) as { sensual?: unknown; adultConfirmed?: unknown } | null;
+      if (typeof body?.sensual !== 'boolean') throw new HttpError(400, 'invalid_setting');
+      // Activarlo exige confirmar otra vez la mayoria de edad, en el mismo gesto.
+      if (body.sensual && body.adultConfirmed !== true) throw new HttpError(400, 'adult_confirmation_required');
+      await deps.intimacy.set(subjectId, body.sensual);
+      send(res, 200, { sensual: await deps.intimacy.get(subjectId) });
       return;
     }
     throw new HttpError(405, 'method_not_allowed');

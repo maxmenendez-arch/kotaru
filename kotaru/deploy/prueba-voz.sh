@@ -4,11 +4,12 @@
 # modelo contesta sin etiquetas de emocion y con que voz responde (Gemini, Cartesia o Kokoro).
 # Crea un usuario de prueba y lo borra al terminar. Costo: uno o dos centavos.
 #
-#   bash deploy/prueba-voz.sh ["frase que dice la persona"]
+#   bash deploy/prueba-voz.sh ["frase que dice la persona"] [--personaje=luna|nova|rio] [--sensual] [--mostrar]
 set -euo pipefail
 ENV_FILE=/etc/kotaru/gateway.env
 [ "$(id -u)" -eq 0 ] || { echo "Ejecuta como root." >&2; exit 1; }
 TEXT="${1:-Hola, hoy estuve un poco nervioso en el trabajo. ¿Me acompañas un rato?}"
+shift || true
 key="$(grep -E '^TOGETHER_API_KEY=' "$ENV_FILE" | tail -1 | cut -d= -f2-)"
 [ -n "$key" ] || { echo "Falta TOGETHER_API_KEY" >&2; exit 1; }
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
@@ -23,4 +24,4 @@ echo "La persona dice: \"$TEXT\" ($(( $(stat -c %s "$work/voz.pcm") / 48 )) ms d
 HOST_NOW="$(grep -E '^HOST=' "$ENV_FILE" | tail -1 | cut -d= -f2-)"
 PORT_NOW="$(grep -E '^PORT=' "$ENV_FILE" | tail -1 | cut -d= -f2-)"
 set -a; . "$ENV_FILE"; set +a
-runuser -u kotaru -- "$(command -v node)" /opt/kotaru/current/bin/smoke.mjs "http://${HOST_NOW:-127.0.0.1}:${PORT_NOW:-8787}" --audio="$work/voz.pcm"
+runuser -u kotaru -- "$(command -v node)" /opt/kotaru/current/bin/smoke.mjs "http://${HOST_NOW:-127.0.0.1}:${PORT_NOW:-8787}" --audio="$work/voz.pcm" "$@"

@@ -20,6 +20,11 @@ export interface SessionGrant {
    * anteriores a los tres personajes: es Rio.
    */
   readonly companionId?: string;
+  /**
+   * 'sensual': la persona, adulta, activo el coqueteo sensual y el personaje coquetea
+   * (Nova, Rio). Ausente = coqueteo ligero.
+   */
+  readonly intimacy?: 'sensual';
   readonly plan: string;
   readonly region: Region;
   readonly locale: Locale;

@@ -27,6 +27,9 @@ import { pgClient } from './pg-client.js';
 const base = (process.argv.slice(2).find((a) => !a.startsWith('--')) ?? 'http://127.0.0.1:8080').replace(/\/$/, '');
 const config = loadConfig(process.env);
 const audioArg = process.argv.find((a) => a.startsWith('--audio='))?.slice('--audio='.length);
+/** Con que personaje se prueba (--personaje=luna|nova|rio) y si con coqueteo sensual (--sensual). */
+const companionArg = process.argv.find((a) => a.startsWith('--personaje='))?.slice('--personaje='.length);
+const sensualArg = process.argv.includes('--sensual');
 const voice = Boolean(audioArg) || process.argv.includes('--voz') || config.providers.every((p) => p === 'mock');
 
 /** PCM 16 bits del archivo: sin la cabecera WAV si la trae. */
@@ -58,7 +61,9 @@ try {
   if (voice) {
     const grant = signGrant(
       {
-        subjectId, conversationId, plan: 'close', region: 'us', locale: 'es-419', sensitivity: 'standard',
+        subjectId, conversationId, plan: 'close',
+        ...(companionArg ? { companionId: companionArg } : {}),
+        ...(sensualArg ? { intimacy: 'sensual' as const } : {}), region: 'us', locale: 'es-419', sensitivity: 'standard',
         quality: 'balanced', budget: { sessionRemainingUsd: 1, monthlyRemainingUsd: 1, hardCapUsd: config.monthlyHardCapUsd },
         maxSessionSeconds: 300, aud: config.grantAudience,
       },
@@ -114,6 +119,7 @@ try {
     if (audioArg) {
       const heard = messages.filter((m) => m.type === 'transcript' && m.final).map((m) => (m as { text: string }).text).join(' ');
       const reply = messages.filter((m) => m.type === 'token').map((m) => (m as { text: string }).text).join('');
+      if (process.argv.includes('--mostrar')) console.log(`\n${companionArg ?? 'rio'}${sensualArg ? ' (sensual)' : ''} responde: ${reply}\n`);
       const affect = messages.find((m) => m.type === 'affect') as { emotion?: string } | undefined;
       check('oyo la voz', heard.trim().length > 0, `"${heard.slice(0, 80)}"`);
       if (crisis) check('seguridad', true, 'crisis detectada: se muestran los recursos (988)');

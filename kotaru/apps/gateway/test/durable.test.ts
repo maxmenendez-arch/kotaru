@@ -209,6 +209,10 @@ describe('gateway con PostgreSQL', () => {
           get: (s) => conversations.retentionDaysFor(s),
           set: (s, d) => conversations.setRetentionDays(s, d, new Date().toISOString()),
         },
+        intimacy: {
+          get: (s) => conversations.sensualFlirtingFor(s),
+          set: (s, on) => conversations.setSensualFlirting(s, on, new Date().toISOString()),
+        },
         ready: async () => (await sql.query('select 1 as ok')).rows.length === 1,
       },
     });
@@ -234,7 +238,19 @@ describe('gateway con PostgreSQL', () => {
 
     const exported = (await (await fetch(`${base}/v1/export`, { headers: auth })).json()) as { memories: unknown[]; settings: unknown };
     expect(exported.memories).toHaveLength(1);
-    expect(exported.settings).toEqual({ messageRetentionDays: 14 });
+    expect(exported.settings).toEqual({ messageRetentionDays: 14, sensualFlirtingSince: null });
+
+    // Coqueteo sensual: desactivado por defecto; activarlo exige reconfirmar la edad.
+    const json = { ...auth, 'content-type': 'application/json' };
+    expect(await (await fetch(`${base}/v1/settings/intimacy`, { headers: auth })).json()).toEqual({ sensual: false });
+    const noConfirm = await fetch(`${base}/v1/settings/intimacy`, { method: 'PUT', headers: json, body: JSON.stringify({ sensual: true }) });
+    expect(noConfirm.status).toBe(400);
+    const on = await fetch(`${base}/v1/settings/intimacy`, { method: 'PUT', headers: json, body: JSON.stringify({ sensual: true, adultConfirmed: true }) });
+    expect(await on.json()).toEqual({ sensual: true });
+    const since = ((await (await fetch(`${base}/v1/export`, { headers: auth })).json()) as { settings: { sensualFlirtingSince: string } }).settings.sensualFlirtingSince;
+    expect(since).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const off = await fetch(`${base}/v1/settings/intimacy`, { method: 'PUT', headers: json, body: JSON.stringify({ sensual: false }) });
+    expect(await off.json()).toEqual({ sensual: false });
   });
 
   it('dos usuarios con el mismo id de turno se cobran los dos', async () => {

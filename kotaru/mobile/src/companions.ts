@@ -34,7 +34,7 @@ export const COMPANIONS: readonly Companion[] = [
   {
     id: 'nova',
     name: 'Nova',
-    tagline: { es: 'Coqueta y divertida: halagos y juego, con respeto.', en: 'Flirty and fun: compliments and banter, with respect.' },
+    tagline: { es: 'Coqueta y atrevida: química, ingenio y tú marcas el ritmo.', en: 'Flirty and daring: chemistry, wit, and you set the pace.' },
     accent: '#FF5FA2',
     tint: '#4A1733',
     calm: false,
@@ -42,7 +42,7 @@ export const COMPANIONS: readonly Companion[] = [
   {
     id: 'rio',
     name: 'Rio',
-    tagline: { es: 'Entretenimiento: juegos, historias y risas.', en: 'Entertainment: games, stories and laughs.' },
+    tagline: { es: 'Aventuras, juegos y risas; y si quieres, coqueteo.', en: 'Adventures, games and laughs; and flirting if you like.' },
     accent: '#F2A65A',
     tint: '#4A2A14',
     calm: false,

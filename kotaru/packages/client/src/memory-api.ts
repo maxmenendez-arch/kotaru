@@ -84,6 +84,16 @@ export class MemoryApi {
     return (await this.#call<{ messageRetentionDays: number }>('PUT', '/v1/settings/retention', { days })).messageRetentionDays;
   }
 
+  /** Coqueteo sensual con Nova y Rio (solo adultos; desactivado por defecto). */
+  async sensualFlirting(): Promise<boolean> {
+    return (await this.#call<{ sensual: boolean }>('GET', '/v1/settings/intimacy')).sensual;
+  }
+
+  /** Activarlo exige reconfirmar la mayoria de edad en el mismo gesto (`adultConfirmed`). */
+  async setSensualFlirting(sensual: boolean, adultConfirmed = false): Promise<boolean> {
+    return (await this.#call<{ sensual: boolean }>('PUT', '/v1/settings/intimacy', { sensual, ...(sensual ? { adultConfirmed } : {}) })).sensual;
+  }
+
   async #call<T>(method: string, path: string, body?: unknown): Promise<T> {
     const doFetch = this.#o.fetch ?? fetch;
     const response = await doFetch(`${this.#o.baseUrl.replace(/\/$/, '')}${path}`, {

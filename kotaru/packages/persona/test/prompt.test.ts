@@ -22,7 +22,7 @@ describe('prompt del personaje', () => {
   });
 
   it('registra la version de la ficha y la de las reglas', () => {
-    expect(promptId(RIO_V1)).toBe('rio-v3@3.0.0+rules@1.2.0');
+    expect(promptId(RIO_V1)).toBe('rio-v4@4.0.0+rules@1.3.0');
   });
 });
 
@@ -100,18 +100,48 @@ describe('los tres personajes', () => {
     }
   });
 
-  it('coqueteo con limites fijos para todos: nunca sexual, sin exclusividad, se corta con menores', () => {
-    const es = buildSystemPrompt(NOVA_V1, 'es-419');
-    expect(es).toMatch(/nunca sexual ni explícito/);
-    expect(es).toMatch(/sin pedir exclusividad ni mostrar celos/);
-    expect(es).toMatch(/menor de edad, dejas de coquetear por completo/);
+  it('limites fijos para todos: nada grafico, nada con menores ni sin consentimiento, sin exclusividad, se para ante un no', () => {
+    for (const persona of [NOVA_V1, LUNA_V1, RIO_V1]) {
+      for (const sensual of [false, true]) {
+        const es = buildSystemPrompt(persona, 'es-419', { sensual });
+        expect(es).toMatch(/Nunca describes actos sexuales, genitales ni detalles gráficos/);
+        expect(es).toMatch(/menor de edad, nada de coqueteo en absoluto/);
+        expect(es).toMatch(/coerción, falta de consentimiento/);
+        expect(es).toMatch(/Nada de culpa, celos, exclusividad/);
+        expect(es).toMatch(/abandonas cualquier coqueteo de inmediato/);
+      }
+    }
   });
 
-  it('Luna acompaña y ayuda a calmarse, sin presentarse como terapia', () => {
+  it('coqueteo por niveles: ligero por defecto; sensual solo si la persona lo activo; Luna nunca', () => {
+    const light = buildSystemPrompt(NOVA_V1, 'es-419');
+    expect(light).toMatch(/No pasas a lo sensual aunque te lo pidan/);
+    expect(light).not.toMatch(/activó el coqueteo sensual/);
+    expect(light).not.toMatch(/bailar desnudos/i);
+    const sensual = buildSystemPrompt(NOVA_V1, 'es-419', { sensual: true });
+    expect(sensual).toMatch(/activó el coqueteo sensual/);
+    expect(sensual).toMatch(/Todo se queda en la sugerencia/);
+    expect(sensual).toMatch(/Bailar desnudos\?/);
+    expect(buildSystemPrompt(RIO_V1, 'en-US', { sensual: true })).toMatch(/turned on sensual flirting/);
+    const luna = buildSystemPrompt(LUNA_V1, 'es-419', { sensual: true });
+    expect(luna).toMatch(/No coqueteas ni juegas a lo romántico/);
+    expect(luna).not.toMatch(/activó el coqueteo sensual/);
+  });
+
+  it('Rio es amigo por defecto y coquetea solo si lo invitan, igual con cualquier persona', () => {
+    const es = buildSystemPrompt(RIO_V1, 'es-419');
+    expect(es).toMatch(/Por defecto eres amigo aventurero/);
+    expect(es).toMatch(/Tratas igual a mujeres, hombres y cualquier persona/);
+  });
+
+  it('Luna sigue su manual: triaje medico primero, un paso a la vez, sin presentarse como terapia', () => {
     const es = buildSystemPrompt(LUNA_V1, 'es-419');
+    expect(es).toMatch(/Triaje, siempre primero/);
+    expect(es).toMatch(/dolor o presión fuerte en el pecho/);
     expect(es).toMatch(/5-4-3-2-1/);
     expect(es).toMatch(/Respira conmigo/);
     expect(es).toMatch(/No eres terapeuta/);
-    expect(es).toMatch(/hablar con un profesional de salud/);
+    expect(es).toMatch(/una sola pregunta o instrucción por turno/);
+    expect(es).toMatch(/tú no envías nada ni dices que avisaste a alguien/);
   });
 });

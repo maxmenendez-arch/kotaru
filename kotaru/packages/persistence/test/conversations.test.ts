@@ -151,7 +151,7 @@ describe('exportacion', () => {
 
     const exported = await exportSubject(sql, subjectId, days(1));
     expect(exported.format).toBe('kotaru-export@1');
-    expect(exported.settings).toEqual({ messageRetentionDays: 60 });
+    expect(exported.settings).toEqual({ messageRetentionDays: 60, sensualFlirtingSince: null });
     expect(exported.conversations).toHaveLength(1);
     expect(exported.conversations[0]!.messages.map((m) => m.content)).toEqual([
       'pregunta 1', 'respuesta 1', 'pregunta 2', 'respuesta 2',

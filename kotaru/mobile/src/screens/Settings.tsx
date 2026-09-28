@@ -27,6 +27,9 @@ export function Settings({
     connection?.kind === 'dev' ? connection : { kind: 'dev', serverUrl: '', grant: '', accessToken: '' },
   );
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sensual, setSensual] = useState<boolean | null>(null);
+  const [confirmSensual, setConfirmSensual] = useState(false);
+  const [sensualNote, setSensualNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const account = connection?.kind === 'account' ? connection : null;
 
@@ -54,7 +57,19 @@ export function Settings({
   useEffect(() => {
     if (!connection) return;
     createMemoryApi(connection).retentionDays().then(setDays, () => setDays(null));
+    createMemoryApi(connection).sensualFlirting().then(setSensual, () => setSensual(null));
   }, [connection]);
+
+  const changeSensual = async (on: boolean) => {
+    if (!connection) return;
+    try {
+      setSensual(await createMemoryApi(connection).setSensualFlirting(on, on));
+      setConfirmSensual(false);
+      setSensualNote(s.sensualNextConversation);
+    } catch {
+      setSensualNote(s.error);
+    }
+  };
 
   const choose = async (d: number) => {
     if (!connection) return;
@@ -91,6 +106,30 @@ export function Settings({
               <Button label={s.exportData} kind="quiet" onPress={exportData} />
             </View>
             {note ? <Body muted>{note}</Body> : null}
+          </Card>
+        ) : null}
+
+        {connection && sensual !== null ? (
+          <Card>
+            <Text style={styles.label}>{s.sensualTitle}</Text>
+            <Body muted>{s.sensualBody}</Body>
+            <Text style={styles.status} accessibilityLiveRegion="polite">
+              {sensual ? s.sensualOn : s.sensualOff}
+            </Text>
+            {sensual ? (
+              <Button label={s.sensualDisable} kind="quiet" onPress={() => changeSensual(false)} />
+            ) : confirmSensual ? (
+              <>
+                <Body>{s.sensualConfirm}</Body>
+                <View style={styles.choices}>
+                  <Button label={s.sensualEnable} onPress={() => changeSensual(true)} />
+                  <Button label={s.cancel} kind="quiet" onPress={() => setConfirmSensual(false)} />
+                </View>
+              </>
+            ) : (
+              <Button label={s.sensualEnable} kind="quiet" onPress={() => setConfirmSensual(true)} />
+            )}
+            {sensualNote ? <Body muted>{sensualNote}</Body> : null}
           </Card>
         ) : null}
 
@@ -147,6 +186,7 @@ export function Settings({
 const styles = StyleSheet.create({
   label: { ...type.support, color: color.mist, marginBottom: space.m },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s },
+  status: { ...type.body, color: color.cloud, fontWeight: '600', marginVertical: space.m },
   input: {
     ...type.support,
     color: color.cloud,

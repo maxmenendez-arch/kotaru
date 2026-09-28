@@ -146,7 +146,7 @@ export class GatewaySession {
 
     // El prompt del personaje, versionado. Las reglas (es una IA, no es profesional, no
     // presiona) van fijas dentro y ninguna personalizacion las quita.
-    this.#history.push({ role: 'system', content: buildSystemPrompt(this.#persona, grant.locale) });
+    this.#history.push({ role: 'system', content: buildSystemPrompt(this.#persona, grant.locale, { sensual: grant.intimacy === 'sensual' }) });
   }
 
   get turnsCompleted(): number {
