@@ -1182,3 +1182,5 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Rendimiento: con fondo el visor dibuja a 30 cuadros por segundo (la mitad de trabajo para
   la GPU y la batería; los movimientos son lentos y se ven igual) y deja de dibujar cuando el
   escenario no está en pantalla (IntersectionObserver).
+- Ajustes → "Fondos animados": Encendidos / Apagados (solo web; por defecto encendidos; se
+  recuerda en el navegador). Apagados vuelve al retrato redondo sin fondo.

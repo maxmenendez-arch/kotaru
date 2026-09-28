@@ -32,6 +32,12 @@ export default function App() {
     setVoiceChoiceState(choice);
     writeVoiceChoice(choice);
   };
+  // Fondos animados detras del personaje (web). Encendidos por defecto; se recuerda igual.
+  const [backgrounds, setBackgroundsState] = useState<boolean>(() => readFlag(BACKGROUNDS_KEY, true));
+  const setBackgrounds = (on: boolean) => {
+    setBackgroundsState(on);
+    writeFlag(BACKGROUNDS_KEY, on);
+  };
   // Con servidor de cuentas configurado: 'loading' hasta leer la sesion guardada,
   // 'signin' si no la hay, 'app' dentro. Sin servidor se entra directo (desarrollo).
   const [gate, setGate] = useState<'loading' | 'signin' | 'app'>(SERVER_URL ? 'loading' : 'app');
@@ -102,7 +108,7 @@ export default function App() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <View style={styles.body}>
-        {tab === 'talk' ? <Conversation lang={lang} connection={connection} voiceChoice={voiceChoice} /> : null}
+        {tab === 'talk' ? <Conversation lang={lang} connection={connection} voiceChoice={voiceChoice} backgrounds={backgrounds} /> : null}
         {tab === 'memory' ? <Memories lang={lang} connection={connection} /> : null}
         {tab === 'settings' ? (
           <Settings
@@ -111,6 +117,8 @@ export default function App() {
             showDevConnection={showDevConnection}
             voiceChoice={voiceChoice}
             onVoiceChoice={setVoiceChoice}
+            backgrounds={backgrounds}
+            onBackgrounds={setBackgrounds}
             onConnection={(c) => {
               setConnection(c);
               setTab('talk');
@@ -166,5 +174,24 @@ function writeVoiceChoice(choice: VoiceChoice): void {
     (globalThis as { localStorage?: Storage }).localStorage?.setItem(VOICE_KEY, choice);
   } catch {
     // Navegador privado o sin almacenamiento: vale solo mientras la pagina este abierta.
+  }
+}
+
+const BACKGROUNDS_KEY = 'kotaru.backgrounds';
+
+function readFlag(key: string, fallback: boolean): boolean {
+  try {
+    const v = (globalThis as { localStorage?: Storage }).localStorage?.getItem(key);
+    return v === 'on' ? true : v === 'off' ? false : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeFlag(key: string, on: boolean): void {
+  try {
+    (globalThis as { localStorage?: Storage }).localStorage?.setItem(key, on ? 'on' : 'off');
+  } catch {
+    // Sin almacenamiento: vale mientras la pagina este abierta.
   }
 }

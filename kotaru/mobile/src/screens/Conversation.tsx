@@ -56,7 +56,18 @@ const RING: Record<ConversationState, string> = {
 export type VoiceChoice = 'auto' | 'gemini' | 'cartesia';
 const VOICE_NAMES: Readonly<Record<string, string>> = { gemini: 'Gemini', cartesia: 'Cartesia', kokoro: 'Kokoro' };
 
-export function Conversation({ lang, connection, voiceChoice = 'auto' }: { lang: Lang; connection: Connection | null; voiceChoice?: VoiceChoice }) {
+export function Conversation({
+  lang,
+  connection,
+  voiceChoice = 'auto',
+  backgrounds = true,
+}: {
+  lang: Lang;
+  connection: Connection | null;
+  voiceChoice?: VoiceChoice;
+  /** false: retrato redondo sin fondo (Ajustes). */
+  backgrounds?: boolean;
+}) {
   const s = t(lang);
   const [state, setState] = useState<ConversationState>('closed');
   const [heard, setHeard] = useState('');
@@ -285,7 +296,7 @@ export function Conversation({ lang, connection, voiceChoice = 'auto' }: { lang:
   // En la web el personaje aparece en su lugar (oficina, cuarto, montaña): un escenario
   // ancho en vez del retrato redondo. En el movil sigue el retrato (aun sin 3D).
   const ringColor = shown === 'idle' || shown === 'closed' ? companion.accent : RING[shown];
-  const stage = stageSize(windowWidth, compact);
+  const stage = backgrounds ? stageSize(windowWidth, compact) : null;
 
   return (
     <Screen>

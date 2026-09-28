@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { createMemoryApi, type Connection, type DevConnection } from '../connection';
 import type { Lang } from '../i18n';
 import { t } from '../i18n';
@@ -17,6 +17,8 @@ export function Settings({
   showDevConnection,
   voiceChoice = 'auto',
   onVoiceChoice,
+  backgrounds = true,
+  onBackgrounds,
 }: {
   lang: Lang;
   connection: Connection | null;
@@ -25,6 +27,8 @@ export function Settings({
   showDevConnection: boolean;
   voiceChoice?: VoiceChoice;
   onVoiceChoice?: (choice: VoiceChoice) => void;
+  backgrounds?: boolean;
+  onBackgrounds?: (on: boolean) => void;
 }) {
   const s = t(lang);
   const [days, setDays] = useState<number | null>(null);
@@ -136,6 +140,17 @@ export function Settings({
               <Button label={s.sensualEnable} kind="quiet" onPress={() => setConfirmSensual(true)} />
             )}
             {sensualNote ? <Body muted>{sensualNote}</Body> : null}
+          </Card>
+        ) : null}
+
+        {onBackgrounds && Platform.OS === 'web' ? (
+          <Card>
+            <Text style={styles.label}>{s.backgroundsTitle}</Text>
+            <Body muted>{s.backgroundsBody}</Body>
+            <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={s.backgroundsTitle}>
+              <Button label={s.backgroundsOn} kind={backgrounds ? 'primary' : 'quiet'} onPress={() => onBackgrounds(true)} />
+              <Button label={s.backgroundsOff} kind={backgrounds ? 'quiet' : 'primary'} onPress={() => onBackgrounds(false)} />
+            </View>
           </Card>
         ) : null}
 
