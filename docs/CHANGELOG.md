@@ -1141,3 +1141,6 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - La pantalla sigue en "hablando" (anillo, etiqueta y cabeza del avatar) mientras suena la voz
   que quedó en cola; antes pasaba a "en espera" con el personaje todavía hablando. Solo web
   (`web.sh`).
+- La voz elegida en Ajustes se recuerda en el navegador al recargar (`localStorage`, solo
+  "auto"/"gemini"/"cartesia"; si el navegador no deja guardar, vale mientras la página esté
+  abierta).

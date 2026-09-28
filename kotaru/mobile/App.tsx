@@ -25,8 +25,13 @@ export default function App() {
   const [welcomed, setWelcomed] = useState(false);
   const [tab, setTab] = useState<Tab>('talk');
   const [connection, setConnection] = useState<Connection | null>(null);
-  // Voz elegida en Ajustes para probar (se olvida al recargar: es para comparar, no una preferencia).
-  const [voiceChoice, setVoiceChoice] = useState<VoiceChoice>('auto');
+  // Voz elegida en Ajustes para probar. En la web se recuerda en este navegador (no es un
+  // dato personal: solo "auto", "gemini" o "cartesia").
+  const [voiceChoice, setVoiceChoiceState] = useState<VoiceChoice>(readVoiceChoice);
+  const setVoiceChoice = (choice: VoiceChoice) => {
+    setVoiceChoiceState(choice);
+    writeVoiceChoice(choice);
+  };
   // Con servidor de cuentas configurado: 'loading' hasta leer la sesion guardada,
   // 'signin' si no la hay, 'app' dentro. Sin servidor se entra directo (desarrollo).
   const [gate, setGate] = useState<'loading' | 'signin' | 'app'>(SERVER_URL ? 'loading' : 'app');
@@ -144,3 +149,22 @@ const styles = StyleSheet.create({
   tabText: { ...type.support, color: color.mist },
   tabOn: { color: color.cloud, fontWeight: '600' },
 });
+
+const VOICE_KEY = 'kotaru.voiceChoice';
+
+function readVoiceChoice(): VoiceChoice {
+  try {
+    const v = (globalThis as { localStorage?: Storage }).localStorage?.getItem(VOICE_KEY);
+    return v === 'gemini' || v === 'cartesia' ? v : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+function writeVoiceChoice(choice: VoiceChoice): void {
+  try {
+    (globalThis as { localStorage?: Storage }).localStorage?.setItem(VOICE_KEY, choice);
+  } catch {
+    // Navegador privado o sin almacenamiento: vale solo mientras la pagina este abierta.
+  }
+}
