@@ -115,8 +115,10 @@ def main():
 
             walk(data)
             spanish = [v for v in voices if re.search(r'span|espa|latin|mexic|"language": "es', v[2], re.I)]
+            if re.match(r"cartesia/", mid):
+                spanish = [v for v in voices if re.search(r"span|latin|mexic|espa|lucia|sofia|valentina|isabel|carmen|mateo|diego|carlos|elena|mariana", v[0], re.I)]
             print(f"[together] {mid}: {len(voices)} voces, {len(spanish)} en espanol: "
-                  + ", ".join(f"{n}={i}" for n, i, _ in spanish[:12]))
+                  + ", ".join(n for n, i, _ in spanish[:40]))
             rows.append((mid, spanish or voices[:3]))
     else:
         print("[together] sin TOGETHER_API_KEY")
@@ -154,15 +156,26 @@ def main():
 
     if together:
         th = {"Authorization": f"Bearer {together}", "content-type": "application/json"}
-        for mid, voices in rows:
-            if re.search(r"kokoro", mid, re.I):
-                voices = voices[:1]
-            for name, vid, _ in voices[:4]:
+        cartesia = {n: i for m, vs in rows if m == "cartesia/sonic-3" for n, i, _ in vs}
+        wanted = [
+            ("hexgrad/Kokoro-82M", ["ef_dora"], "4 USD/M (la actual)"),
+            ("minimax/speech-2.8-turbo", [], "MiniMax (china), 30 USD/M"),
+            ("minimax/speech-2.6-turbo", [], "MiniMax (china), 30 USD/M"),
+            ("rime-labs/rime-arcana-v3", ["luz", "mar", "seraphina", "celestino"], "Rime Arcana v3"),
+            ("rime-labs/rime-mist-v3-omni", ["sofia", "lucia", "isa", "mateo"], "Rime Mist v3"),
+            ("cartesia/sonic-3", list(cartesia)[:4], "Cartesia Sonic 3, 65 USD/M"),
+        ]
+        spanish_by_model = {m: [n for n, _, _ in vs] for m, vs in rows}
+        for mid, names, note in wanted:
+            if not names:
+                names = [n for n in spanish_by_model.get(mid, []) if re.search(r"girl|woman|lady|queen|calm|gentle|sweet|man|boy", n, re.I)][:5]
+            for name in names:
+                vid = cartesia.get(name, name)
                 body = {"model": mid, "input": TEXT, "voice": vid, "response_format": "wav", "language": "es", "stream": False}
                 status, ctype, raw = call("https://api.together.xyz/v1/audio/speech", th, body, timeout=90)
                 safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{mid}-{name}")[:80]
                 if status == 200 and len(raw) > 4000:
-                    save(f"{mid} · {name}", f"{safe}.wav", raw, "Together")
+                    save(f"{mid} · {name}", f"{safe}.wav", raw, note)
                 else:
                     print(f"  x {mid} {name}: HTTP {status} {short(raw, 200)}")
 
