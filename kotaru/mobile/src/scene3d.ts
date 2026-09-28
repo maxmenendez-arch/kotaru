@@ -753,7 +753,20 @@ function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
       shape.lineTo(x, y);
     }
     shape.lineTo(30, -2);
-    kit.mesh(new THREE.ShapeGeometry(shape), kit.glow(r.color, 1, false), 0, 0, r.z);
+    // Cumbres mas claras (les da el sol) y faldas que se pierden en la bruma del valle.
+    const geo = new THREE.ShapeGeometry(shape);
+    const pos = geo.attributes['position']!;
+    const base = new THREE.Color(r.color);
+    const haze = new THREE.Color(0xf0b98a);
+    const lit = base.clone().lerp(new THREE.Color(0xffe0c8), 0.35);
+    const cols: number[] = [];
+    for (let i = 0; i < pos.count; i++) {
+      const k = Math.max(0, Math.min(1, pos.getY(i) / r.height));
+      const c = k > 0.55 ? base.clone().lerp(lit, (k - 0.55) / 0.45) : haze.clone().lerp(base, 0.35 + (k / 0.55) * 0.65);
+      cols.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    kit.mesh(geo, kit.track(new THREE.MeshBasicMaterial({ vertexColors: true, fog: false })), 0, 0, r.z);
   }
 
   // Lago que refleja el cielo, con un brillo que se mueve.
@@ -775,20 +788,47 @@ function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
   // La pradera no debe tapar el lago: el lago esta un poco mas alto.
   lake.position.y = 0.02;
 
-  // Pinos: conos oscuros en grupos a los dos lados, que se mecen con el viento.
-  const needle = kit.matte(0x2f4a33, 0.95);
-  const needleLight = kit.matte(0x3d5c3c, 0.95);
-  const trunk = kit.matte(0x4a3526, 1);
+  // Pinos pintados (ramas irregulares, borde iluminado por el sol de la izquierda), en planos
+  // que miran a la camara: se ven mucho mas naturales que conos. Dos variantes.
+  const pineTexture = (seed: number, dark: string, mid: string, light: string) => {
+    const r = seeded(seed);
+    return kit.canvasTexture(256, 512, (ctx, w, h) => {
+      ctx.fillStyle = '#3b2a1e';
+      ctx.fillRect(w / 2 - 7, h * 0.8, 14, h * 0.2);
+      const tiers = 11;
+      for (let k = 0; k < tiers; k++) {
+        const top = h * 0.04 + (k / tiers) * h * 0.8;
+        const half = w * (0.06 + 0.42 * ((k + 1) / tiers));
+        const bottom = top + h * 0.13;
+        const drawTier = (color: string, shrink: number, shift: number) => {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(w / 2 + shift, top);
+          const n = 9;
+          for (let i = 0; i <= n; i++) {
+            const x = w / 2 + shift - half * shrink + (2 * half * shrink * i) / n;
+            const y = bottom - (i % 2 ? r() * h * 0.03 : 0);
+            ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.fill();
+        };
+        drawTier(dark, 1, 0);
+        drawTier(mid, 0.8, -half * 0.12);
+        drawTier(light, 0.35, -half * 0.45);
+      }
+    });
+  };
+  const pineMats = [
+    kit.track(new THREE.MeshLambertMaterial({ map: pineTexture(11, '#1f3526', '#2c4a33', '#5b7a45'), alphaTest: 0.5, side: THREE.DoubleSide })),
+    kit.track(new THREE.MeshLambertMaterial({ map: pineTexture(29, '#243b2a', '#35553a', '#6d8a4c'), alphaTest: 0.5, side: THREE.DoubleSide })),
+  ];
   const trees: { g: THREE.Group; phase: number }[] = [];
   const pine = (x: number, z: number, h: number) => {
     const g = new THREE.Group();
     g.position.set(x, 0, z);
     kit.group.add(g);
-    kit.mesh(new THREE.CylinderGeometry(h * 0.03, h * 0.04, h * 0.25, 6), trunk, 0, h * 0.12, 0, g);
-    for (let k = 0; k < 3; k++) {
-      const r = h * (0.26 - k * 0.06);
-      kit.mesh(new THREE.ConeGeometry(r, h * 0.42, 9), k % 2 ? needleLight : needle, 0, h * (0.35 + k * 0.2), 0, g);
-    }
+    kit.mesh(new THREE.PlaneGeometry(h * 0.5, h), pineMats[trees.length % 2]!, 0, h / 2, 0, g);
     trees.push({ g, phase: kit.random() * 6 });
   };
   const spots: [number, number, number][] = [
@@ -807,7 +847,7 @@ function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
   const rockDark = kit.matte(0x6d675e, 0.95);
   const boulder = kit.mesh(new THREE.DodecahedronGeometry(0.6, 1), rock, 1.35, 0.35, -2.4);
   boulder.scale.set(1.3, 0.95, 1);
-  const r2 = kit.mesh(new THREE.DodecahedronGeometry(0.5, 1), rockDark, -1.6, 0.3, -3.2);
+  const r2 = kit.mesh(new THREE.DodecahedronGeometry(0.5, 1), rockDark, -2.4, 0.3, -3.2);
   r2.scale.set(1.5, 0.8, 1);
   const top = 0.35 + 0.6 * 0.95 - 0.04;
   const pack = new THREE.Group();
@@ -839,6 +879,105 @@ function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
     const blade = kit.mesh(new THREE.ConeGeometry(0.012, 0.12 + kit.random() * 0.12, 3), grass, x, 0.08, z);
     blade.rotation.z = (kit.random() - 0.5) * 0.4;
   }
+
+  // Nubes altas teñidas de atardecer que avanzan muy despacio.
+  const skyRandom = seeded(777);
+  const cloudTex = kit.canvasTexture(1024, 256, (ctx, w, h) => {
+    for (let i = 0; i < 12; i++) {
+      const cx = skyRandom() * w;
+      const cy = h * (0.3 + skyRandom() * 0.4);
+      for (let k = 0; k < 9; k++) {
+        const rx = 40 + skyRandom() * 70;
+        const x = cx + (skyRandom() - 0.5) * 160;
+        const y = cy + (skyRandom() - 0.5) * 24;
+        for (const dx of [-w, 0, w]) {
+          const g = ctx.createRadialGradient(x + dx, y, 0, x + dx, y, rx);
+          g.addColorStop(0, 'rgba(255,214,186,0.55)');
+          g.addColorStop(0.6, 'rgba(236,160,150,0.25)');
+          g.addColorStop(1, 'rgba(236,160,150,0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(x + dx - rx, y - rx, rx * 2, rx * 2);
+        }
+      }
+    }
+  });
+  cloudTex.wrapS = THREE.RepeatWrapping;
+  kit.mesh(
+    new THREE.PlaneGeometry(70, 10),
+    kit.track(new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, depthWrite: false, fog: false })),
+    0,
+    focus.y + 7,
+    -32,
+  );
+  kit.updaters.push((t) => {
+    cloudTex.offset.x = t * 0.0015;
+  });
+
+  // Fogata del campamento, a la izquierda: llamas que bailan, brasas y chispas que suben.
+  const fire = { x: -1.35, y: 0, z: -4.6 };
+  const logMat = kit.matte(0x3b2a1e, 1);
+  for (let i = 0; i < 4; i++) {
+    const log = kit.mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.55, 8), logMat, fire.x, 0.05, fire.z);
+    log.rotation.set(Math.PI / 2, (i * Math.PI) / 4, 0.35);
+  }
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    kit.mesh(new THREE.DodecahedronGeometry(0.07, 0), kit.matte(0x5d5750, 1), fire.x + Math.cos(a) * 0.36, 0.04, fire.z + Math.sin(a) * 0.36);
+  }
+  const flameTex = kit.canvasTexture(64, 128, (ctx, w, h) => {
+    const g = ctx.createRadialGradient(w / 2, h * 0.72, 2, w / 2, h * 0.6, h * 0.55);
+    g.addColorStop(0, 'rgba(255,250,210,1)');
+    g.addColorStop(0.25, 'rgba(255,196,90,0.95)');
+    g.addColorStop(0.6, 'rgba(255,110,40,0.55)');
+    g.addColorStop(1, 'rgba(255,60,20,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 0);
+    ctx.quadraticCurveTo(w, h * 0.65, w / 2, h);
+    ctx.quadraticCurveTo(0, h * 0.65, w / 2, 0);
+    ctx.fill();
+  });
+  const flames = Array.from({ length: 5 }, (_, i) => {
+    const sp = new THREE.Sprite(kit.track(new THREE.SpriteMaterial({ map: flameTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })));
+    kit.group.add(sp);
+    return { sp, phase: i * 1.37, dx: (i - 2) * 0.07 };
+  });
+  const fireLight = new THREE.PointLight(0xff8a3a, 3, 7, 1.6);
+  fireLight.position.set(fire.x, 0.5, fire.z + 0.3);
+  kit.group.add(fireLight);
+  kit.updaters.push((t) => {
+    for (const f of flames) {
+      const k = candleFlicker(t, f.phase, 0.6);
+      f.sp.scale.set(0.22 + 0.06 * k, 0.45 + 0.25 * k, 1);
+      f.sp.position.set(fire.x + f.dx + Math.sin(t * 5 + f.phase) * 0.015, 0.2 + 0.1 * k, fire.z);
+    }
+    fireLight.intensity = 3 * candleFlicker(t, 0.9, 0.7);
+  });
+  const sparkSeed = Array.from({ length: 24 }, () => ({ phase: kit.random(), dx: (kit.random() - 0.5) * 0.2, speed: 0.25 + kit.random() * 0.35 }));
+  kit.movingLights(sparkSeed.length, 0.09, () => 0xffa040, (i, t, p) => {
+    const sp = sparkSeed[i]!;
+    const u = (sp.phase + t * sp.speed) % 1;
+    p.set(fire.x + sp.dx + Math.sin(t * 2 + i) * 0.08 * u, 0.3 + u * 1.6, fire.z + Math.cos(t * 1.5 + i) * 0.05);
+    return (1 - u) * (0.6 + 0.4 * Math.sin(t * 20 + i));
+  });
+
+  // Luciernagas sobre la pradera: vagan despacio y se encienden a ratos.
+  const flySeed = Array.from({ length: 22 }, () => ({ x: (kit.random() - 0.5) * 5, y: 0.5 + kit.random() * 1.4, z: -3 - kit.random() * 4, phase: kit.random() * 20 }));
+  kit.movingLights(flySeed.length, 0.08, () => 0xe8ff9a, (i, t, p) => {
+    const f = flySeed[i]!;
+    p.set(f.x + Math.sin(t * 0.3 + f.phase) * 0.35, f.y + Math.sin(t * 0.5 + f.phase * 1.3) * 0.18, f.z + Math.cos(t * 0.25 + f.phase) * 0.3);
+    const blink = Math.sin(t * 1.3 + f.phase * 2.1);
+    return blink > 0.2 ? (blink - 0.2) * 1.25 : 0;
+  });
+
+  // Destellos del sol sobre el agua del lago: centellean al azar.
+  const glintSeed = Array.from({ length: 40 }, () => ({ x: -3.2 + kit.random() * 2.4, z: -8 - kit.random() * 5, phase: kit.random() * 30 }));
+  kit.movingLights(glintSeed.length, 0.12, () => 0xfff0c8, (i, t, p) => {
+    const g = glintSeed[i]!;
+    p.set(g.x + Math.sin(t * 0.2 + g.phase) * 0.08, 0.04, g.z);
+    const k = Math.sin(t * 2.2 + g.phase);
+    return k > 0.7 ? (k - 0.7) * 3.3 : 0;
+  });
 
   // Unos pajaros lejanos cruzando el cielo muy despacio.
   const birdMat = kit.glow(0x3a2c30, 0.8, false);

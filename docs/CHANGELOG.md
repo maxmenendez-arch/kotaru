@@ -1166,3 +1166,16 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   `tools/build-escenarios.sh`; hay que volver a correrlo al cambiar las escenas).
 - Verificado: 22 pruebas de la app (3 nuevas de escenas), typecheck, capturas en Chromium sin
   pantalla a 720x450, 358x222 y 358x129 (`docs/escenarios/`).
+- **Más realismo y movimiento** (pedido del dueño: lluvia, luces de carros…):
+  - Nova: la ventana muestra una ciudad pintada (nubes iluminadas por la ciudad, edificios a
+    dos distancias con ventanas encendidas, bulevar mojado con farolas) bajo la lluvia. Hay
+    trazos de lluvia cayendo, gotas que resbalan a saltos por el cristal, faros blancos y
+    pilotos rojos de carros circulando en los dos sentidos, ventanas que se encienden y se
+    apagan y la luz roja de una antena. Velas en el alféizar, con una rosa y un perfume.
+  - Luna: nubes que pasan por el cielo, parque con árboles, una rama que se mece fuera,
+    rayos de sol que entran en diagonal y "respiran", y vapor que sube de la taza de té.
+  - Rio: nubes de atardecer que avanzan, pinos pintados (en vez de conos), montañas con
+    cumbres iluminadas y faldas en la bruma, fogata con llamas, brasas y chispas que suben,
+    luciérnagas y destellos del sol en el lago.
+  - Ayudas nuevas en `scene3d.ts`: texturas pintadas con canvas y `movingLights` (puntos de
+    luz animados en un solo objeto, barato para la GPU).
