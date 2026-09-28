@@ -366,25 +366,26 @@ function novaRoom(kit: Kit, focus: THREE.Vector3): void {
     kit.mesh(new THREE.SphereGeometry(0.018, 8, 6), bulbMat, x, y, wallZ + 0.12);
   }
 
-  // Velas en una mesita baja delante del sofa: llamas que titilan y dan luz ambar.
-  kit.mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.04, 28), kit.matte(0x1f1216, 0.4, 0.2), 0.45, 0.46, -1.45);
-  kit.mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.44, 12), kit.matte(0x1f1216, 0.4, 0.2), 0.45, 0.22, -1.45);
+  // Velas en el alfeizar de la ventana: llamas que titilan y dan luz ambar.
+  const sillY = win.y - win.h / 2;
+  kit.box(win.w + 0.2, 0.04, 0.26, kit.matte(0x2a1620, 0.5), win.x, sillY - 0.02, wallZ + 0.2);
   const candleWax = kit.matte(0xf6e9dc, 0.7);
   const flameMat = kit.glow(0xffb45a, 1, false);
   const flames: { mesh: THREE.Mesh; light: THREE.PointLight | null; phase: number }[] = [];
-  const candles: [number, number, number][] = [
-    [0.33, 0.14, -1.5],
-    [0.47, 0.2, -1.38],
-    [0.6, 0.11, -1.52],
+  const candles: [number, number][] = [
+    [win.x - 0.42, 0.16],
+    [win.x - 0.3, 0.24],
+    [win.x - 0.18, 0.12],
   ];
-  candles.forEach(([x, h, z], i) => {
-    kit.mesh(new THREE.CylinderGeometry(0.035, 0.035, h, 14), candleWax, x, 0.48 + h / 2, z);
-    const f = kit.mesh(new THREE.SphereGeometry(0.014, 10, 8), flameMat, x, 0.48 + h + 0.022, z);
+  candles.forEach(([x, h], i) => {
+    const z = wallZ + 0.22 + (i % 2) * 0.05;
+    kit.mesh(new THREE.CylinderGeometry(0.03, 0.03, h, 14), candleWax, x, sillY + h / 2, z);
+    const f = kit.mesh(new THREE.SphereGeometry(0.013, 10, 8), flameMat, x, sillY + h + 0.02, z);
     f.scale.set(0.8, 1.8, 0.8);
     let light: THREE.PointLight | null = null;
     if (i === 1) {
-      light = new THREE.PointLight(0xffa04a, 1.4, 2.4, 2);
-      light.position.set(x, 0.48 + h + 0.08, z);
+      light = new THREE.PointLight(0xffa04a, 1.2, 1.6, 2);
+      light.position.set(x, sillY + h + 0.08, z + 0.05);
       kit.group.add(light);
     }
     flames.push({ mesh: f, light, phase: i * 1.9 });
@@ -393,7 +394,7 @@ function novaRoom(kit: Kit, focus: THREE.Vector3): void {
     for (const f of flames) {
       const k = candleFlicker(t, f.phase);
       f.mesh.scale.set(0.8, 1.5 + k * 0.5, 0.8);
-      if (f.light) f.light.intensity = 1.4 * k;
+      if (f.light) f.light.intensity = 1.2 * k;
     }
   });
 
