@@ -854,9 +854,14 @@ function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
   pack.position.set(1.15, top, -2.2);
   pack.rotation.set(0, -0.5, 0.08);
   kit.group.add(pack);
-  kit.box(0.3, 0.42, 0.18, kit.matte(0xb4532f, 0.9), 0, 0.21, 0, pack);
-  kit.box(0.22, 0.15, 0.05, kit.matte(0x8f3f22, 0.9), 0, 0.14, 0.11, pack);
-  kit.mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.32, 12), kit.matte(0x3f5a4a, 0.9), 0, 0.46, -0.02, pack).rotation.z = Math.PI / 2;
+  // Mochila de tela: cuerpo redondeado, bolsillo, tapa y el saco de dormir enrollado encima.
+  const body = kit.mesh(new THREE.CapsuleGeometry(0.13, 0.2, 6, 14), kit.matte(0xb4532f, 0.95), 0, 0.24, 0, pack);
+  body.scale.set(1.1, 1, 0.7);
+  const pocket = kit.mesh(new THREE.CapsuleGeometry(0.08, 0.06, 4, 12), kit.matte(0x8f3f22, 0.95), 0, 0.16, 0.08, pack);
+  pocket.scale.set(1.2, 1, 0.5);
+  kit.mesh(new THREE.SphereGeometry(0.14, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), kit.matte(0x9c4526, 0.95), 0, 0.4, 0, pack).scale.set(1.05, 0.5, 0.75);
+  const roll = kit.mesh(new THREE.CapsuleGeometry(0.06, 0.24, 4, 12), kit.matte(0x3f5a4a, 0.95), 0, 0.5, -0.02, pack);
+  roll.rotation.z = Math.PI / 2;
   const lx = 1.55;
   const lz = -2.25;
   kit.mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.03, 12), kit.matte(0x2c2a26, 0.5, 0.5), lx, top + 0.015, lz);
@@ -960,6 +965,23 @@ function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
     p.set(fire.x + sp.dx + Math.sin(t * 2 + i) * 0.08 * u, 0.3 + u * 1.6, fire.z + Math.cos(t * 1.5 + i) * 0.05);
     return (1 - u) * (0.6 + 0.4 * Math.sin(t * 20 + i));
   });
+
+  // Carpa de lona junto a la fogata (el campamento de Rio).
+  const tentShape = new THREE.Shape();
+  tentShape.moveTo(-0.55, 0);
+  tentShape.lineTo(0, 0.7);
+  tentShape.lineTo(0.55, 0);
+  tentShape.lineTo(-0.55, 0);
+  const tent = kit.mesh(new THREE.ExtrudeGeometry(tentShape, { depth: 1.1, bevelEnabled: false }), kit.matte(0xd9824a, 0.95), -2.3, 0, -6.6);
+  tent.rotation.y = 0.5;
+  // Entrada oscura y la luz del fuego sobre la lona.
+  const door = new THREE.Shape();
+  door.moveTo(-0.22, 0);
+  door.lineTo(0, 0.42);
+  door.lineTo(0.22, 0);
+  door.lineTo(-0.22, 0);
+  const doorMesh = kit.mesh(new THREE.ShapeGeometry(door), kit.matte(0x2a1a12, 1), 0, 0, 1.101, tent);
+  void doorMesh;
 
   // Luciernagas sobre la pradera: vagan despacio y se encienden a ratos.
   const flySeed = Array.from({ length: 22 }, () => ({ x: (kit.random() - 0.5) * 5, y: 0.5 + kit.random() * 1.4, z: -3 - kit.random() * 4, phase: kit.random() * 20 }));
