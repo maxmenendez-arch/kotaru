@@ -1184,3 +1184,9 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   escenario no está en pantalla (IntersectionObserver).
 - Ajustes → "Fondos animados": Encendidos / Apagados (solo web; por defecto encendidos; se
   recuerda en el navegador). Apagados vuelve al retrato redondo sin fondo.
+- Medición de las escenas (2026-09-28, Chromium sin GPU, 720x450; en una GPU real es mucho
+  menos): Luna 156 llamadas de dibujo y 5.174 triángulos; Nova 68 y 3.526; Rio 57 y 3.144.
+  Tiempo por cuadro, sin contar el primero: 2,0 / 1,7 / 0,6 ms. El primer cuadro de Nova tarda
+  más (compila sombreadores y sube la vista pintada de la ciudad): es una sola vez al cargar.
+  Al cerrar una escena se liberan todas sus texturas y geometrías (comprobado recorriendo sus
+  materiales); solo queda la geometría compartida que three.js crea una vez para los sprites.
