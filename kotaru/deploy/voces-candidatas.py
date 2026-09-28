@@ -42,6 +42,8 @@ def env(name):
 
 def call(url, headers, body=None, timeout=60):
     data = json.dumps(body).encode() if body is not None else None
+    # Cloudflare (delante de Together) rechaza el agente por defecto de Python.
+    headers = {"user-agent": "kotaru-voces/1.0", "accept": "*/*", **headers}
     req = urllib.request.Request(url, data=data, headers=headers, method="POST" if data else "GET")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
