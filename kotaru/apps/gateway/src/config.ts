@@ -1,5 +1,5 @@
 import type { SigningKey } from '@kotaru/gateway';
-import { parseVoiceOverrides } from './voices.js';
+import { parseCartesiaVoices, parseVoiceOverrides } from './voices.js';
 
 export interface GatewayConfig {
   readonly host: string;
@@ -61,11 +61,18 @@ export interface ProviderSettings {
     readonly paidTierConfirmed: boolean;
     readonly voices: Readonly<Partial<Record<'nova' | 'luna' | 'rio', string>>>;
   };
+  /** Cartesia Sonic-3 servido por Together AI: respaldo natural de Gemini TTS (misma clave que Kokoro). */
+  readonly cartesia?: {
+    readonly apiKey: string;
+    readonly zeroRetentionConfirmed: boolean;
+    readonly commercialTermsReviewed: boolean;
+    readonly voices: Readonly<Partial<Record<'nova' | 'luna' | 'rio', string>>>;
+  };
   /** Whisper Large v3 servido por Together AI (voz a texto; misma clave que Kokoro). */
   readonly whisper?: { readonly apiKey: string; readonly zeroRetentionConfirmed: boolean };
 }
 
-const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly', 'kokoro', 'whisper', 'gemini-tts']);
+const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly', 'kokoro', 'cartesia', 'whisper', 'gemini-tts']);
 
 export class ConfigError extends Error {
   constructor(readonly problems: readonly string[]) {
@@ -184,6 +191,14 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
       model: model === 'gemini-3.8-flash-tts' ? model : 'gemini-3.8-flash-lite-tts',
       paidTierConfirmed: flag('KOTARU_GEMINI_PAID_TIER_CONFIRMED'),
       voices: parseVoiceOverrides(env.KOTARU_GEMINI_VOICES, problems),
+    };
+  }
+  if (providers.includes('cartesia')) {
+    (providerSettings as { cartesia?: ProviderSettings['cartesia'] }).cartesia = {
+      apiKey: required('TOGETHER_API_KEY'),
+      zeroRetentionConfirmed: flag('KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED'),
+      commercialTermsReviewed: flag('KOTARU_TOGETHER_COMMERCIAL_TERMS_REVIEWED'),
+      voices: parseCartesiaVoices(env.KOTARU_CARTESIA_VOICES, problems),
     };
   }
   if (providers.includes('whisper')) {

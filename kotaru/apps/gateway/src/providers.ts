@@ -12,7 +12,7 @@ import { AssemblyAiSttProvider } from '@kotaru/ai-adapters-assemblyai';
 import { GeminiLlmProvider, GEMINI_RATES, GeminiTtsProvider } from '@kotaru/ai-adapters-gemini';
 import { geminiVoices, maleVoiceIds } from './voices.js';
 import { PollyTtsProvider } from '@kotaru/ai-adapters-polly';
-import { KokoroTtsProvider, WhisperSttProvider } from '@kotaru/ai-adapters-together';
+import { CartesiaTtsProvider, KokoroTtsProvider, WhisperSttProvider } from '@kotaru/ai-adapters-together';
 import type { ProviderResolver, RouterPort } from '@kotaru/orchestrator';
 import type { ProviderSettings } from './config.js';
 
@@ -63,7 +63,7 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
   } else if (enabled.includes('mock-voice')) {
     // Solo lo que falte: un simulado gratis junto a uno real lo ganaria siempre por precio.
     if (!settings.assemblyai && !settings.whisper) add(stt, new MockSttProvider());
-    if (!settings.polly && !settings.kokoro && !settings.geminiTts) add(tts, new MockTtsProvider());
+    if (!settings.polly && !settings.kokoro && !settings.cartesia && !settings.geminiTts) add(tts, new MockTtsProvider());
   }
   if (settings.assemblyai) {
     const s = new AssemblyAiSttProvider({
@@ -106,6 +106,19 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     );
   }
 
+  if (settings.cartesia) {
+    add(
+      tts,
+      new CartesiaTtsProvider({
+        apiKey: settings.cartesia.apiKey,
+        zeroRetentionConfirmed: settings.cartesia.zeroRetentionConfirmed,
+        commercialTermsReviewed: settings.cartesia.commercialTermsReviewed,
+        maleVoices: maleVoiceIds(),
+        voices: settings.cartesia.voices,
+      }),
+    );
+  }
+
   if (settings.geminiTts) {
     const voices = geminiVoices(settings.geminiTts.voices);
     add(
@@ -121,9 +134,14 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     );
   }
 
-  // La voz es el producto: con Gemini TTS activo, es la primera opcion y el resto (Kokoro,
-  // Polly) queda de respaldo. Sin esto, en el nivel "balanced" ganaria la mas barata.
-  const router = new DefaultAiRouter({ now, preferred: settings.geminiTts ? { tts: settings.geminiTts.model } : {} });
+  // La voz es el producto: Gemini TTS primero; si falla o se agota su cuota diaria, Cartesia
+  // (natural en español); Kokoro y Polly quedan al final. Sin esto, en el nivel "balanced"
+  // ganaria siempre la mas barata.
+  const ttsOrder = [
+    ...(settings.geminiTts ? [settings.geminiTts.model] : []),
+    ...(settings.cartesia ? ['together-cartesia-sonic-3'] : []),
+  ];
+  const router = new DefaultAiRouter({ now, preferred: ttsOrder.length > 0 ? { tts: ttsOrder } : {} });
   for (const p of stt.values()) router.register({ descriptor: p.descriptor, estimate: (u: PredictedUsage, c) => p.estimate({ audioSeconds: u.audioSeconds ?? 0 }, c) });
   for (const p of llm.values()) router.register({ descriptor: p.descriptor, estimate: (u: PredictedUsage, c) => p.estimate({ inputTokens: u.inputTokens ?? 0, outputTokens: u.outputTokens ?? 0 }, c) });
   for (const p of tts.values()) router.register({ descriptor: p.descriptor, estimate: (u: PredictedUsage, c) => p.estimate({ characters: u.characters ?? 0 }, c) });

@@ -40,7 +40,7 @@ export interface RouterOptions {
    * los demas quedan de respaldo en su orden. Sirve cuando la calidad es el producto (la
    * voz de un personaje) y el puntaje por precio elegiria la opcion barata.
    */
-  readonly preferred?: Readonly<Partial<Record<Capability, string>>>;
+  readonly preferred?: Readonly<Partial<Record<Capability, string | readonly string[]>>>;
 }
 
 const DEFAULT_WEIGHTS: ScoringWeights = { quality: 1.0, cost: 0.8, latency: 0.5, health: 0.6 };
@@ -83,7 +83,7 @@ export class DefaultAiRouter implements AiRouter {
   readonly #providers = new Map<string, RegisteredProvider>();
   readonly #state = new Map<string, ProviderState>();
   readonly #weights: ScoringWeights;
-  readonly #preferred: Readonly<Partial<Record<Capability, string>>>;
+  readonly #preferred: Readonly<Partial<Record<Capability, string | readonly string[]>>>;
   readonly #breaker: CircuitBreakerOptions;
   readonly #now: () => number;
 
@@ -165,9 +165,15 @@ export class DefaultAiRouter implements AiRouter {
     }
 
     const scored = this.#score(candidates, req);
+    // Preferencia del operador: los proveedores listados van primero y en ese orden (el
+    // primero es la opcion principal y los siguientes, los respaldos preferidos). Los que no
+    // pueden usarse ya se excluyeron arriba; el resto sigue ordenado por puntuacion.
     const pinned = this.#preferred[req.capability];
-    const pinnedAt = pinned === undefined ? -1 : scored.findIndex((s) => s.candidate.provider.descriptor.id === pinned);
-    if (pinnedAt > 0) scored.unshift(...scored.splice(pinnedAt, 1));
+    const order = pinned === undefined ? [] : typeof pinned === 'string' ? [pinned] : pinned;
+    for (const id of [...order].reverse()) {
+      const at = scored.findIndex((s) => s.candidate.provider.descriptor.id === id);
+      if (at > 0) scored.unshift(...scored.splice(at, 1));
+    }
     const winner = scored[0]!;
 
     return {

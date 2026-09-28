@@ -244,4 +244,16 @@ describe('preferencia del operador', () => {
     const r = new DefaultAiRouter({ preferred: { tts: 'realista' } }).register(cheap).register(blocked);
     expect(r.select(req()).providerId).toBe('barata');
   });
+
+  it('una lista fija el orden: principal y respaldo preferido antes que el barato', () => {
+    const cheap = provider('barata', 0.001, { capability: 'tts', quality: 0.6 });
+    const mid = provider('media', 0.02, { capability: 'tts', quality: 0.85 });
+    const good = provider('realista', 0.01, { capability: 'tts', quality: 0.88 });
+    const r = new DefaultAiRouter({ preferred: { tts: ['realista', 'media'] } }).register(cheap).register(mid).register(good);
+    const d = r.select(req());
+    expect(d.providerId).toBe('realista');
+    expect(d.fallbacks).toEqual(['media', 'barata']);
+    const withoutMain = new DefaultAiRouter({ preferred: { tts: ['realista', 'media'] } }).register(cheap).register(mid);
+    expect(withoutMain.select(req()).providerId).toBe('media');
+  });
 });

@@ -83,4 +83,14 @@ describe('configuracion', () => {
       'el login necesita KOTARU_EMAIL_HASH_KEY y KOTARU_EMAIL_ENCRYPTION_KEY',
     ]);
   });
+
+  it('cartesia: misma clave de Together, voces por personaje validadas', () => {
+    const env = { ...valid(), KOTARU_PROVIDERS: 'gemini,cartesia', GEMINI_API_KEY: 'g', TOGETHER_API_KEY: 't', KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED: 'true' };
+    const ok = loadConfig({ ...env, KOTARU_CARTESIA_VOICES: 'nova:c0925108-d541-4dc4-bbae-39f4e57ba10c' });
+    expect(ok.providerSettings.cartesia).toMatchObject({ apiKey: 't', zeroRetentionConfirmed: true, voices: { nova: 'c0925108-d541-4dc4-bbae-39f4e57ba10c' } });
+    expect(problems({ ...env, KOTARU_CARTESIA_VOICES: 'nova:Lucia,pepe:c0925108-d541-4dc4-bbae-39f4e57ba10c' })).toEqual([
+      'KOTARU_CARTESIA_VOICES: "Lucia" no es un id de voz de Cartesia',
+      'KOTARU_CARTESIA_VOICES: "pepe:c0925108-d541-4dc4-bbae-39f4e57ba10c" debe ser personaje:id (personajes: nova, luna, rio)',
+    ]);
+  });
 });

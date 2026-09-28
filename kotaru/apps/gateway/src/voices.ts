@@ -54,3 +54,24 @@ export function parseVoiceOverrides(raw: string | undefined, problems: string[])
   }
   return out;
 }
+
+/**
+ * `luna:<uuid>,rio:<uuid>` → ids de voz de Cartesia por personaje (KOTARU_CARTESIA_VOICES).
+ * Solo se comprueba la forma (un id de Cartesia es un UUID); que exista lo dice Together.
+ */
+export function parseCartesiaVoices(raw: string | undefined, problems: string[]): Partial<Record<CompanionSlug, string>> {
+  const out: Partial<Record<CompanionSlug, string>> = {};
+  for (const pair of (raw ?? '').split(',').map((p) => p.trim()).filter(Boolean)) {
+    const [slug, id] = pair.split(':').map((p) => p.trim());
+    if (!slug || !id || !(COMPANIONS as readonly string[]).includes(slug)) {
+      problems.push(`KOTARU_CARTESIA_VOICES: "${pair}" debe ser personaje:id (personajes: ${COMPANIONS.join(', ')})`);
+      continue;
+    }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      problems.push(`KOTARU_CARTESIA_VOICES: "${id}" no es un id de voz de Cartesia`);
+      continue;
+    }
+    out[slug as CompanionSlug] = id;
+  }
+  return out;
+}

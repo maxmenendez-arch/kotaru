@@ -1013,3 +1013,18 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   el respaldo entra sin esperar. Salud `down` mientras dure.
 - Pendiente del dueño: subir de nivel en Google (nivel 2: 100 USD pagados y 3 días desde el
   primer pago) o pedir más cuota; con el tope actual da para unos 50 turnos de voz al día.
+
+## 2026-09-28 — Cartesia Sonic-3 como respaldo de la voz (en vez de Kokoro)
+
+- El dueño oyó Kokoro plano y artificial. Búsqueda (`deploy/voces-candidatas.py`): en
+  Together, MiniMax Speech y Rime solo funcionan con servidor dedicado (por horas); Google
+  Chirp 3 HD (mismas voces que Gemini) no acepta la clave de AI Studio, pide credencial de
+  Google Cloud. **Cartesia Sonic-3** sí va por pedido con la clave de Together, habla bien
+  español (las muestras transcritas con Whisper salen sin errores, `deploy/voces-transcribir.py`)
+  y cuesta 65 USD/M caracteres (≈1,3 centavos por respuesta de 200 caracteres).
+- Adaptador `CartesiaTtsProvider` sobre un `TogetherSpeechProvider` común (Kokoro usa el mismo).
+  Voces: Luna "Helena" (elegida por el dueño), Nova "Lucia - Radiant Host" y Rio "Mateo -
+  Friendly Host" (provisionales); se cambian con `KOTARU_CARTESIA_VOICES`.
+- Router: la preferencia del operador acepta un orden (`preferred: { tts: [gemini, cartesia] }`):
+  Gemini primero, Cartesia de respaldo y Kokoro al final. `deploy/cartesia.sh` lo activa con
+  prueba real previa y vuelta atrás si el gateway no arranca.
