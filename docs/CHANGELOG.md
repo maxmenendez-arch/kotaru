@@ -1190,3 +1190,5 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   más (compila sombreadores y sube la vista pintada de la ciudad): es una sola vez al cargar.
   Al cerrar una escena se liberan todas sus texturas y geometrías (comprobado recorriendo sus
   materiales); solo queda la geometría compartida que three.js crea una vez para los sprites.
+- `/escenarios/`: botón «Hablar» en cada personaje: mueve la boca con un volumen simulado y
+  pone la cara cálida, para ver voz y fondo juntos sin iniciar sesión (sin sonido ni servidor).

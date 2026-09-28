@@ -29,9 +29,37 @@ async function main(): Promise<void> {
     const status = document.createElement('p');
     status.className = 'status';
     status.textContent = 'Cargando…';
-    card.append(title, canvas, text, status);
+    // Boton para ver al personaje "hablando": la boca se mueve con un volumen simulado y la
+    // cara pone la emocion calida, igual que en una conversacion (sin audio ni servidor).
+    const talk = document.createElement('button');
+    talk.type = 'button';
+    talk.textContent = 'Hablar';
+    card.append(title, canvas, text, talk, status);
     root.append(card);
-    const props = { companion: person.id, size: height, width, background: true, state: 'idle', affect: null, level: () => 0, fallback: null };
+    const props: { companion: string; size: number; width: number; background: boolean; state: string; affect: { emotion: string; intensity: number; at: number } | null; level: () => number; fallback: null } = {
+      companion: person.id,
+      size: height,
+      width,
+      background: true,
+      state: 'idle',
+      affect: null,
+      level: () => 0,
+      fallback: null,
+    };
+    talk.addEventListener('click', () => {
+      const speaking = props.state !== 'speaking';
+      props.state = speaking ? 'speaking' : 'idle';
+      props.affect = speaking ? { emotion: 'warm', intensity: 0.8, at: performance.now() } : null;
+      // Silabas: sube y baja unas 4 veces por segundo, con pausas cortas entre frases.
+      props.level = speaking
+        ? () => {
+            const t = performance.now() / 1000;
+            const phrase = Math.sin(t * 0.9) > -0.6 ? 1 : 0;
+            return phrase * (0.35 + 0.35 * Math.abs(Math.sin(t * 12.5)) + 0.15 * Math.sin(t * 5.3));
+          }
+        : () => 0;
+      talk.textContent = speaking ? 'Callar' : 'Hablar';
+    });
     try {
       // Uno detras de otro: tres modelos a la vez pesan demasiado en un telefono.
       await startViewer(canvas, `/avatars/${person.id}.vrm`, () => props as never);
