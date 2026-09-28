@@ -11,6 +11,7 @@ import {
   stateOffset,
   targetFace,
 } from './avatar-motion';
+import { buildStage, type Stage } from './scene3d';
 
 /**
  * Motor del avatar 3D de la web (three.js + three-vrm). Solo lo importa avatar.web.tsx, con
@@ -28,17 +29,28 @@ function prefersReducedMotion(): boolean {
 /** Carga el modelo y arranca la animacion. Devuelve la funcion que lo apaga todo. */
 export async function startViewer(canvas: HTMLCanvasElement, url: string, props: () => AvatarProps): Promise<() => void> {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // Con fondo se dibuja mucho mas: en pantallas muy densas basta con 1,5x.
+  const withBackground = props().background === true;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, withBackground ? 1.5 : 2));
   renderer.setClearColor(0x000000, 0);
-  const resize = () => renderer.setSize(props().size, props().size, false);
-  resize();
-  canvas.addEventListener('kotaru-resize', resize);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(20, 1, 0.05, 20);
+  // Con fondo el encuadre es algo mas abierto, para que se vea el lugar.
+  const camera = new THREE.PerspectiveCamera(withBackground ? 26 : 20, 1, 0.05, 80);
+  const resize = () => {
+    const p = props();
+    const w = p.width ?? p.size;
+    renderer.setSize(w, p.size, false);
+    camera.aspect = w / p.size;
+    camera.updateProjectionMatrix();
+  };
+  resize();
+  canvas.addEventListener('kotaru-resize', resize);
   const key = new THREE.DirectionalLight(0xffffff, Math.PI * 0.7);
   key.position.set(0.6, 1.2, 1.6);
-  scene.add(key, new THREE.AmbientLight(0xffffff, 0.35));
+  const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+  scene.add(key, ambient);
 
   const loader = new GLTFLoader();
   loader.register((parser) => new VRMLoaderPlugin(parser));
@@ -71,16 +83,28 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   const headPos = new THREE.Vector3();
   (head ?? vrm.scene).getWorldPosition(headPos);
   const focus = headPos.clone().add(new THREE.Vector3(0, -0.03, 0));
-  camera.position.set(focus.x, focus.y + 0.03, focus.z + 1.5);
+  // Mismo tamaño de busto con o sin fondo: mas angulo, un poco mas cerca.
+  camera.position.set(focus.x, focus.y + 0.03, focus.z + (withBackground ? 1.35 : 1.5));
   camera.lookAt(focus);
+
+  // El lugar del personaje, con sus propias luces (sustituyen a las del retrato).
+  let stage: Stage | null = null;
+  if (withBackground) {
+    stage = buildStage(props().companion, scene, focus);
+    if (stage) {
+      scene.remove(key, ambient);
+      renderer.setClearColor(0x000000, 1);
+    }
+  }
 
   // Mira a la persona (la camara); al pensar, desvia la mirada hacia arriba.
   const gaze = new THREE.Object3D();
   scene.add(gaze);
   if (vrm.lookAt) vrm.lookAt.target = gaze;
 
-  return animate(renderer, scene, camera, vrm, gaze, props, () => {
+  return animate(renderer, scene, camera, vrm, gaze, props, stage, () => {
     canvas.removeEventListener('kotaru-resize', resize);
+    stage?.dispose();
     scene.remove(vrm.scene);
     VRMUtils.deepDispose(vrm.scene);
     renderer.dispose();
@@ -106,6 +130,7 @@ function animate(
   vrm: VRM,
   gaze: THREE.Object3D,
   props: () => AvatarProps,
+  stage: Stage | null,
   cleanup: () => void,
 ): () => void {
   const timer = new THREE.Timer();
@@ -170,6 +195,7 @@ function animate(
     const thinking = p.state === 'thinking';
     gaze.position.set(camera.position.x + (thinking ? 0.25 : 0), camera.position.y + (thinking ? 0.2 : 0), camera.position.z);
 
+    stage?.update(t, reduce);
     vrm.update(dt);
     renderer.render(scene, camera);
   };
