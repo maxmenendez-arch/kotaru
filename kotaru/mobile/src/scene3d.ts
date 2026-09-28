@@ -159,7 +159,8 @@ function lunaOffice(kit: Kit, focus: THREE.Vector3): void {
     curtain.rotation.y = sway(t, 0.3, 0.05);
   });
   // Luz de la ventana sobre la sala.
-  const sun = new THREE.PointLight(0xfff1d8, 6, 5, 1.6);
+  // Solo alcanza la pared y la ventana: no debe quemar la cara del personaje.
+  const sun = new THREE.PointLight(0xfff1d8, 4, 2.2, 1.6);
   sun.position.set(win.x + 0.2, win.y + 0.3, wallZ + 0.8);
   kit.group.add(sun);
 

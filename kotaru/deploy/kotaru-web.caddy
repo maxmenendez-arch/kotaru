@@ -52,6 +52,7 @@ app.kotaru.app {
 	}
 
 	# Cualquier otra ruta es la app (una sola pagina).
-	try_files {path} /index.html
+	# Carpetas con su propia pagina (p. ej. /escenarios/) antes que la app.
+	try_files {path} {path}/index.html /index.html
 	file_server
 }
