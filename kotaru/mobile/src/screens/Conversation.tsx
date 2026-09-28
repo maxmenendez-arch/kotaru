@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
+import { createAmbient, type AmbientKind } from '../ambient';
 import { createAudio } from '../audio';
+import { BreatheOverlay, CalmBar } from '../ui/calm';
 import { COMPANIONS, companionById, type Companion, type CompanionId } from '../companions';
 import { createConversation, type Connection } from '../connection';
 import { installNoSelect, NO_SELECT_ATTR } from '../no-select';
@@ -56,7 +58,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const [history, setHistory] = useState<Exchange[]>([]);
   // El servidor dice al conectar si puede oir de verdad; hasta entonces se asume que si.
   const [voiceOn, setVoiceOn] = useState(true);
-  const [companionId, setCompanionId] = useState<CompanionId>('rio');
+  const [companionId, setCompanionId] = useState<CompanionId>('luna');
   const companion = companionById(companionId);
   // Por personaje: su conversacion en el servidor (para retomarla) y lo que se vio en pantalla.
   const conversations = useRef<Partial<Record<CompanionId, string>>>({});
@@ -65,6 +67,10 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const scroll = useRef<ScrollView | null>(null);
   const client = useRef<ConversationClient | null>(null);
   const audio = useRef(createAudio()).current;
+  const ambient = useRef(createAmbient()).current;
+  const [ambientKind, setAmbientKind] = useState<AmbientKind | null>(null);
+  const [ambientVolume, setAmbientVolume] = useState(ambient.volume);
+  const [breathing, setBreathing] = useState(false);
   const mic = useRef(audio.input);
   const speaker = useRef(audio.output);
 
@@ -75,8 +81,9 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
       client.current?.close();
       audio.input.stop();
       audio.output.dispose();
+      ambient.dispose();
     },
-    [audio],
+    [audio, ambient],
   );
 
   /** Pasa el intercambio que se ve ahora al historial antes de empezar uno nuevo. */
@@ -90,6 +97,8 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     switch (e.type) {
       case 'state':
         setState(e.state);
+        // El ambiente baja mientras habla el personaje, para que se le entienda.
+        ambient.duck(e.state === 'speaking');
         if (e.state === 'interrupted') speaker.current.stopNow();
         return;
       case 'user_transcript':
@@ -209,7 +218,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const label = STATE_LABELS[lang][state];
   const listening = state === 'listening';
   // Con conversacion en pantalla, el retrato se achica para dejar sitio al texto.
-  const compact = history.length > 0;
+  const compact = history.length > 0 || state === 'safety_handoff' || breathing;
 
   return (
     <Screen>
@@ -227,6 +236,8 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         <Text accessibilityRole="header" style={styles.name}>
           {companion.name}
         </Text>
+        {/* Siempre visible (leyes de NY y California: avisar de que es una IA). */}
+        <Text style={styles.aiBadge}>{s.aiBadge}</Text>
         <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.state}>
           {label}
         </Text>
@@ -262,6 +273,28 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
       </ScrollView>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      {companion.calm ? (
+        <CalmBar
+          lang={lang}
+          soundsAvailable={ambient.available}
+          playing={ambientKind}
+          volume={ambientVolume}
+          onPlay={(kind) => {
+            ambient.play(kind);
+            setAmbientKind(kind);
+          }}
+          onStop={() => {
+            ambient.stop();
+            setAmbientKind(null);
+          }}
+          onVolume={(v) => {
+            ambient.setVolume(v);
+            setAmbientVolume(v);
+          }}
+          onBreathe={() => setBreathing(true)}
+        />
+      ) : null}
 
       {connection ? (
         <View style={styles.compose}>
@@ -312,6 +345,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
           {audio.simulated ? <Text style={styles.note}>{s.simulatedMic}</Text> : null}
         </>
       )}
+      {breathing ? <BreatheOverlay lang={lang} accent={companion.accent} onClose={() => setBreathing(false)} /> : null}
     </Screen>
   );
 }
@@ -414,6 +448,7 @@ const styles = StyleSheet.create({
   chipName: { ...type.support, color: color.mist },
   chipNameOn: { color: color.cloud, fontWeight: '600' },
   name: { ...type.title, color: color.cloud, marginTop: space.m },
+  aiBadge: { ...type.micro, color: color.mist, marginTop: 2, letterSpacing: 0.5 },
   tagline: { ...type.support, color: color.mist, marginTop: space.xs, textAlign: 'center' },
   portraitArea: { alignItems: 'center', marginBottom: space.xl },
   ring: { width: 188, height: 188, borderRadius: radius.pill, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },

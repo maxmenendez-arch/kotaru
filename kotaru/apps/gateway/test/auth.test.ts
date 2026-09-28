@@ -224,7 +224,7 @@ describe('grant de voz', () => {
     expect(rows[0]?.companion_id).toBe('nova');
     const again = await post('/v1/session/grant', { conversationId: issued.body.conversationId, companion: 'nova' }, login.body.accessToken);
     expect(again.status).toBe(200);
-    const mixed = await post('/v1/session/grant', { conversationId: issued.body.conversationId, companion: 'sage' }, login.body.accessToken);
+    const mixed = await post('/v1/session/grant', { conversationId: issued.body.conversationId, companion: 'luna' }, login.body.accessToken);
     expect(mixed.status).toBe(409);
   });
 

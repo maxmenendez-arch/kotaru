@@ -13,7 +13,7 @@ describeMemoryStore(
   async () => {
     const sql = pgliteClient(new PGlite());
     await runMigrations(sql, MIGRATIONS);
-    // Nova y Sage los da de alta la migracion 0012.
+    // Nova y Luna los dan de alta las migraciones 0012 y 0013.
     return new SqlMemoryRepository(sql);
   },
   { subject: (n) => `00000000-0000-4000-9000-${String(n).padStart(12, '0')}` },

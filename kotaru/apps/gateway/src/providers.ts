@@ -6,7 +6,8 @@ import type {
   TextToSpeechProvider,
 } from '@kotaru/ai-contracts';
 import { DefaultAiRouter } from '@kotaru/ai-router';
-import { MockLlmProvider, MockModerationProvider, MockSttProvider, MockTtsProvider } from '@kotaru/ai-adapters-mock';
+import { MockLlmProvider, MockSttProvider, MockTtsProvider } from '@kotaru/ai-adapters-mock';
+import { CrisisLexiconModeration } from '@kotaru/safety';
 import { AssemblyAiSttProvider } from '@kotaru/ai-adapters-assemblyai';
 import { GeminiLlmProvider, GEMINI_RATES, GeminiTtsProvider } from '@kotaru/ai-adapters-gemini';
 import { geminiVoices, maleVoiceIds } from './voices.js';
@@ -43,8 +44,8 @@ export interface ProviderSet {
  *   operador; el router excluye al que no las cumpla. No se mezclan en silencio: si se
  *   piden reales, el simulado solo entra si tambien se nombra.
  *
- * La moderacion sigue siendo la simulada: todavia no hay proveedor real de moderacion, y
- * la politica de seguridad de Kotaru (@kotaru/safety) se aplica igual sobre su veredicto.
+ * La moderacion es la deteccion de crisis de @kotaru/safety (frases en espanol e ingles):
+ * no depende de ningun proveedor. Un clasificador con modelo se sumara a ella.
  */
 export function buildProviders(enabled: readonly string[], settings: ProviderSettings, now: () => number): ProviderSet {
   const stt = new Map<string, SpeechToTextProvider>();
@@ -68,7 +69,7 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     const s = new AssemblyAiSttProvider({
       apiKey: settings.assemblyai.apiKey,
       zeroRetentionConfirmed: settings.assemblyai.zeroRetentionConfirmed,
-      keyterms: ['Kotaru', 'Rio', 'Nova', 'Sage'],
+      keyterms: ['Kotaru', 'Rio', 'Nova', 'Luna'],
     });
     add(stt, s);
   }
@@ -137,7 +138,8 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
       llm: (id) => llm.get(id),
       tts: (id) => tts.get(id),
     },
-    moderation: new MockModerationProvider(),
+    // Deteccion de crisis por frases (es/en), siempre activa y sin proveedor externo.
+    moderation: new CrisisLexiconModeration(),
     registered: all.map((p) => p.descriptor.id),
     voiceUnavailable: realLlm && !realStt,
     blocked: all.flatMap((p) => {

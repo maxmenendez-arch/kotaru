@@ -5,7 +5,7 @@ import { COMPANIONS, PERSONAS, type CompanionSlug } from '@kotaru/persona';
  * Las 30 voces predefinidas de Gemini TTS (https://ai.google.dev/gemini-api/docs/speech-generation,
  * consultado el 2026-09-27). Google no publica el genero de cada una; el reparto de abajo es
  * `ASSUMPTION` hasta escucharlas, y por eso se puede cambiar sin tocar codigo con
- * KOTARU_GEMINI_VOICES=nova:Leda,sage:Sulafat,rio:Achird.
+ * KOTARU_GEMINI_VOICES=nova:Leda,luna:Achernar,rio:Achird.
  */
 export const GEMINI_VOICE_NAMES = [
   'Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Aoede', 'Callirrhoe', 'Autonoe',
@@ -13,10 +13,13 @@ export const GEMINI_VOICE_NAMES = [
   'Alnilam', 'Schedar', 'Gacrux', 'Pulcherrima', 'Achird', 'Zubenelgenubi', 'Vindemiatrix', 'Sadachbia', 'Sadaltager', 'Sulafat',
 ] as const;
 
-/** Nova: "Upbeat"; Sage: "Gentle"; Rio: "Friendly" (descripciones de Google). */
+/**
+ * Nova: "Upbeat" (coqueta, alegre); Luna: "Soft" (serena, transmite paz); Rio: "Friendly"
+ * (descripciones de Google). Se eligen definitivamente de oido con deploy/muestras-voz.sh.
+ */
 export const DEFAULT_GEMINI_VOICES: Readonly<Record<CompanionSlug, string>> = {
   nova: 'Laomedeia',
-  sage: 'Vindemiatrix',
+  luna: 'Achernar',
   rio: 'Achird',
 };
 

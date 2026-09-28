@@ -46,7 +46,7 @@ describe('lo que recibe el modelo', () => {
     socket.close();
 
     const call = seen[0]!;
-    expect(call.options).toMatchObject({ personaId: 'rio-v2', promptVersion: 'rio-v2@2.0.0+rules@1.1.0' });
+    expect(call.options).toMatchObject({ personaId: 'rio-v3', promptVersion: 'rio-v3@3.0.0+rules@1.2.0' });
     expect(call.messages[0]).toMatchObject({ role: 'system' });
     expect(call.messages[0]!.content).toMatch(/eres una IA/i);
     const notes = call.messages.find((m) => m.role === 'system' && m.content.includes('<notas>'));

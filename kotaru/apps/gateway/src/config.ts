@@ -59,7 +59,7 @@ export interface ProviderSettings {
     readonly apiKey: string;
     readonly model: 'gemini-3.8-flash-lite-tts' | 'gemini-3.8-flash-tts';
     readonly paidTierConfirmed: boolean;
-    readonly voices: Readonly<Partial<Record<'nova' | 'sage' | 'rio', string>>>;
+    readonly voices: Readonly<Partial<Record<'nova' | 'luna' | 'rio', string>>>;
   };
   /** Whisper Large v3 servido por Together AI (voz a texto; misma clave que Kokoro). */
   readonly whisper?: { readonly apiKey: string; readonly zeroRetentionConfirmed: boolean };

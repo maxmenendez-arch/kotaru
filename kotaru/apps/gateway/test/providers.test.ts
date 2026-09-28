@@ -139,9 +139,9 @@ describe('proveedores del gateway', () => {
       TOGETHER_API_KEY: 'k3',
       KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED: 'true',
       KOTARU_TOGETHER_COMMERCIAL_TERMS_REVIEWED: 'true',
-      KOTARU_GEMINI_VOICES: 'sage:Sulafat',
+      KOTARU_GEMINI_VOICES: 'luna:Sulafat',
     });
-    expect(config.providerSettings.geminiTts).toMatchObject({ model: 'gemini-3.8-flash-lite-tts', voices: { sage: 'Sulafat' } });
+    expect(config.providerSettings.geminiTts).toMatchObject({ model: 'gemini-3.8-flash-lite-tts', voices: { luna: 'Sulafat' } });
     const set = buildProviders(config.providers, config.providerSettings, Date.now);
     expect(set.registered).toContain('gemini-3.8-flash-lite-tts');
     expect(set.blocked).toEqual([]);

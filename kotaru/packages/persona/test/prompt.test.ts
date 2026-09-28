@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSystemPrompt, COMPANIONS, memoryMessage, NOVA_V1, PERSONAS, personaFor, promptId, RIO_V1, SAGE_V1 } from '../src/index.js';
+import { buildSystemPrompt, COMPANIONS, LUNA_V1, memoryMessage, NOVA_V1, PERSONAS, personaFor, promptId, RIO_V1 } from '../src/index.js';
 
 describe('prompt del personaje', () => {
   it('siempre dice que es una IA y que no es profesional ni puede llamar a emergencias, en los dos idiomas', () => {
@@ -22,7 +22,7 @@ describe('prompt del personaje', () => {
   });
 
   it('registra la version de la ficha y la de las reglas', () => {
-    expect(promptId(RIO_V1)).toBe('rio-v2@2.0.0+rules@1.1.0');
+    expect(promptId(RIO_V1)).toBe('rio-v3@3.0.0+rules@1.2.0');
   });
 });
 
@@ -57,8 +57,8 @@ describe('recuerdos en el prompt', () => {
 });
 
 describe('los tres personajes', () => {
-  it('Nova, Sage y Rio: cada uno con su personalidad, y las mismas reglas de seguridad para todos', () => {
-    expect(COMPANIONS).toEqual(['nova', 'sage', 'rio']);
+  it('Nova, Luna y Rio: cada uno con su personalidad, y las mismas reglas de seguridad para todos', () => {
+    expect(COMPANIONS).toEqual(['nova', 'luna', 'rio']);
     for (const slug of COMPANIONS) {
       const persona = PERSONAS[slug];
       for (const locale of ['es-419', 'en-US'] as const) {
@@ -67,18 +67,19 @@ describe('los tres personajes', () => {
         expect(prompt).toMatch(locale === 'es-419' ? /eres una IA/i : /you are an AI/i);
         expect(prompt).toMatch(locale === 'es-419' ? /No presionas/ : /never pressure/);
         for (const line of persona.character[locale === 'es-419' ? 'es' : 'en']) expect(prompt).toContain(line);
+        for (const line of persona.skills[locale === 'es-419' ? 'es' : 'en']) expect(prompt).toContain(line);
       }
     }
   });
 
   it('en español el genero gramatical es el del personaje', () => {
     expect(buildSystemPrompt(NOVA_V1, 'es-419')).toMatch(/^Eres Nova, una compañera/);
-    expect(buildSystemPrompt(SAGE_V1, 'es-419')).toMatch(/^Eres Sage, una compañera/);
+    expect(buildSystemPrompt(LUNA_V1, 'es-419')).toMatch(/^Eres Luna, una compañera/);
     expect(buildSystemPrompt(RIO_V1, 'es-419')).toMatch(/^Eres Rio, un compañero/);
   });
 
   it('pide conversacion viva: reaccionar primero, no siempre preguntar, sin frases de asistente', () => {
-    const es = buildSystemPrompt(SAGE_V1, 'es-419');
+    const es = buildSystemPrompt(LUNA_V1, 'es-419');
     expect(es).toMatch(/Primero reacciona/);
     expect(es).toMatch(/No termines siempre con una pregunta/);
     expect(es).toMatch(/Nada de frases de asistente/);
@@ -88,5 +89,29 @@ describe('los tres personajes', () => {
     expect(personaFor(undefined).slug).toBe('rio');
     expect(personaFor('otro').slug).toBe('rio');
     expect(personaFor('nova').slug).toBe('nova');
+    // Conversaciones de antes del cambio de nombre.
+    expect(personaFor('sage').slug).toBe('luna');
+  });
+
+  it('crisis: los tres salen de su papel y derivan al 988, sin detalles de metodos', () => {
+    for (const slug of COMPANIONS) {
+      expect(buildSystemPrompt(PERSONAS[slug], 'es-419')).toMatch(/dejas de lado tu papel[\s\S]*988[\s\S]*No das instrucciones ni detalles sobre métodos/);
+      expect(buildSystemPrompt(PERSONAS[slug], 'en-US')).toMatch(/step out of your role[\s\S]*988[\s\S]*never give instructions or details about methods/);
+    }
+  });
+
+  it('coqueteo con limites fijos para todos: nunca sexual, sin exclusividad, se corta con menores', () => {
+    const es = buildSystemPrompt(NOVA_V1, 'es-419');
+    expect(es).toMatch(/nunca sexual ni explícito/);
+    expect(es).toMatch(/sin pedir exclusividad ni mostrar celos/);
+    expect(es).toMatch(/menor de edad, dejas de coquetear por completo/);
+  });
+
+  it('Luna acompaña y ayuda a calmarse, sin presentarse como terapia', () => {
+    const es = buildSystemPrompt(LUNA_V1, 'es-419');
+    expect(es).toMatch(/5-4-3-2-1/);
+    expect(es).toMatch(/Respira conmigo/);
+    expect(es).toMatch(/No eres terapeuta/);
+    expect(es).toMatch(/hablar con un profesional de salud/);
   });
 });

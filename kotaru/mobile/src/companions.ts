@@ -5,7 +5,7 @@ import type { Lang } from './i18n';
  * servidor (@kotaru/persona); aqui solo nombre, linea de presentacion y color.
  * Los retratos definitivos llegaran como ilustraciones propias; mientras, un monograma.
  */
-export type CompanionId = 'nova' | 'sage' | 'rio';
+export type CompanionId = 'nova' | 'luna' | 'rio';
 
 export interface Companion {
   readonly id: CompanionId;
@@ -14,32 +14,41 @@ export interface Companion {
   /** Color del anillo y del monograma (09_BRAND). Nunca es la unica señal: va con el nombre. */
   readonly accent: string;
   readonly tint: string;
+  /** Luna ofrece "Respira conmigo" y sonidos relajantes a mano. */
+  readonly calm: boolean;
 }
 
+/** Luna primero: el foco de la app es la compañia y la calma. */
 export const COMPANIONS: readonly Companion[] = [
+  {
+    id: 'luna',
+    name: 'Luna',
+    tagline: {
+      es: 'Compañía y calma: para cuando te sientes solo o con ansiedad.',
+      en: 'Company and calm: for when you feel lonely or anxious.',
+    },
+    accent: '#9FB4FF',
+    tint: '#1B2447',
+    calm: true,
+  },
   {
     id: 'nova',
     name: 'Nova',
-    tagline: { es: 'Chispa creativa: ideas, juegos y ocurrencias.', en: 'Creative spark: ideas, games and wild thoughts.' },
-    accent: '#7C5CFF',
-    tint: '#2A1F5C',
-  },
-  {
-    id: 'sage',
-    name: 'Sage',
-    tagline: { es: 'Calma y claridad: para pensar en voz alta.', en: 'Calm and clarity: for thinking out loud.' },
-    accent: '#37D6C8',
-    tint: '#123A45',
+    tagline: { es: 'Coqueta y divertida: halagos y juego, con respeto.', en: 'Flirty and fun: compliments and banter, with respect.' },
+    accent: '#FF5FA2',
+    tint: '#4A1733',
+    calm: false,
   },
   {
     id: 'rio',
     name: 'Rio',
-    tagline: { es: 'Calidez social: el día a día y práctica de idiomas.', en: 'Social warmth: everyday chat and language practice.' },
+    tagline: { es: 'Entretenimiento: juegos, historias y risas.', en: 'Entertainment: games, stories and laughs.' },
     accent: '#F2A65A',
     tint: '#4A2A14',
+    calm: false,
   },
 ];
 
 export function companionById(id: CompanionId): Companion {
-  return COMPANIONS.find((c) => c.id === id) ?? COMPANIONS[2]!;
+  return COMPANIONS.find((c) => c.id === id) ?? COMPANIONS[0]!;
 }

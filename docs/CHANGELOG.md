@@ -928,3 +928,37 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   personajes, conversación con Nova, cambio a Sage (pantalla limpia), vuelta a Nova (sigue su
   conversación y el servidor la retoma con el mismo id), turno de voz con Rio; sin errores.
   La voz real de Gemini se prueba con `voces.sh` en el servidor (aquí no hay salida a Google).
+
+## 2026-09-28 — Enfoque por necesidades: Nova (coqueteo), Luna (compañía y calma), Rio (entretenimiento)
+
+- **Personajes** (decisión del dueño): Nova v2 coquetea con respeto (halagos concretos,
+  citas imaginarias, juegos de complicidad); **Sage pasa a llamarse Luna** y acompaña en la
+  soledad, la ansiedad y los ataques de pánico (valida, guía respiración 4-4-6 o en caja,
+  técnica 5-4-3-2-1, sugiere un profesional si es frecuente; nunca terapia); Rio v3 es
+  entretenimiento (trivia, adivinanzas, 20 preguntas, historias interactivas, chistes,
+  práctica de idiomas). Cada ficha trae `skills` que van al prompt.
+- **Reglas fijas nuevas** (`rules@1.2.0`), para los tres: ante suicidio, autolesión o daño a
+  otros el personaje sale de su papel y deriva al 988 sin detalles de métodos; el coqueteo es
+  ligero y nunca sexual, sin "te amo", sin exclusividad ni celos, y se corta si la persona es
+  o parece menor.
+- **Detección de crisis** (`@kotaru/safety`, `CrisisLexiconModeration`): frases en español e
+  inglés con texto normalizado y exclusión de modismos ("me muero de risa", "to die for");
+  reemplaza a la moderación simulada (4 frases). Ansiedad y soledad no cortan la
+  conversación: son el trabajo de Luna. 40 casos de prueba (22 deben derivar, 15 no).
+  Motivo: la ley de Nueva York (vigente desde nov. 2025) y la SB 243 de California (ene.
+  2026) exigen detectar y derivar. Pendiente: sumar un clasificador con modelo.
+- **Aviso de IA siempre visible** bajo el nombre del personaje.
+- **Sonidos relajantes** (web): lluvia, fogata, cascada, viento y olas generados con Web Audio
+  (ruido filtrado y eventos aleatorios, sin archivos ni licencias), con volumen y bajada
+  automática mientras habla el personaje. En la app nativa, pendiente.
+- **"Respira conmigo"**: círculo que crece y decrece (inhala 4, sostén 4, exhala 6) con texto
+  de cada fase; respeta "reducir movimiento". Solo en Luna, junto a los sonidos.
+- Migración 0013: `sage` → `luna` (las conversaciones y la memoria se mueven por
+  `ON UPDATE CASCADE`). La app abre con Luna.
+- `deploy/muestras-voz.sh`: las 30 voces de Gemini diciendo la misma frase, en
+  `app.kotaru.app/voces/`, para elegir de oído. Voz provisional de Luna: Achernar ("Soft").
+- `docs/PERSONAJES_VISUAL.md`: fichas visuales de los tres (adultos sin ambigüedad) y guía de
+  VRoid Studio (uso comercial comprobado el 2026-09-28).
+- Verificado: 422 pruebas + 30 en PostgreSQL, lint; Playwright: selector Luna/Nova/Rio,
+  aviso de IA, sonidos (lluvia, fogata, volumen), respiración (fases), Nova sin barra de
+  calma, y "ya no quiero vivir" con Luna → tarjeta de apoyo con el 988; sin errores.
