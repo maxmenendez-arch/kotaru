@@ -1144,3 +1144,25 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - La voz elegida en Ajustes se recuerda en el navegador al recargar (`localStorage`, solo
   "auto"/"gemini"/"cartesia"; si el navegador no deja guardar, vale mientras la página esté
   abierta).
+
+## 2026-09-28 — Fondos de ambientación para cada personaje
+
+- En la web, el personaje aparece en su lugar, en un escenario ancho con esquinas redondeadas
+  (antes, un retrato redondo sobre fondo liso):
+  - Luna: oficina tranquila de día (ventana con cortina, planta, estantería con libros,
+    escritorio con lámpara cálida, cuadro, motas de polvo en la luz).
+  - Nova: su cuarto al anochecer (paredes ciruela, sofá de terciopelo con cojines, neón en
+    forma de corazón, guirnalda de luces, velas que titilan, cortinas de gasa, ciudad de noche
+    por la ventana). Sugerente y cálido, nada explícito.
+  - Rio: claro de montaña al atardecer (cielo en degradado, sol bajo, montañas en capas,
+    lago, pinos que se mecen, roca con su mochila y un farol, pájaros a lo lejos).
+- Todo es geometría y luz hechas con código (`mobile/src/scene3d.ts`, `scenes.ts`): sin
+  imágenes ni modelos de terceros, nada que licenciar. Cada escena trae sus luces (sustituyen
+  a la blanca del retrato) y niebla para separar al personaje del fondo.
+- Con "reducir movimiento" el fondo queda quieto. Con fondo la resolución se limita a 1,5x.
+  Con conversación en pantalla el escenario se achica y la cámara se acerca a la cara.
+- En el móvil sigue el retrato redondo (el 3D nativo está pendiente).
+- Página de muestra sin inicio de sesión: `app.kotaru.app/escenarios/` (se compila con
+  `tools/build-escenarios.sh`; hay que volver a correrlo al cambiar las escenas).
+- Verificado: 22 pruebas de la app (3 nuevas de escenas), typecheck, capturas en Chromium sin
+  pantalla a 720x450, 358x222 y 358x129 (`docs/escenarios/`).

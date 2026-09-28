@@ -28,6 +28,8 @@ type Status = 'loading' | 'ready' | 'failed';
 
 export function Avatar(props: AvatarProps) {
   const { companion, size, fallback } = props;
+  const width = props.width ?? size;
+  const background = props.background === true;
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const live = useRef(props);
   live.current = props;
@@ -60,28 +62,29 @@ export function Avatar(props: AvatarProps) {
       stopped = true;
       dispose?.();
     };
-  }, [companion]);
+    // El fondo se decide al cargar: cambiarlo recarga la escena.
+  }, [companion, background]);
 
   useEffect(() => {
     // El tamano cambia al achicarse el retrato: se ajusta sin recargar el modelo.
     canvas.current?.dispatchEvent(new Event('kotaru-resize'));
-  }, [size]);
+  }, [size, width]);
 
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ width, height: size, alignItems: 'center', justifyContent: 'center' }}>
       {status !== 'ready' ? fallback : null}
       {/* Un lienzo nuevo por personaje: el anterior pierde su contexto WebGL al cerrarse. */}
       <canvas
-        key={companion}
+        key={`${companion}-${background ? 'stage' : 'portrait'}`}
         ref={canvas}
         aria-hidden="true"
         data-avatar-status={status}
         style={{
           position: 'absolute',
           inset: 0,
-          width: size,
+          width,
           height: size,
-          borderRadius: size / 2,
+          borderRadius: background ? 0 : size / 2,
           opacity: status === 'ready' ? 1 : 0,
           transition: 'opacity 400ms ease',
           pointerEvents: 'none',

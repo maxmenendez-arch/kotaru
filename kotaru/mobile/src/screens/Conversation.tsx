@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAmbient, type AmbientKind } from '../ambient';
 import { createAudio } from '../audio';
@@ -277,23 +277,40 @@ export function Conversation({ lang, connection, voiceChoice = 'auto' }: { lang:
   // (anillo, etiqueta y cabeza del avatar), no "en espera".
   const shown: ConversationState = state === 'idle' && voiceTail ? 'speaking' : state;
   const label = STATE_LABELS[lang][shown];
+  const { width: windowWidth } = useWindowDimensions();
   const listening = state === 'listening';
   // Con conversacion en pantalla, el retrato se achica para dejar sitio al texto.
   const compact = history.length > 0 || state === 'safety_handoff' || breathing;
+
+  // En la web el personaje aparece en su lugar (oficina, cuarto, montaña): un escenario
+  // ancho en vez del retrato redondo. En el movil sigue el retrato (aun sin 3D).
+  const ringColor = shown === 'idle' || shown === 'closed' ? companion.accent : RING[shown];
+  const stage = stageSize(windowWidth, compact);
 
   return (
     <Screen>
       <CompanionPicker selected={companionId} onChoose={choose} label={s.chooseCompanion} lang={lang} />
       <View style={[styles.portraitArea, compact && styles.portraitAreaCompact]}>
-        <View style={[styles.ring, compact && styles.ringCompact, { borderColor: shown === 'idle' || shown === 'closed' ? companion.accent : RING[shown] }]}>
+        <View
+          style={
+            stage
+              ? [styles.stageRing, { width: stage.width + 8, height: stage.height + 8, borderColor: ringColor }]
+              : [styles.ring, compact && styles.ringCompact, { borderColor: ringColor }]
+          }
+        >
           <View
-            style={[styles.portrait, compact && styles.portraitCompact, { backgroundColor: companion.tint }]}
+            style={
+              stage
+                ? [styles.stage, { width: stage.width, height: stage.height, backgroundColor: companion.tint }]
+                : [styles.portrait, compact && styles.portraitCompact, { backgroundColor: companion.tint }]
+            }
             accessibilityLabel={companion.name}
             accessibilityRole="image"
           >
             <Avatar
               companion={companionId}
-              size={compact ? PORTRAIT_COMPACT : PORTRAIT}
+              size={stage ? stage.height : compact ? PORTRAIT_COMPACT : PORTRAIT}
+              {...(stage ? { width: stage.width, background: true } : {})}
               state={shown}
               affect={affect}
               level={() => speaker.current.level?.() ?? 0}
@@ -426,6 +443,18 @@ export function Conversation({ lang, connection, voiceChoice = 'auto' }: { lang:
  * Los tres personajes, arriba. Monograma con su color MAS el nombre escrito: el color nunca
  * es la unica señal (09_BRAND). Se puede cambiar en cualquier momento.
  */
+/**
+ * Tamaño del escenario con fondo (solo web): casi todo el ancho, hasta 520 puntos, en
+ * proporcion de ventana apaisada; mas bajo cuando hay conversacion en pantalla.
+ * null en el movil (ahi sigue el retrato redondo).
+ */
+function stageSize(windowWidth: number, compact: boolean): { width: number; height: number } | null {
+  if (Platform.OS !== 'web') return null;
+  const width = Math.round(Math.max(260, Math.min(windowWidth - 2 * space.l - 8, 520)));
+  const height = Math.round(compact ? Math.max(110, Math.min(width * 0.36, 170)) : Math.min(width * 0.62, 320));
+  return { width, height };
+}
+
 function CompanionPicker({ selected, onChoose, label, lang }: { selected: CompanionId; onChoose: (id: CompanionId) => void; label: string; lang: Lang }) {
   return (
     <View style={styles.picker} accessibilityRole="radiogroup" accessibilityLabel={label}>
@@ -554,6 +583,9 @@ const styles = StyleSheet.create({
   portrait: { width: PORTRAIT, height: PORTRAIT, borderRadius: radius.pill, backgroundColor: color.inkRaised, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   initial: { ...type.display, color: color.mist },
   portraitAreaCompact: { marginBottom: space.l },
+  // El escenario: marco del color del estado, esquinas redondeadas.
+  stageRing: { borderRadius: radius.sheet + 4, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  stage: { borderRadius: radius.sheet, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   ringCompact: { width: PORTRAIT_COMPACT + 16, height: PORTRAIT_COMPACT + 16 },
   portraitCompact: { width: PORTRAIT_COMPACT, height: PORTRAIT_COMPACT },
   initialCompact: { ...type.title },

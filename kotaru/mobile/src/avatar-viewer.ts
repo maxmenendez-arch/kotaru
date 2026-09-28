@@ -43,6 +43,8 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
     const w = p.width ?? p.size;
     renderer.setSize(w, p.size, false);
     camera.aspect = w / p.size;
+    // Escenario bajo (con conversacion en pantalla): se acerca a la cara para que no quede diminuta.
+    if (withBackground) camera.fov = camera.aspect > 2.1 ? 15 : 26;
     camera.updateProjectionMatrix();
   };
   resize();
