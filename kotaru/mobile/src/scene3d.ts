@@ -187,26 +187,84 @@ function lunaOffice(kit: Kit, focus: THREE.Vector3): void {
 
   // Ventana grande a la izquierda: cielo claro con luz de mañana y marco blanco.
   const win = { x: -1.05, y: focus.y + 0.15, w: 1.5, h: 1.55 };
-  const skyGeo = new THREE.PlaneGeometry(win.w, win.h, 1, 8);
-  const colors: number[] = [];
-  const top = new THREE.Color(0xbfdcf2);
-  const bottom = new THREE.Color(0xfdf6e8);
-  const pos = skyGeo.attributes['position']!;
-  for (let i = 0; i < pos.count; i++) {
-    const k = (pos.getY(i) + win.h / 2) / win.h;
-    const c = bottom.clone().lerp(top, k);
-    colors.push(c.r, c.g, c.b);
+  const viewZ = wallZ + 0.06;
+  const viewRandom = seeded(4242);
+  // Cielo de mañana (degradado) detras de todo.
+  const skyTex = kit.canvasTexture(64, 256, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#8fbfe6');
+    g.addColorStop(0.6, '#cfe4f2');
+    g.addColorStop(1, '#fbf3e3');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  });
+  kit.mesh(new THREE.PlaneGeometry(win.w, win.h), kit.track(new THREE.MeshBasicMaterial({ map: skyTex, fog: false })), win.x, win.y, viewZ);
+  // Nubes que pasan despacio (textura que se repite y se desplaza).
+  const cloudTex = kit.canvasTexture(512, 256, (ctx, w, h) => {
+    for (let i = 0; i < 9; i++) {
+      const cx = viewRandom() * w;
+      const cy = h * (0.15 + viewRandom() * 0.45);
+      for (let k = 0; k < 7; k++) {
+        const r = 18 + viewRandom() * 34;
+        const x = cx + (viewRandom() - 0.5) * 90;
+        const y = cy + (viewRandom() - 0.5) * 20;
+        for (const dx of [-w, 0, w]) {
+          const g = ctx.createRadialGradient(x + dx, y, 0, x + dx, y, r);
+          g.addColorStop(0, 'rgba(255,255,255,0.85)');
+          g.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(x + dx - r, y - r, r * 2, r * 2);
+        }
+      }
+    }
+  });
+  cloudTex.wrapS = THREE.RepeatWrapping;
+  const clouds = kit.mesh(new THREE.PlaneGeometry(win.w, win.h), kit.track(new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, fog: false, depthWrite: false })), win.x, win.y, viewZ + 0.002);
+  kit.updaters.push((t) => {
+    cloudTex.offset.x = t * 0.004;
+  });
+  void clouds;
+  // Parque al fondo: colinas y copas de arboles con luz de mañana, pintadas una vez.
+  const parkTex = kit.canvasTexture(512, 512, (ctx, w, h) => {
+    const hill = (y: number, color: string) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      for (let x = 0; x <= w; x += 16) ctx.lineTo(x, y + Math.sin(x * 0.012 + y) * 14);
+      ctx.lineTo(w, h);
+      ctx.fill();
+    };
+    hill(h * 0.7, '#b9cfb0');
+    hill(h * 0.78, '#9dbc92');
+    for (let i = 0; i < 26; i++) {
+      const x = viewRandom() * w;
+      const y = h * (0.72 + viewRandom() * 0.2);
+      const r = 22 + viewRandom() * 34;
+      const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, r * 0.1, x, y, r);
+      g.addColorStop(0, '#a9cf8f');
+      g.addColorStop(0.7, '#6f9c63');
+      g.addColorStop(1, 'rgba(79,122,74,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  kit.mesh(new THREE.PlaneGeometry(win.w, win.h), kit.track(new THREE.MeshBasicMaterial({ map: parkTex, transparent: true, fog: false, depthWrite: false })), win.x, win.y, viewZ + 0.004);
+  // Una rama cerca de la ventana, por fuera, que se mece con la brisa.
+  const branch = new THREE.Group();
+  branch.position.set(win.x + win.w / 2 - 0.1, win.y + win.h / 2 - 0.1, viewZ + 0.01);
+  kit.group.add(branch);
+  const branchLeaf = kit.glow(0x7fae6e, 0.95, false);
+  const branchLeafDark = kit.glow(0x5f8f55, 0.95, false);
+  for (let i = 0; i < 18; i++) {
+    const leaf = kit.mesh(new THREE.CircleGeometry(0.035 + viewRandom() * 0.03, 10), i % 3 ? branchLeaf : branchLeafDark, -viewRandom() * 0.45, -viewRandom() * 0.3, 0, branch);
+    leaf.scale.set(1.6, 0.8, 1);
+    leaf.rotation.z = viewRandom() * Math.PI;
   }
-  skyGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  const skyMat = kit.track(new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
-  kit.mesh(skyGeo, skyMat, win.x, win.y, wallZ + 0.06);
-  // Copas de arboles lejanos por la ventana (manchas suaves).
-  const treeMat = kit.glow(0xa9c9a0, 0.9, false);
-  for (let i = 0; i < 5; i++) {
-    const r = 0.18 + kit.random() * 0.14;
-    const m = kit.mesh(new THREE.CircleGeometry(r, 20), treeMat, win.x - win.w / 2 + 0.2 + i * 0.3, win.y - win.h / 2 + 0.12 + kit.random() * 0.1, wallZ + 0.065);
-    m.scale.y = 0.8;
-  }
+  kit.updaters.push((t) => {
+    branch.rotation.z = sway(t, 0.8, 0.05);
+  });
   const frame = kit.matte(0xfbf8f2, 0.6);
   kit.box(win.w + 0.1, 0.06, 0.08, frame, win.x, win.y + win.h / 2, wallZ + 0.08);
   kit.box(win.w + 0.1, 0.08, 0.14, frame, win.x, win.y - win.h / 2, wallZ + 0.1);
@@ -219,6 +277,31 @@ function lunaOffice(kit: Kit, focus: THREE.Vector3): void {
   (curtain.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
   kit.updaters.push((t) => {
     curtain.rotation.y = sway(t, 0.3, 0.05);
+  });
+  // Rayos de sol que entran en diagonal por la ventana, con un brillo que respira.
+  const shaftTex = kit.canvasTexture(64, 256, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, 'rgba(255,244,220,0.55)');
+    g.addColorStop(1, 'rgba(255,244,220,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  });
+  const shafts: THREE.Mesh[] = [];
+  for (let i = 0; i < 3; i++) {
+    const shaft = kit.mesh(
+      new THREE.PlaneGeometry(0.28 + i * 0.08, 2.2),
+      kit.track(new THREE.MeshBasicMaterial({ map: shaftTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide })),
+      win.x + 0.25 + i * 0.28,
+      win.y - 0.25,
+      wallZ + 0.6 + i * 0.1,
+    );
+    shaft.rotation.z = 0.55;
+    shafts.push(shaft);
+  }
+  kit.updaters.push((t) => {
+    shafts.forEach((sh, i) => {
+      (sh.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.2 * (0.5 + 0.5 * Math.sin(t * 0.25 + i * 1.7));
+    });
   });
   // Luz de la ventana sobre la sala.
   // Solo alcanza la pared y la ventana: no debe quemar la cara del personaje.
@@ -284,7 +367,27 @@ function lunaOffice(kit: Kit, focus: THREE.Vector3): void {
   lamp.position.set(0.7, 1.16, -2.05);
   kit.group.add(lamp);
   // Taza y libro abierto sobre el escritorio.
-  kit.mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.08, 16), kit.matte(0xf2ede4, 0.5), 0.0, 0.82, -1.95);
+  const mug = { x: 0.84, y: 0.82, z: -2.02 };
+  kit.mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.08, 16), kit.matte(0xf2ede4, 0.5), mug.x, mug.y, mug.z);
+  kit.mesh(new THREE.CircleGeometry(0.036, 16), kit.matte(0x8a5a3a, 0.3), mug.x, mug.y + 0.041, mug.z).rotation.x = -Math.PI / 2;
+  // Vapor del te: volutas que suben, se abren y se desvanecen.
+  const steamTex = kit.glowSprite();
+  const steamMat = kit.track(new THREE.SpriteMaterial({ map: steamTex, color: 0xffffff, transparent: true, depthWrite: false, opacity: 0 }));
+  const puffs = Array.from({ length: 6 }, (_, i) => {
+    const sp = new THREE.Sprite(steamMat.clone());
+    kit.track(sp.material);
+    kit.group.add(sp);
+    return { sp, phase: i / 6 };
+  });
+  kit.updaters.push((t) => {
+    for (const p of puffs) {
+      const u = (t * 0.18 + p.phase) % 1;
+      p.sp.position.set(mug.x + Math.sin(t * 0.9 + p.phase * 9) * 0.02 * u, mug.y + 0.06 + u * 0.28, mug.z);
+      const size = 0.04 + u * 0.1;
+      p.sp.scale.set(size, size * 1.3, 1);
+      p.sp.material.opacity = Math.sin(u * Math.PI) * 0.3;
+    }
+  });
   kit.box(0.28, 0.02, 0.2, kit.matte(0xf7f2e7), 0.3, 0.79, -1.9).rotation.y = 0.2;
 
   // Cuadro sobrio en la pared: horizonte de colinas en tonos suaves.
