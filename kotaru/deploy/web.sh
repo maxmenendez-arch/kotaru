@@ -190,6 +190,9 @@ for _ in $(seq 1 30); do
 done
 [ "$UP" = 1 ] || fail "https://$DOMAIN no responde. Mira el DNS y: docker logs --tail 50 $CONTAINER"
 curl -fsS --max-time 5 -o /dev/null "https://$DOMAIN/audio-capture-worklet.js" || fail "falta el archivo del microfono"
+for model in luna nova rio; do
+  curl -fsS --max-time 30 -o /dev/null "https://$DOMAIN/avatars/$model.vrm" || fail "falta el modelo 3D de $model"
+done
 ALLOW=$(curl -sS --max-time 5 -o /dev/null -D - -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' "$API/v1/auth/refresh" | tr -d '\r' | grep -i '^access-control-allow-origin:' || true)
 [ -n "$ALLOW" ] || fail "el gateway ($API) no acepta el origen $ORIGIN"
 curl -fsS --max-time 5 -o /dev/null -X POST -H 'content-type: application/json' -d '{}' "$API/v1/auth/passkey/login/options" \

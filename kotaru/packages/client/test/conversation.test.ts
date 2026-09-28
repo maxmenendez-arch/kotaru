@@ -22,6 +22,23 @@ describe('cliente', () => {
     await expect(client.connect()).rejects.toThrow(/replayed/);
     expect(events).toContainEqual({ type: 'rejected', reason: 'replayed' });
   });
+
+  it('pasa la emocion del turno actual al avatar y descarta la de un turno viejo', async () => {
+    const events: ClientEvent[] = [];
+    let socket!: FakeSocket;
+    const client = new ConversationClient({
+      url: 'ws://x', getGrant: async () => 'g', onEvent: (e) => events.push(e), newTurnId: () => 't1',
+      createSocket: () =>
+        (socket = new FakeSocket((m) => m.type === 'hello' && socket.receive({ type: 'ready', sessionId: 's', protocolVersion: PROTOCOL_VERSION, voiceAvailable: true }))),
+    });
+    await client.connect();
+    expect(client.sendText('hola')).toBe('t1');
+    socket.receive({ type: 'affect', turnId: 'viejo', emotion: 'sad', intensity: 1 });
+    socket.receive({ type: 'affect', turnId: 't1', emotion: 'happy', intensity: 0.7, gesture: 'nod' });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(events.filter((e) => e.type === 'affect')).toEqual([{ type: 'affect', emotion: 'happy', intensity: 0.7, gesture: 'nod' }]);
+    client.close();
+  });
 });
 
 /** Socket falso minimo: abre al instante y deja al test responder. */

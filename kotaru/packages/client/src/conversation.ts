@@ -68,6 +68,8 @@ export type ClientEvent =
   | { readonly type: 'state'; readonly state: ConversationState }
   | { readonly type: 'user_transcript'; readonly text: string; readonly final: boolean }
   | { readonly type: 'reply'; readonly text: string }
+  /** Emocion de la respuesta (una de EMOTIONS del servidor) para el avatar; puede no llegar. */
+  | { readonly type: 'affect'; readonly emotion: string; readonly intensity: number; readonly gesture?: string }
   | { readonly type: 'audio'; readonly pcm: Uint8Array; readonly sampleRate: number; readonly seq: number }
   | { readonly type: 'usage'; readonly remainingSeconds: number; readonly planSeconds: number }
   | { readonly type: 'turn_done'; readonly turnId: string }
@@ -247,6 +249,15 @@ export class ConversationClient {
         this.#reply += message.text;
         this.#o.onEvent({ type: 'reply', text: this.#reply });
         if (this.#state === 'endpoint' || this.#state === 'thinking') this.#set('speaking');
+        return;
+      case 'affect':
+        if (message.turnId !== this.#turnId || this.#state === 'interrupted') return;
+        this.#o.onEvent({
+          type: 'affect',
+          emotion: message.emotion,
+          intensity: message.intensity,
+          ...(message.gesture !== undefined ? { gesture: message.gesture } : {}),
+        });
         return;
       case 'audio_meta':
         if (message.turnId !== this.#turnId || this.#state === 'interrupted') return;

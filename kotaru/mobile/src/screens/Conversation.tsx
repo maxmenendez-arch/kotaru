@@ -3,6 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAmbient, type AmbientKind } from '../ambient';
 import { createAudio } from '../audio';
+import { Avatar } from '../avatar';
+import type { AffectState } from '../avatar-motion';
 import { BreatheOverlay, CalmBar } from '../ui/calm';
 import { COMPANIONS, companionById, type Companion, type CompanionId } from '../companions';
 import { createConversation, type Connection } from '../connection';
@@ -15,7 +17,8 @@ import { Body, Button, Card, Screen } from '../ui/kit';
 /**
  * Conversacion por voz (pulsar para hablar).
  *
- * El retrato es un marcador abstracto hasta que exista el arte original del personaje.
+ * El retrato es el modelo 3D del personaje en la web (avatar.web.tsx) y el monograma en
+ * las apps nativas o mientras carga.
  * El estado se comunica con un anillo tranquilo MAS una etiqueta de texto que lee el
  * lector de pantalla (09_BRAND): nunca solo con color o movimiento, y nunca con una
  * forma de onda, que se lee como vigilancia.
@@ -31,6 +34,10 @@ interface Exchange {
   readonly heard: string;
   readonly reply: string;
 }
+
+/** Diametro del retrato (y del avatar 3D), normal y achicado. */
+const PORTRAIT = 188;
+const PORTRAIT_COMPACT = 88;
 
 const RING: Record<ConversationState, string> = {
   connecting: color.inkLine,
@@ -71,6 +78,8 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const [ambientKind, setAmbientKind] = useState<AmbientKind | null>(null);
   const [ambientVolume, setAmbientVolume] = useState(ambient.volume);
   const [breathing, setBreathing] = useState(false);
+  // Emocion de la ultima respuesta, para la cara del avatar.
+  const [affect, setAffect] = useState<AffectState | null>(null);
   const mic = useRef(audio.input);
   const speaker = useRef(audio.output);
 
@@ -106,6 +115,14 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         return;
       case 'reply':
         setReply(e.text);
+        return;
+      case 'affect':
+        setAffect({
+          emotion: e.emotion,
+          intensity: e.intensity,
+          ...(e.gesture !== undefined ? { gesture: e.gesture } : {}),
+          at: performance.now(),
+        });
         return;
       case 'audio':
         speaker.current.play(e.pcm, e.sampleRate);
@@ -171,6 +188,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     setError(null);
     setLimitNote(null);
     setHistory(screens.current[next] ?? []);
+    setAffect(null);
     setCompanionId(next);
   };
 
@@ -230,7 +248,16 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
             accessibilityLabel={companion.name}
             accessibilityRole="image"
           >
-            <Text style={[styles.initial, compact && styles.initialCompact, { color: companion.accent }]}>{companion.name[0]}</Text>
+            <Avatar
+              companion={companionId}
+              size={compact ? PORTRAIT_COMPACT : PORTRAIT}
+              state={state}
+              affect={affect}
+              level={() => speaker.current.level?.() ?? 0}
+              fallback={
+                <Text style={[styles.initial, compact && styles.initialCompact, { color: companion.accent }]}>{companion.name[0]}</Text>
+              }
+            />
           </View>
         </View>
         <Text accessibilityRole="header" style={styles.name}>
@@ -451,12 +478,12 @@ const styles = StyleSheet.create({
   aiBadge: { ...type.micro, color: color.mist, marginTop: 2, letterSpacing: 0.5 },
   tagline: { ...type.support, color: color.mist, marginTop: space.xs, textAlign: 'center' },
   portraitArea: { alignItems: 'center', marginBottom: space.xl },
-  ring: { width: 188, height: 188, borderRadius: radius.pill, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
-  portrait: { width: 164, height: 164, borderRadius: radius.pill, backgroundColor: color.inkRaised, alignItems: 'center', justifyContent: 'center' },
+  ring: { width: PORTRAIT + 24, height: PORTRAIT + 24, borderRadius: radius.pill, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  portrait: { width: PORTRAIT, height: PORTRAIT, borderRadius: radius.pill, backgroundColor: color.inkRaised, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   initial: { ...type.display, color: color.mist },
   portraitAreaCompact: { marginBottom: space.l },
-  ringCompact: { width: 96, height: 96 },
-  portraitCompact: { width: 80, height: 80 },
+  ringCompact: { width: PORTRAIT_COMPACT + 16, height: PORTRAIT_COMPACT + 16 },
+  portraitCompact: { width: PORTRAIT_COMPACT, height: PORTRAIT_COMPACT },
   initialCompact: { ...type.title },
   state: { ...type.support, color: color.mist, marginTop: space.xs },
   minutes: { ...type.micro, color: color.mist, marginTop: space.xs },

@@ -113,6 +113,8 @@ class WebMicrophone implements AudioInput {
 
 class WebSpeaker implements AudioOutput {
   #context: AudioContext | null = null;
+  #analyser: AnalyserNode | null = null;
+  #samples: Float32Array<ArrayBuffer> | null = null;
   #sources = new Set<AudioBufferSourceNode>();
   #nextStart = 0;
 
@@ -121,6 +123,28 @@ class WebSpeaker implements AudioOutput {
     if (!Context) return;
     this.#context ??= new Context();
     void this.#context.resume();
+  }
+
+  /** Todo lo que suena pasa por aqui camino del altavoz, para medir su volumen. */
+  #output(context: AudioContext): AudioNode {
+    if (!this.#analyser) {
+      this.#analyser = context.createAnalyser();
+      this.#analyser.fftSize = 512;
+      this.#analyser.connect(context.destination);
+      this.#samples = new Float32Array(this.#analyser.fftSize);
+    }
+    return this.#analyser;
+  }
+
+  level(): number {
+    const analyser = this.#analyser;
+    const samples = this.#samples;
+    if (!analyser || !samples || this.#sources.size === 0) return 0;
+    analyser.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (let i = 0; i < samples.length; i++) sum += samples[i]! * samples[i]!;
+    // RMS de la voz hablada ronda 0.05-0.3: se lleva a 0-1.
+    return Math.min(1, Math.sqrt(sum / samples.length) * 4);
   }
 
   play(pcm: Uint8Array, sampleRate: number): void {
@@ -133,7 +157,7 @@ class WebSpeaker implements AudioOutput {
     buffer.copyToChannel(samples, 0);
     const source = context.createBufferSource();
     source.buffer = buffer;
-    source.connect(context.destination);
+    source.connect(this.#output(context));
     // Un poco de margen al empezar evita cortes; luego cada trozo va pegado al anterior.
     const at = Math.max(context.currentTime + 0.05, this.#nextStart);
     source.start(at);
@@ -158,6 +182,8 @@ class WebSpeaker implements AudioOutput {
     this.stopNow();
     void this.#context?.close();
     this.#context = null;
+    this.#analyser = null;
+    this.#samples = null;
   }
 }
 

@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ProviderError, type LlmEvent, type LlmOptions, type ProviderContext } from '@kotaru/ai-contracts';
-import { GeminiLlmProvider } from '../src/index.js';
+import { AFFECT_INSTRUCTION, AffectTagFilter, GeminiLlmProvider } from '../src/index.js';
 
 let server: Server | null = null;
 let lastRequest: { url: string; headers: IncomingMessage['headers']; body: any } | null = null;
@@ -80,7 +80,7 @@ describe('Gemini streamGenerateContent', () => {
       ),
     );
     const body = lastRequest!.body;
-    expect(body.systemInstruction.parts[0].text).toBe('Eres Rio.\n\nRecuerdos: le gusta el mar');
+    expect(body.systemInstruction.parts[0].text).toBe(`Eres Rio.\n\nRecuerdos: le gusta el mar\n\n${AFFECT_INSTRUCTION}`);
     expect(body.contents.map((c: any) => c.role)).toEqual(['user', 'model', 'user']);
     expect(body.contents[2].parts).toEqual([{ text: 'que tal' }, { text: 'sigo aqui' }]);
     expect(body.generationConfig).toEqual({ maxOutputTokens: 256, thinkingConfig: { thinkingLevel: 'minimal' } });
@@ -166,5 +166,45 @@ describe('Gemini streamGenerateContent', () => {
     const events = await collect(provider(base).stream([{ role: 'user', content: 'x' }], opts, ctx()));
     expect(events.find((e) => e.type === 'stop')).toEqual({ type: 'stop', reason: 'length' });
     expect(events.find((e) => e.type === 'usage')).toMatchObject({ usage: { inputTokens: 10, outputTokens: 5 } });
+  });
+});
+
+describe('canal de emocion de Gemini', () => {
+  const run = (parts: string[]) => {
+    const f = new AffectTagFilter();
+    const out = parts.map((p) => f.push(p));
+    return { text: out.map((o) => o.text).join('') + f.flush(), affects: out.filter((o) => o.affect).map((o) => o.affect) };
+  };
+
+  it('quita la etiqueta aunque llegue partida y emite la emocion', () => {
+    expect(run(['[[ha', 'ppy]] ¡Qué ', 'bien!'])).toEqual({ text: '¡Qué bien!', affects: [{ emotion: 'happy', intensity: 0.7 }] });
+    expect(run(['  [[Concerned]]\nOye, ¿estás bien?'])).toEqual({ text: 'Oye, ¿estás bien?', affects: [{ emotion: 'concerned', intensity: 0.7 }] });
+  });
+
+  it('sin etiqueta, el texto pasa intacto y sin emocion', () => {
+    expect(run(['Hola, ', 'qué tal'])).toEqual({ text: 'Hola, qué tal', affects: [] });
+    expect(run(['[nota] hola'])).toEqual({ text: '[nota] hola', affects: [] });
+  });
+
+  it('una emocion fuera de la lista se quita pero no se emite; una etiqueta rota no se come la respuesta', () => {
+    expect(run(['[[furioso]] vale'])).toEqual({ text: 'vale', affects: [] });
+    expect(run(['[[', 'esto no se cierra nunca y sigue y sigue y sigue'])).toEqual({ text: '[[esto no se cierra nunca y sigue y sigue y sigue', affects: [] });
+  });
+
+  it('el proveedor emite affect antes del texto y sin la etiqueta en los tokens', async () => {
+    const base = await fakeGemini({ chunks: [chunk('[[play'), chunk('ful]] Te '), chunk('reto.', { finishReason: 'STOP' })] });
+    const events = await collect(provider(base).stream([{ role: 'user', content: 'hola' }], opts, ctx()));
+    const affect = events.findIndex((e) => e.type === 'affect');
+    const firstToken = events.findIndex((e) => e.type === 'token');
+    expect(events[affect]).toEqual({ type: 'affect', affect: { emotion: 'playful', intensity: 0.7 } });
+    expect(affect).toBeLessThan(firstToken);
+    expect(events.filter((e) => e.type === 'token').map((e) => (e as { text: string }).text).join('')).toBe('Te reto.');
+  });
+
+  it('sin canal de emocion no se pide etiqueta ni se filtra nada', async () => {
+    const base = await fakeGemini({ chunks: [chunk('[[happy]] hola', { finishReason: 'STOP' })] });
+    const events = await collect(provider(base).stream([{ role: 'user', content: 'hola' }], { ...opts, allowAffectChannel: false }, ctx()));
+    expect(lastRequest!.body.systemInstruction).toBeUndefined();
+    expect(events.filter((e) => e.type === 'token').map((e) => (e as { text: string }).text).join('')).toBe('[[happy]] hola');
   });
 });

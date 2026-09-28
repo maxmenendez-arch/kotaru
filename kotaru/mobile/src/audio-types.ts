@@ -16,6 +16,11 @@ export interface AudioOutput {
   stopNow(): void;
   /** Se llama dentro de un gesto del usuario: los navegadores solo dejan sonar audio despues de uno. */
   unlock?(): void;
+  /**
+   * Volumen de lo que suena AHORA (0 a 1), para mover la boca del avatar. Solo se mide el
+   * nivel en el momento: no se guarda ni se analiza el contenido del audio.
+   */
+  level?(): number;
   dispose(): void;
 }
 

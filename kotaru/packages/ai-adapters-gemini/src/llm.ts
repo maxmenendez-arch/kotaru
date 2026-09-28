@@ -1,5 +1,8 @@
 import {
+  EMOTIONS,
+  parseAffect,
   ProviderError,
+  type AffectSignal,
   type CostEstimate,
   type DomainMessage,
   type LanguageModelProvider,
@@ -63,8 +66,10 @@ interface GeminiChunk {
  *   (1.0) y advierte de bucles con valores menores.
  * - Los filtros de seguridad de Google vienen apagados por defecto en Gemini 3. La
  *   seguridad de Kotaru no depende de ellos (vive en @kotaru/safety).
- * - El canal de emocion (`affect`) todavia no se pide a este modelo; el orquestador sigue
- *   funcionando sin el.
+ * - Canal de emocion (`affect`): si `allowAffectChannel`, se pide al modelo que empiece con
+ *   una etiqueta `[[emocion]]` de la lista cerrada EMOTIONS. `AffectTagFilter` la quita del
+ *   texto antes de que llegue a la voz o a la pantalla y la valida; si el modelo no la pone
+ *   o pone otra cosa, la respuesta sigue igual y simplemente no hay emocion.
  */
 export class GeminiLlmProvider implements LanguageModelProvider {
   readonly descriptor: ProviderDescriptor;
@@ -126,6 +131,7 @@ export class GeminiLlmProvider implements LanguageModelProvider {
     let usage: GeminiChunk['usageMetadata'];
     let stop: LlmStopReason = 'complete';
     let emittedChars = 0;
+    const tag = options.allowAffectChannel ? new AffectTagFilter() : null;
     try {
       for await (const chunk of sse(response)) {
         if (chunk.usageMetadata) usage = chunk.usageMetadata;
@@ -135,7 +141,13 @@ export class GeminiLlmProvider implements LanguageModelProvider {
           // Los resumenes de razonamiento no son respuesta; nunca llegan al usuario.
           if (part.thought || !part.text) continue;
           emittedChars += part.text.length;
-          yield { type: 'token', text: part.text };
+          if (!tag) {
+            yield { type: 'token', text: part.text };
+            continue;
+          }
+          const out = tag.push(part.text);
+          if (out.affect) yield { type: 'affect', affect: out.affect };
+          if (out.text) yield { type: 'token', text: out.text };
         }
         if (candidate?.finishReason) stop = mapFinish(candidate.finishReason);
       }
@@ -166,6 +178,8 @@ export class GeminiLlmProvider implements LanguageModelProvider {
       throw new ProviderError(this.descriptor.id, 'stream_interrupted', true);
     }
 
+    const rest = tag?.flush();
+    if (rest) yield { type: 'token', text: rest };
     yield { type: 'stop', reason: stop };
     const inputTokens = usage?.promptTokenCount ?? 0;
     const cached = usage?.cachedContentTokenCount ?? 0;
@@ -206,7 +220,9 @@ export class GeminiLlmProvider implements LanguageModelProvider {
   }
 
   #body(messages: readonly DomainMessage[], options: LlmOptions) {
-    const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
+    const parts = messages.filter((m) => m.role === 'system').map((m) => m.content);
+    if (options.allowAffectChannel) parts.push(AFFECT_INSTRUCTION);
+    const system = parts.join('\n\n');
     const contents: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
     for (const message of messages) {
       if (message.role === 'system') continue;
@@ -227,6 +243,58 @@ export class GeminiLlmProvider implements LanguageModelProvider {
         thinkingConfig: { thinkingLevel: this.#options.thinkingLevel ?? 'minimal' },
       },
     };
+  }
+}
+
+/** Lo que se pide al modelo para el canal de emocion (va al final de las instrucciones). */
+export const AFFECT_INSTRUCTION =
+  `Formato técnico: empieza SIEMPRE tu respuesta con una sola etiqueta de emoción, así: [[happy]]. ` +
+  `Valores posibles: ${EMOTIONS.join(', ')}. Elige la que mejor refleja cómo dices esta respuesta. ` +
+  `La etiqueta la lee la app para animar tu cara: no se pronuncia, no la menciones y no la repitas.`;
+
+/** Etiqueta mas larga que se espera al principio: "[[thoughtful]]" con algo de margen. */
+const TAG_WINDOW = 32;
+
+/**
+ * Quita la etiqueta `[[emocion]]` del principio del texto que llega por trozos. Mientras no
+ * sabe si hay etiqueta retiene lo recibido (como mucho TAG_WINDOW caracteres); luego deja
+ * pasar todo tal cual. Una etiqueta invalida se quita igual, sin emocion.
+ */
+export class AffectTagFilter {
+  #buffer = '';
+  #done = false;
+
+  push(text: string): { text: string; affect?: AffectSignal } {
+    if (this.#done) return { text };
+    this.#buffer += text;
+    const lead = this.#buffer.trimStart();
+    if (lead.length === 0) return { text: '' };
+    if (!lead.startsWith('[')) return this.#release(this.#buffer);
+    if (lead.length > 1 && !lead.startsWith('[[')) return this.#release(this.#buffer);
+    const end = lead.indexOf(']]');
+    if (end === -1) {
+      return lead.length > TAG_WINDOW ? this.#release(this.#buffer) : { text: '' };
+    }
+    const name = lead.slice(2, end).trim().toLowerCase();
+    const after = lead.slice(end + 2).replace(/^\s+/, '');
+    const affect = parseAffect({ emotion: name, intensity: 0.7 });
+    const out = this.#release(after);
+    return affect ? { ...out, affect } : out;
+  }
+
+  /** Al terminar la respuesta: lo que quedara retenido (una etiqueta sin cerrar se descarta). */
+  flush(): string {
+    if (this.#done) return '';
+    const lead = this.#buffer.trimStart();
+    this.#done = true;
+    this.#buffer = '';
+    return lead.startsWith('[[') ? '' : lead;
+  }
+
+  #release(text: string): { text: string } {
+    this.#done = true;
+    this.#buffer = '';
+    return { text };
   }
 }
 

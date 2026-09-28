@@ -973,3 +973,29 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   en el archivo: solo Kotaru, uso comercial permitido, sin redistribuir ni modificar,
   sin contenido violento ni sexual.
 - Verificado: pruebas del gateway (99) y `typecheck`.
+
+## 2026-09-28 — Avatares 3D en la webapp
+
+- **Visor 3D** (`mobile/src/avatar.web.tsx` + `avatar-viewer.ts`, three.js 0.186.1 y
+  @pixiv/three-vrm 3.5.5): Luna, Nova y Rio aparecen de busto dentro del círculo del retrato.
+  Parpadean (a veces doble), respiran, miran a la persona, asienten o ladean la cabeza con
+  los gestos, escuchan con la cabeza inclinada y miran arriba al pensar. La boca se mueve con
+  el **volumen** de su voz (`AudioOutput.level()`: solo el nivel del instante, sin analizar
+  ni guardar audio). Con "reducir movimiento" no hay balanceo, respiración ni gestos.
+- **Carga**: three.js va en un archivo aparte que solo se descarga si hay WebGL (el arranque
+  de la app no crece). Mientras carga, o si falla, se ve el monograma de siempre. En iOS y
+  Android sigue el monograma (pendiente: visor nativo).
+- **Emoción**: el adaptador de Gemini pide una etiqueta `[[emoción]]` de la lista cerrada
+  (neutral, warm, happy, curious, thoughtful, concerned, playful, surprised) al principio de
+  cada respuesta; `AffectTagFilter` la quita antes de la voz y la pantalla y la manda como
+  evento `affect`. El cliente la pasa al avatar, que pone la cara (contenida, nunca enfado)
+  durante unos 7 s y vuelve a su gesto de reposo.
+- **Modelos**: `mobile/public/avatars/*.vrm`, aligerados con `tools/vrm-optimize.py`
+  (texturas a 1024 px: 17 MB → 11 MB; con gzip en Caddy bajan unos 4 MB). Licencia intacta
+  en el archivo.
+- **Caddy**: compresión también para `.vrm`, caché de un día para los modelos y `blob:` en
+  `img-src`/`connect-src` de la CSP (las texturas salen del propio modelo; los scripts siguen
+  sin admitir blob). `deploy/web.sh` comprueba que se sirven los tres modelos.
+- Verificado: 428 pruebas + 14 de la app (lógica del avatar), `typecheck`, lint; Playwright
+  con WebGL: los tres modelos cargan en menos de 1 s en local, se cambia de personaje sin
+  perder el contexto WebGL, el retrato se achica sin recargar y no hay errores de CSP.
