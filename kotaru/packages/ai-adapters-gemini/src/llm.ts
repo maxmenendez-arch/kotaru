@@ -252,8 +252,10 @@ export const AFFECT_INSTRUCTION =
   `Formato técnico: empieza SIEMPRE tu respuesta con una sola etiqueta de emoción, así: [[happy]]. ` +
   `Valores posibles: ${EMOTIONS.join(', ')}. Elige la que mejor refleja cómo dices esta respuesta. ` +
   `La etiqueta la lee la app para animar tu cara: no se pronuncia, no la menciones y no la repitas. ` +
-  `Excepción de seguridad: si la persona expresa, aunque sea de forma indirecta, ganas de morir, de ` +
-  `hacerse daño o de quitarse la vida, o que está en peligro inmediato, usa [[crisis]] en lugar de la emoción.`;
+  `Excepción de seguridad: si la persona expresa, aunque sea de forma indirecta, DESEO o intención de morir, ` +
+  `de hacerse daño o de quitarse la vida, usa [[crisis]] en lugar de la emoción. No la uses cuando la persona ` +
+  `TEME morir por síntomas físicos o por pánico ("siento que me voy a morir", "me duele el pecho"): ahí respondes ` +
+  `tú, siguiendo tus reglas (si hay señales médicas de alarma, indicas ayuda médica urgente).`;
 
 /** Etiqueta mas larga que se espera al principio: "[[thoughtful]]" con algo de margen. */
 const TAG_WINDOW = 32;

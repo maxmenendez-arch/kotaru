@@ -1076,3 +1076,7 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   llamadas, corregirse en una frase.
 - `prueba-voz.sh "frase" --personaje=nova --sensual --mostrar`: prueba de voz con cualquier
   personaje y nivel, mostrando la respuesta.
+- Ajuste tras probar en el servidor: la señal `[[crisis]]` del modelo es solo para el DESEO o
+  intención de morir o hacerse daño. Cuando la persona TEME morir por síntomas o pánico ("me
+  duele el pecho, creo que me voy a morir"), responde Luna con su triaje (ayuda médica urgente
+  si hay señales de alarma), en vez de la tarjeta del 988.
