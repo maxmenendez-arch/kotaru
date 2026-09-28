@@ -892,3 +892,12 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   sin errores; simulación de `whisper.sh`: arranca con `together-whisper,
   gemini-3.1-flash-lite, together-kokoro`. Sin acceso a Together desde aquí, la primera
   transcripción real la hace el dueño.
+
+## 2026-09-27 (noche) — Mantener pulsado "Hablar" ya no selecciona texto
+
+- En la webapp, mantener pulsado el botón seleccionaba su texto (y en Safari de iPhone abría
+  el menú de copiar). `mobile/src/no-select.web.ts` marca el botón sin selección, sin menú
+  contextual ni lupa de iOS (`user-select`, `-webkit-touch-callout`, `contextmenu` y
+  `selectstart` bloqueados solo dentro del botón). En iOS/Android nativo no hace nada.
+- Verificado con Playwright: pulsar, arrastrar y mantener 1,5 s deja la selección vacía,
+  el menú contextual queda bloqueado y el turno de voz sigue funcionando; sin errores.

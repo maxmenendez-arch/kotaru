@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAudio } from '../audio';
 import { createConversation, type Connection } from '../connection';
+import { installNoSelect, NO_SELECT_ATTR } from '../no-select';
 import type { Lang } from '../i18n';
 import { t } from '../i18n';
 import { color, radius, space, type } from '../theme';
@@ -60,6 +61,8 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const audio = useRef(createAudio()).current;
   const mic = useRef(audio.input);
   const speaker = useRef(audio.output);
+
+  useEffect(installNoSelect, []);
 
   useEffect(
     () => () => {
@@ -254,11 +257,14 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={listening ? s.releaseToSend : s.holdToTalk}
+            // Web: sin seleccion de texto ni menu al mantener pulsado (no-select.web.ts).
+            // `dataSet` es de react-native-web y no esta en los tipos de React Native.
+            {...({ dataSet: { [NO_SELECT_ATTR]: 'true' } } as object)}
             onPressIn={pressIn}
             onPressOut={pressOut}
             style={[styles.talk, listening && styles.talkOn]}
           >
-            <Text style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.releaseToSend : s.holdToTalk}</Text>
+            <Text selectable={false} style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.releaseToSend : s.holdToTalk}</Text>
           </Pressable>
           {audio.simulated ? <Text style={styles.note}>{s.simulatedMic}</Text> : null}
         </>
