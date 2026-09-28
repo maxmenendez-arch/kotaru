@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Genera una muestra de cada una de las 30 voces de Gemini diciendo la misma frase en
-# español, y una pagina para escucharlas en https://app.kotaru.app/voces/ . Sirve para
+# español, y una pagina para escucharlas en https://app.kotaru.app/voces/index.html . Sirve para
 # elegir de oido la voz de Nova, Luna y Rio (Google no publica el genero de cada voz).
 #
 #   bash deploy/muestras-voz.sh
@@ -47,6 +47,16 @@ print(json.dumps({
 }, ensure_ascii=False))
 PY
 )"
+  # Ya generada en una pasada anterior: no se paga dos veces.
+  if [ -s "$OUT/$voice.wav" ]; then
+    ok=$((ok + 1))
+    rows="$rows<li><div><strong>$voice</strong> <span>$desc</span></div><audio controls preload=\"none\" src=\"$voice.wav\"></audio></li>"
+    echo "  $voice ✓ (ya estaba)"
+    continue
+  fi
+  # Google limita las peticiones seguidas: reintentos con espera creciente.
+  done_one=0
+  for wait_s in 2 5 10 20; do
   status="$(printf 'header = "x-goog-api-key: %s"\n' "$key" | curl -sS -K - -o "$work/$voice.sse" -w '%{http_code}' --max-time 60 \
     -H 'content-type: application/json' -H 'accept: text/event-stream' \
     -X POST "https://generativelanguage.googleapis.com/v1beta/interactions" --data-binary "$body" || echo 000)"
@@ -74,12 +84,19 @@ header = b'RIFF' + struct.pack('<I', 36 + len(pcm)) + b'WAVEfmt ' + struct.pack(
 open(sys.argv[2], 'wb').write(header + pcm)
 PY
   then
+    done_one=1
+    break
+  fi
+  sleep "$wait_s"
+  done
+  if [ "$done_one" = 1 ]; then
     ok=$((ok + 1))
     rows="$rows<li><div><strong>$voice</strong> <span>$desc</span></div><audio controls preload=\"none\" src=\"$voice.wav\"></audio></li>"
     echo "  $voice ✓"
   else
-    echo "  $voice ✗ (HTTP $status)"
+    echo "  $voice ✗ (HTTP $status): $(grep -o '"error"[^}]*' "$work/$voice.sse" | head -1 | cut -c1-160)"
   fi
+  sleep 1
 done
 unset key
 
@@ -100,4 +117,4 @@ span{color:#AAB3C8;font-size:14px}audio{width:100%}
 </main></body></html>
 HTML
 chmod -R a+rX "$OUT"
-echo "Listo: $ok muestras en https://app.kotaru.app/voces/"
+echo "Listo: $ok de 30 muestras en https://app.kotaru.app/voces/index.html"
