@@ -54,4 +54,34 @@ describe('lo que recibe el modelo', () => {
     // Lo propuesto y no aprobado no llega al modelo.
     expect(JSON.stringify(call.messages)).not.toContain('de noche');
   });
+
+  it('el modo elegido en la app (Amigo) y el coqueteo sensual del grant llegan al modelo', async () => {
+    const { deps } = buildDeps('hola');
+    const seen: (readonly DomainMessage[])[] = [];
+    const inner = deps.resolve.llm('mock-llm')!;
+    const spy = {
+      descriptor: inner.descriptor,
+      estimate: inner.estimate.bind(inner),
+      health: inner.health.bind(inner),
+      stream(messages: readonly DomainMessage[], options: LlmOptions, ctx: Parameters<typeof inner.stream>[2]) {
+        seen.push(messages);
+        return inner.stream(messages, options, ctx);
+      },
+    };
+    server = await startGatewayServer({ port: 0, keys: [key], audience: AUDIENCE, deps: { ...deps, resolve: { ...deps.resolve, llm: () => spy } } });
+    const { socket, collected } = await connect(server.port);
+    const grant = signGrant({ ...claims, companionId: 'nova', intimacy: 'sensual' }, key, { nowSeconds: Math.floor(Date.now() / 1000) });
+    socket.send(JSON.stringify({ type: 'hello', grant, protocolVersion: PROTOCOL_VERSION }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'ready'));
+    socket.send(JSON.stringify({ type: 'mode', mode: 'friend' }));
+    socket.send(JSON.stringify({ type: 'text_turn', turnId: 't1', text: 'hola' }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'turn_done'));
+    socket.close();
+    const all = seen[0]!.map((m) => m.content).join('\n');
+    expect(all).toMatch(/activó el coqueteo sensual/);
+    // Justo antes del mensaje de la persona: vale para este turno.
+    expect(seen[0]!.at(-1)).toMatchObject({ role: 'user', content: 'hola' });
+    expect(seen[0]!.at(-2)).toMatchObject({ role: 'system' });
+    expect(seen[0]!.at(-2)!.content).toMatch(/modo Amigo/);
+  });
 });

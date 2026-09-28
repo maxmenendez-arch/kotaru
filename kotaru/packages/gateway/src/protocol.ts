@@ -17,6 +17,8 @@ export type ClientMessage =
   | { readonly type: 'turn_end'; readonly turnId: string }
   /** Barge-in: el usuario habla encima de la respuesta. Cancela sintesis y generacion. */
   | { readonly type: 'interrupt'; readonly turnId: string }
+  /** Modo elegido para Nova o Rio: amigo, coqueteo o que lo decida la conversacion. */
+  | { readonly type: 'mode'; readonly mode: 'friend' | 'flirt' | 'ask' }
   /** Turno escrito: la respuesta llega solo como texto (tokens), sin voz. */
   | { readonly type: 'text_turn'; readonly turnId: string; readonly text: string }
   | { readonly type: 'bye' };
@@ -92,6 +94,7 @@ export function isClientMessage(value: unknown): value is ClientMessage {
     type === 'turn_end' ||
     type === 'interrupt' ||
     type === 'text_turn' ||
+    type === 'mode' ||
     type === 'bye'
   );
 }

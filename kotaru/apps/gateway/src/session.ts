@@ -22,7 +22,7 @@ import {
   type ProviderResolver,
   type RouterPort,
 } from '@kotaru/orchestrator';
-import { buildSystemPrompt, memoryMessage, personaFor, promptId, type PersonaCard } from '@kotaru/persona';
+import { buildSystemPrompt, CONVERSATION_MODES, memoryMessage, modeMessage, personaFor, promptId, type ConversationMode, type PersonaCard } from '@kotaru/persona';
 import { evaluateSafety, statesMinorAge } from '@kotaru/safety';
 import type { MetricSink } from '@kotaru/telemetry';
 
@@ -113,6 +113,8 @@ export class GatewaySession {
   readonly #deps: SessionDeps;
   readonly #startedAtMs: number;
   readonly #history: DomainMessage[] = [];
+  /** Modo elegido en la app (solo cuenta con Nova y Rio). */
+  #mode: ConversationMode = 'ask';
 
   #audio: AsyncQueue<AudioChunk> | null = null;
   #turnId: string | null = null;
@@ -275,6 +277,11 @@ export class GatewaySession {
         // Barge-in. Cancela generacion y sintesis; el turno termina donde este.
         this.#abort?.abort();
         this.#audio?.close();
+        return;
+
+      case 'mode':
+        // Un valor raro se ignora: no merece cerrar la conversacion.
+        if ((CONVERSATION_MODES as readonly string[]).includes(message.mode)) this.#mode = message.mode;
         return;
 
       case 'bye':
@@ -539,7 +546,8 @@ export class GatewaySession {
     // Como bloque de datos delimitado: un recuerdo es texto del usuario y no puede colarse
     // como instruccion (ver @kotaru/persona).
     const block = memoryMessage(recalled, this.#grant.locale);
-    return block ? [...this.#history, block] : this.#history;
+    const mode = modeMessage(this.#persona, this.#mode, this.#grant.locale);
+    return [...this.#history, ...(block ? [block] : []), ...(mode ? [mode] : [])];
   }
 
   async #refreshUsage(): Promise<void> {

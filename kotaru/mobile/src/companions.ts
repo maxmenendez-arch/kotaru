@@ -16,6 +16,8 @@ export interface Companion {
   readonly tint: string;
   /** Luna ofrece "Respira conmigo" y sonidos relajantes a mano. */
   readonly calm: boolean;
+  /** Nova y Rio coquetean: la app ofrece elegir modo (Amigo / Coqueteo / Tú decides). */
+  readonly flirts: boolean;
 }
 
 /** Luna primero: el foco de la app es la compañia y la calma. */
@@ -30,6 +32,7 @@ export const COMPANIONS: readonly Companion[] = [
     accent: '#9FB4FF',
     tint: '#1B2447',
     calm: true,
+    flirts: false,
   },
   {
     id: 'nova',
@@ -38,6 +41,7 @@ export const COMPANIONS: readonly Companion[] = [
     accent: '#FF5FA2',
     tint: '#4A1733',
     calm: false,
+    flirts: true,
   },
   {
     id: 'rio',
@@ -46,6 +50,7 @@ export const COMPANIONS: readonly Companion[] = [
     accent: '#F2A65A',
     tint: '#4A2A14',
     calm: false,
+    flirts: true,
   },
 ];
 

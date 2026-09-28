@@ -30,6 +30,8 @@ const audioArg = process.argv.find((a) => a.startsWith('--audio='))?.slice('--au
 /** Con que personaje se prueba (--personaje=luna|nova|rio) y si con coqueteo sensual (--sensual). */
 const companionArg = process.argv.find((a) => a.startsWith('--personaje='))?.slice('--personaje='.length);
 const sensualArg = process.argv.includes('--sensual');
+/** Modo elegido en la app para Nova o Rio (--modo=friend|flirt). */
+const modeArg = process.argv.find((a) => a.startsWith('--modo='))?.slice('--modo='.length);
 const voice = Boolean(audioArg) || process.argv.includes('--voz') || config.providers.every((p) => p === 'mock');
 
 /** PCM 16 bits del archivo: sin la cabecera WAV si la trae. */
@@ -94,6 +96,7 @@ try {
     await until(() => messages.some((m) => m.type === 'ready' || m.type === 'rejected'));
     check('sesion de voz aceptada', messages.some((m) => m.type === 'ready'), messages.find((m) => m.type === 'rejected') ? 'rechazada' : undefined);
 
+    if (modeArg) ws.send(JSON.stringify({ type: 'mode', mode: modeArg }));
     ws.send(JSON.stringify({ type: 'turn_start', turnId: 'smoke_1' }));
     const frame = 24000 * 2 * 0.02;
     if (audioArg) {
@@ -119,7 +122,7 @@ try {
     if (audioArg) {
       const heard = messages.filter((m) => m.type === 'transcript' && m.final).map((m) => (m as { text: string }).text).join(' ');
       const reply = messages.filter((m) => m.type === 'token').map((m) => (m as { text: string }).text).join('');
-      if (process.argv.includes('--mostrar')) console.log(`\n${companionArg ?? 'rio'}${sensualArg ? ' (sensual)' : ''} responde: ${reply}\n`);
+      if (process.argv.includes('--mostrar')) console.log(`\n${companionArg ?? 'rio'}${sensualArg ? ' (sensual)' : ''}${modeArg ? ` [${modeArg}]` : ''} responde: ${reply}\n`);
       const affect = messages.find((m) => m.type === 'affect') as { emotion?: string } | undefined;
       check('oyo la voz', heard.trim().length > 0, `"${heard.slice(0, 80)}"`);
       if (crisis) check('seguridad', true, 'crisis detectada: se muestran los recursos (988)');

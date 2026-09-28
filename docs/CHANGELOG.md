@@ -1080,3 +1080,15 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   intención de morir o hacerse daño. Cuando la persona TEME morir por síntomas o pánico ("me
   duele el pecho, creo que me voy a morir"), responde Luna con su triaje (ayuda médica urgente
   si hay señales de alarma), en vez de la tarjeta del 988.
+
+## 2026-09-28 — Modo Amigo / Coqueteo / Tú decides para Nova y Rio
+
+- Como piden los manuales, la app ofrece bajo el nombre de Nova y de Rio tres botones: **Tú
+  decides** (por defecto: lo decide la conversación; Rio empieza como amigo), **Amigo** (sin
+  coqueteo) y **Coqueteo**. Se puede cambiar en cualquier momento y vale desde el siguiente
+  mensaje. Luna no los muestra.
+- Protocolo: mensaje de control `{type:'mode', mode}`; el gateway lo añade como nota de sistema
+  justo antes del mensaje de la persona. El cliente lo reenvía al reconectar.
+  **Orden de despliegue:** primero el gateway (install.sh), después la web (web.sh): un gateway
+  viejo cerraría la conversación al recibir un mensaje que no conoce.
+- `prueba-voz.sh ... --modo=friend|flirt` para probarlo en el servidor.

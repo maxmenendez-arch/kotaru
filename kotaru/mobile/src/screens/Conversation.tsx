@@ -69,6 +69,9 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const companion = companionById(companionId);
   // Por personaje: su conversacion en el servidor (para retomarla) y lo que se vio en pantalla.
   const conversations = useRef<Partial<Record<CompanionId, string>>>({});
+  // Modo de Nova y Rio (manuales): se recuerda por personaje mientras la app esta abierta.
+  const [modes, setModes] = useState<Partial<Record<CompanionId, ConversationMode>>>({});
+  const mode = modes[companionId] ?? 'ask';
   const screens = useRef<Partial<Record<CompanionId, Exchange[]>>>({});
   const nextId = useRef(0);
   const scroll = useRef<ScrollView | null>(null);
@@ -153,13 +156,15 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     speaker.current.unlock?.();
     client.current?.close();
     const who = companionId;
-    client.current = createConversation(connection, lang, onEvent, {
+    const next = createConversation(connection, lang, onEvent, {
       companion: who,
       ...(conversations.current[who] ? { conversationId: conversations.current[who] } : {}),
       onConversation: (id) => {
         conversations.current[who] = id;
       },
     });
+    next.setMode(modes[who] ?? 'ask');
+    client.current = next;
     setLimitNote(null);
     try {
       await client.current.connect();
@@ -233,6 +238,11 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     client.current?.stopTalking();
   };
 
+  const chooseMode = (m: ConversationMode) => {
+    setModes((all) => ({ ...all, [companionId]: m }));
+    client.current?.setMode(m);
+  };
+
   const label = STATE_LABELS[lang][state];
   const listening = state === 'listening';
   // Con conversacion en pantalla, el retrato se achica para dejar sitio al texto.
@@ -269,6 +279,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
           {label}
         </Text>
         {state === 'closed' && history.length === 0 ? <Text style={styles.tagline}>{companion.tagline[lang]}</Text> : null}
+        {companion.flirts ? <ModePicker mode={mode} onChoose={chooseMode} lang={lang} accent={companion.accent} /> : null}
         {minutes !== null && voiceOn ? <Text style={styles.minutes}>{s.minutesLeft(minutes)}</Text> : null}
       </View>
 
@@ -407,6 +418,33 @@ function CompanionPicker({ selected, onChoose, label, lang }: { selected: Compan
   );
 }
 
+type ConversationMode = 'ask' | 'friend' | 'flirt';
+const MODES: readonly ConversationMode[] = ['ask', 'friend', 'flirt'];
+
+/** Amigo / Coqueteo / Tú decides (manuales de Nova y Rio): se puede cambiar en cualquier momento. */
+function ModePicker({ mode, onChoose, lang, accent }: { mode: ConversationMode; onChoose: (m: ConversationMode) => void; lang: Lang; accent: string }) {
+  const s = t(lang);
+  return (
+    <View style={styles.modes} accessibilityRole="radiogroup" accessibilityLabel={s.modeLabel}>
+      {MODES.map((m) => {
+        const on = m === mode;
+        return (
+          <Pressable
+            key={m}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on, checked: on }}
+            accessibilityLabel={s.modes[m]}
+            onPress={() => onChoose(m)}
+            style={[styles.mode, on && { borderColor: accent }]}
+          >
+            <Text style={[styles.modeText, on && styles.modeTextOn]}>{s.modes[m]}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 /** Un intercambio: lo que dijiste (o escribiste) y lo que contesto el personaje. */
 function ExchangeView({ heard, reply, you, them, past }: { heard: string; reply: string; you: string; them: string; past?: boolean }) {
   if (!heard && !reply) return null;
@@ -487,6 +525,10 @@ const styles = StyleSheet.create({
   initialCompact: { ...type.title },
   state: { ...type.support, color: color.mist, marginTop: space.xs },
   minutes: { ...type.micro, color: color.mist, marginTop: space.xs },
+  modes: { flexDirection: 'row', gap: space.xs, marginTop: space.s },
+  mode: { paddingVertical: 4, paddingHorizontal: space.m, borderRadius: radius.pill, borderWidth: 1, borderColor: color.inkLine },
+  modeText: { ...type.micro, color: color.mist },
+  modeTextOn: { color: color.cloud, fontWeight: '600' },
   captions: { flex: 1, marginBottom: space.m },
   captionsContent: { gap: space.l, flexGrow: 1, justifyContent: 'flex-end' },
   exchange: { gap: space.s },

@@ -161,3 +161,28 @@ function sanitize(text: string): string {
     .trim();
   return flat.length > MAX_MEMORY_CHARS ? `${flat.slice(0, MAX_MEMORY_CHARS - 1)}…` : flat;
 }
+
+/**
+ * Modo que la persona elige en la app para los personajes que coquetean (manuales de Nova
+ * y Rio): 'friend' quita el coqueteo, 'flirt' lo permite desde ya, 'ask' deja que lo decida
+ * la conversacion (por defecto). Va como nota de sistema al final del historial en cada
+ * turno, asi el cambio vale desde el siguiente mensaje.
+ */
+export type ConversationMode = 'friend' | 'flirt' | 'ask';
+export const CONVERSATION_MODES: readonly ConversationMode[] = ['friend', 'flirt', 'ask'];
+
+const MODE_NOTE = {
+  friend: {
+    es: 'La persona eligió el modo Amigo en la app: nada de coqueteo ni insinuaciones hasta que lo cambie. Juegos, historias y conversación.',
+    en: 'The person chose Friend mode in the app: no flirting or innuendo until they change it. Games, stories and conversation.',
+  },
+  flirt: {
+    es: 'La persona eligió el modo Coqueteo en la app: puedes coquetear desde ya, dentro de tu nivel y leyendo cada respuesta suya.',
+    en: 'The person chose Flirt mode in the app: you may flirt from now on, within your level and reading each of their replies.',
+  },
+} as const;
+
+export function modeMessage(persona: PersonaCard, mode: ConversationMode, locale: Locale): DomainMessage | null {
+  if (!persona.flirts || mode === 'ask') return null;
+  return { role: 'system', content: MODE_NOTE[mode][lang(locale)] };
+}

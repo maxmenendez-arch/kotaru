@@ -23,6 +23,25 @@ describe('cliente', () => {
     expect(events).toContainEqual({ type: 'rejected', reason: 'replayed' });
   });
 
+  it('el modo elegido se envia y se reenvia al reconectar', async () => {
+    const sent: { type: string; mode?: string }[] = [];
+    let socket!: FakeSocket;
+    const client = new ConversationClient({
+      url: 'ws://x', getGrant: async () => 'g', onEvent: () => undefined,
+      createSocket: () =>
+        (socket = new FakeSocket((m) => {
+          sent.push(m as { type: string; mode?: string });
+          if (m.type === 'hello') socket.receive({ type: 'ready', sessionId: 's', protocolVersion: PROTOCOL_VERSION, voiceAvailable: true });
+        })),
+    });
+    client.setMode('friend');
+    await client.connect();
+    expect(sent.filter((m) => m.type === 'mode')).toEqual([{ type: 'mode', mode: 'friend' }]);
+    client.setMode('flirt');
+    expect(sent.filter((m) => m.type === 'mode').at(-1)).toEqual({ type: 'mode', mode: 'flirt' });
+    client.close();
+  });
+
   it('el aviso de limite no tapa la tarjeta de crisis', async () => {
     const events: ClientEvent[] = [];
     let socket!: FakeSocket;

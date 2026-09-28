@@ -114,6 +114,7 @@ export class ConversationClient {
   #attempt = 0;
   #closedByUser = false;
   #counter = 0;
+  #mode: 'friend' | 'flirt' | 'ask' = 'ask';
 
   constructor(options: ConversationClientOptions) {
     this.#o = options;
@@ -152,6 +153,7 @@ export class ConversationClient {
           settled = true;
           this.#attempt = 0;
           this.#o.onEvent({ type: 'voice', available: message.voiceAvailable !== false });
+          if (this.#mode !== 'ask') this.#send({ type: 'mode', mode: this.#mode });
           this.#set('idle');
           resolve();
         } else if (!settled && message.type === 'rejected') {
@@ -207,6 +209,15 @@ export class ConversationClient {
     this.#send({ type: 'text_turn', turnId, text: clean });
     if (this.#state !== 'limit_reached') this.#set('thinking');
     return turnId;
+  }
+
+  /**
+   * Modo elegido para Nova o Rio (amigo, coqueteo o que lo decida la conversacion). Se
+   * recuerda y se reenvia al reconectar; vale desde el siguiente mensaje.
+   */
+  setMode(mode: 'friend' | 'flirt' | 'ask'): void {
+    this.#mode = mode;
+    if (this.#socket?.readyState === OPEN) this.#send({ type: 'mode', mode });
   }
 
   /** PCM 16 bits mono, en trozos pequenos (20-100 ms). */
