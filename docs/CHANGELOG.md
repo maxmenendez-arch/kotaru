@@ -1138,3 +1138,6 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - `prueba-voz.sh "frase" --voz=gemini|cartesia`: pide esa voz como en Ajustes y comprueba que
   habló esa.
 - Verificado: 453 pruebas (router, gateway y cliente nuevas), 16 de la app, typecheck y lint.
+- La pantalla sigue en "hablando" (anillo, etiqueta y cabeza del avatar) mientras suena la voz
+  que quedó en cola; antes pasaba a "en espera" con el personaje todavía hablando. Solo web
+  (`web.sh`).

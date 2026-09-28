@@ -96,9 +96,13 @@ export function Conversation({ lang, connection, voiceChoice = 'auto' }: { lang:
   // El servidor manda la respuesta mas rapido de lo que se oye: el turno termina con voz
   // todavia en cola. El ambiente sigue bajo hasta que esa voz acaba de sonar.
   const speakingState = useRef(false);
+  // true mientras suena la voz que quedo en cola despues de terminar el turno.
+  const [voiceTail, setVoiceTail] = useState(false);
   useEffect(() => {
     const timer = setInterval(() => {
-      ambient.duck(speakingState.current || speaker.current.isPlaying?.() === true);
+      const playing = speaker.current.isPlaying?.() === true;
+      ambient.duck(speakingState.current || playing);
+      setVoiceTail((was) => (was === playing ? was : playing));
     }, 100);
     return () => clearInterval(timer);
   }, [ambient]);
@@ -269,7 +273,10 @@ export function Conversation({ lang, connection, voiceChoice = 'auto' }: { lang:
     client.current?.setMode(m);
   };
 
-  const label = STATE_LABELS[lang][state];
+  // Lo que se muestra: si el turno ya termino pero la voz sigue sonando, sigue "hablando"
+  // (anillo, etiqueta y cabeza del avatar), no "en espera".
+  const shown: ConversationState = state === 'idle' && voiceTail ? 'speaking' : state;
+  const label = STATE_LABELS[lang][shown];
   const listening = state === 'listening';
   // Con conversacion en pantalla, el retrato se achica para dejar sitio al texto.
   const compact = history.length > 0 || state === 'safety_handoff' || breathing;
@@ -278,7 +285,7 @@ export function Conversation({ lang, connection, voiceChoice = 'auto' }: { lang:
     <Screen>
       <CompanionPicker selected={companionId} onChoose={choose} label={s.chooseCompanion} lang={lang} />
       <View style={[styles.portraitArea, compact && styles.portraitAreaCompact]}>
-        <View style={[styles.ring, compact && styles.ringCompact, { borderColor: state === 'idle' || state === 'closed' ? companion.accent : RING[state] }]}>
+        <View style={[styles.ring, compact && styles.ringCompact, { borderColor: shown === 'idle' || shown === 'closed' ? companion.accent : RING[shown] }]}>
           <View
             style={[styles.portrait, compact && styles.portraitCompact, { backgroundColor: companion.tint }]}
             accessibilityLabel={companion.name}
@@ -287,7 +294,7 @@ export function Conversation({ lang, connection, voiceChoice = 'auto' }: { lang:
             <Avatar
               companion={companionId}
               size={compact ? PORTRAIT_COMPACT : PORTRAIT}
-              state={state}
+              state={shown}
               affect={affect}
               level={() => speaker.current.level?.() ?? 0}
               fallback={
