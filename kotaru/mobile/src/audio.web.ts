@@ -1,6 +1,7 @@
 import { INPUT_SAMPLE_RATE, type AppAudio, type AudioInput, type AudioOutput } from './audio-types';
 import { SilentSpeaker, SimulatedMicrophone } from './audio-sim';
 import { ChunkAssembler, pcm16ToFloat } from './pcm';
+import { audioContextCtor, sharedOutput } from './web-audio';
 
 export * from './audio-types';
 
@@ -22,12 +23,6 @@ export * from './audio-types';
 
 /** Servido desde mobile/public: la CSP de la webapp no admite scripts blob:. */
 const WORKLET_URL = '/audio-capture-worklet.js';
-
-type Ctor = typeof AudioContext;
-function audioContextCtor(): Ctor | null {
-  const w = globalThis as unknown as { AudioContext?: Ctor; webkitAudioContext?: Ctor };
-  return w.AudioContext ?? w.webkitAudioContext ?? null;
-}
 
 class WebMicrophone implements AudioInput {
   #context: AudioContext | null = null;
@@ -111,6 +106,9 @@ class WebMicrophone implements AudioInput {
   }
 }
 
+/** Margen al empezar a sonar: absorbe trozos que llegan un poco tarde sin cortar la voz. */
+const START_MARGIN_S = 0.12;
+
 class WebSpeaker implements AudioOutput {
   #context: AudioContext | null = null;
   #analyser: AnalyserNode | null = null;
@@ -119,18 +117,21 @@ class WebSpeaker implements AudioOutput {
   #nextStart = 0;
 
   unlock(): void {
-    const Context = audioContextCtor();
-    if (!Context) return;
-    this.#context ??= new Context();
-    void this.#context.resume();
+    const out = sharedOutput();
+    if (!out) return;
+    if (this.#context !== out.context) {
+      this.#context = out.context;
+      this.#analyser = null;
+    }
+    void out.context.resume();
   }
 
-  /** Todo lo que suena pasa por aqui camino del altavoz, para medir su volumen. */
+  /** Todo lo que suena pasa por aqui camino de la mezcla, para medir su volumen. */
   #output(context: AudioContext): AudioNode {
     if (!this.#analyser) {
       this.#analyser = context.createAnalyser();
       this.#analyser.fftSize = 512;
-      this.#analyser.connect(context.destination);
+      this.#analyser.connect(sharedOutput()?.bus ?? context.destination);
       this.#samples = new Float32Array(this.#analyser.fftSize);
     }
     return this.#analyser;
@@ -147,6 +148,14 @@ class WebSpeaker implements AudioOutput {
     return Math.min(1, Math.sqrt(sum / samples.length) * 4);
   }
 
+  /**
+   * true mientras quede voz por sonar. El servidor suele mandar la respuesta mas rapido de
+   * lo que se oye: el turno "termina" con varios segundos todavia en cola.
+   */
+  isPlaying(): boolean {
+    return this.#sources.size > 0;
+  }
+
   play(pcm: Uint8Array, sampleRate: number): void {
     if (pcm.byteLength < 2) return;
     this.unlock();
@@ -159,7 +168,7 @@ class WebSpeaker implements AudioOutput {
     source.buffer = buffer;
     source.connect(this.#output(context));
     // Un poco de margen al empezar evita cortes; luego cada trozo va pegado al anterior.
-    const at = Math.max(context.currentTime + 0.05, this.#nextStart);
+    const at = Math.max(context.currentTime + START_MARGIN_S, this.#nextStart);
     source.start(at);
     this.#nextStart = at + buffer.duration;
     this.#sources.add(source);
@@ -180,7 +189,8 @@ class WebSpeaker implements AudioOutput {
 
   dispose(): void {
     this.stopNow();
-    void this.#context?.close();
+    // El contexto es compartido con los sonidos relajantes: no se cierra, solo se suelta.
+    this.#analyser?.disconnect();
     this.#context = null;
     this.#analyser = null;
     this.#samples = null;

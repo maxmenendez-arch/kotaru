@@ -14,7 +14,7 @@ import {
   type SpendBudget,
   type PlanId,
 } from '@kotaru/billing';
-import { DEFAULT_BACKPRESSURE, MAX_TEXT_TURN_CHARS, type ClientMessage, type CloseReason, type ServerMessage, type SessionGrant } from '@kotaru/gateway';
+import { DEFAULT_BACKPRESSURE, MAX_TEXT_TURN_CHARS, VOICE_CHOICES, voiceFamily, type VoiceChoice, type ClientMessage, type CloseReason, type ServerMessage, type SessionGrant } from '@kotaru/gateway';
 import { HeuristicExtractor, MemoryStore } from '@kotaru/memory';
 import {
   AsyncQueue,
@@ -90,6 +90,8 @@ export interface SessionDeps {
   readonly safety?: SafetyLog;
   /** Sin oido real: no se aceptan turnos de voz (ver `ready.voiceAvailable`). */
   readonly voiceUnavailable?: boolean;
+  /** Proveedor de cada voz elegible en Ajustes; sin entrada, esa eleccion no hace nada. */
+  readonly voiceChoices?: Readonly<Partial<Record<'gemini' | 'cartesia', string>>>;
 }
 
 export interface SessionTransport {
@@ -115,6 +117,8 @@ export class GatewaySession {
   readonly #history: DomainMessage[] = [];
   /** Modo elegido en la app (solo cuenta con Nova y Rio). */
   #mode: ConversationMode = 'ask';
+  /** Voz elegida en Ajustes para probar ('auto': el orden del operador). */
+  #voiceChoice: VoiceChoice = 'auto';
 
   #audio: AsyncQueue<AudioChunk> | null = null;
   #turnId: string | null = null;
@@ -284,6 +288,11 @@ export class GatewaySession {
         if ((CONVERSATION_MODES as readonly string[]).includes(message.mode)) this.#mode = message.mode;
         return;
 
+      case 'voice_choice':
+        // Igual que el modo: un valor raro se ignora.
+        if ((VOICE_CHOICES as readonly string[]).includes(message.choice)) this.#voiceChoice = message.choice;
+        return;
+
       case 'bye':
         this.#transport.close('client_bye');
         this.#closed = true;
@@ -358,6 +367,7 @@ export class GatewaySession {
         voice: { voiceId: this.#persona.slug, locale: this.#grant.locale, speed: 1, expressive: true },
         quality: this.#entitlement().quality,
         predicted: { audioSeconds: 20, inputTokens: 2_000, outputTokens: 120, characters: 400 },
+        ...this.#ttsPrefer(),
       },
       ctx,
       {
@@ -432,6 +442,9 @@ export class GatewaySession {
         }
 
         case 'done':
+          if (event.metric.ttsProvider) {
+            this.#transport.send({ type: 'voice_used', turnId, voice: voiceFamily(event.metric.ttsProvider) });
+          }
           await this.#deps.usage.record({
             turnId: turnKey,
             subjectId: this.#grant.subjectId,
@@ -533,6 +546,13 @@ export class GatewaySession {
         })
         .catch(() => undefined);
     }
+  }
+
+  /** La voz elegida en Ajustes como preferencia del turno (vacio con 'auto' o si no esta activa). */
+  #ttsPrefer(): { ttsPrefer?: readonly string[] } {
+    if (this.#voiceChoice === 'auto') return {};
+    const id = this.#deps.voiceChoices?.[this.#voiceChoice];
+    return id ? { ttsPrefer: [id] } : {};
   }
 
   async #recallIntoHistory(): Promise<readonly DomainMessage[]> {

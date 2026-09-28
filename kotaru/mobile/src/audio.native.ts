@@ -69,6 +69,12 @@ class NativeMicrophone implements AudioInput {
 class NativeSpeaker implements AudioOutput {
   #context: AudioContext | null = null;
   #queue: AudioBufferQueueSourceNode | null = null;
+  /** Momento (reloj del contexto) en que termina lo que hay en cola. */
+  #endsAt = 0;
+
+  isPlaying(): boolean {
+    return this.#context !== null && this.#context.currentTime < this.#endsAt;
+  }
 
   play(pcm: Uint8Array, sampleRate: number): void {
     if (pcm.byteLength < 2) return;
@@ -88,11 +94,13 @@ class NativeSpeaker implements AudioOutput {
       this.#queue = queue;
     }
     this.#queue.enqueueBuffer(buffer);
+    this.#endsAt = Math.max(this.#endsAt, context.currentTime) + buffer.duration;
   }
 
   stopNow(): void {
     const queue = this.#queue;
     this.#queue = null;
+    this.#endsAt = 0;
     if (!queue) return;
     queue.clearBuffers();
     queue.stop();

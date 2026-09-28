@@ -21,6 +21,8 @@ export interface AudioOutput {
    * nivel en el momento: no se guarda ni se analiza el contenido del audio.
    */
   level?(): number;
+  /** true mientras quede voz en cola por sonar (aunque el turno ya haya terminado). */
+  isPlaying?(): boolean;
   dispose(): void;
 }
 

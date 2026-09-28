@@ -3,6 +3,19 @@ import type { GrantRejection } from './grants.js';
 
 export const PROTOCOL_VERSION = 1;
 
+export type VoiceChoice = 'auto' | 'gemini' | 'cartesia';
+export const VOICE_CHOICES: readonly VoiceChoice[] = ['auto', 'gemini', 'cartesia'];
+/** Familia de la voz que sono; 'other' para cualquier otra (Polly, simulada). */
+export type VoiceFamily = 'gemini' | 'cartesia' | 'kokoro' | 'other';
+
+export function voiceFamily(providerId: string | undefined): VoiceFamily {
+  if (!providerId) return 'other';
+  if (providerId.startsWith('gemini')) return 'gemini';
+  if (providerId.includes('cartesia')) return 'cartesia';
+  if (providerId.includes('kokoro')) return 'kokoro';
+  return 'other';
+}
+
 /**
  * Mensajes del cliente al gateway.
  *
@@ -19,6 +32,11 @@ export type ClientMessage =
   | { readonly type: 'interrupt'; readonly turnId: string }
   /** Modo elegido para Nova o Rio: amigo, coqueteo o que lo decida la conversacion. */
   | { readonly type: 'mode'; readonly mode: 'friend' | 'flirt' | 'ask' }
+  /**
+   * Voz elegida en Ajustes para probar: la de Gemini, la de Cartesia o la automatica (el
+   * orden del operador). Si la elegida falla, habla la siguiente: no se queda muda.
+   */
+  | { readonly type: 'voice_choice'; readonly choice: VoiceChoice }
   /** Turno escrito: la respuesta llega solo como texto (tokens), sin voz. */
   | { readonly type: 'text_turn'; readonly turnId: string; readonly text: string }
   | { readonly type: 'bye' };
@@ -42,6 +60,8 @@ export type ServerMessage =
   | { readonly type: 'audio_meta'; readonly turnId: string; readonly seq: number; readonly sampleRate: AudioChunk['sampleRate'] }
   | { readonly type: 'safety'; readonly turnId: string; readonly action: ModerationAction }
   | { readonly type: 'turn_done'; readonly turnId: string }
+  /** Que voz hablo de verdad en este turno (para la prueba de voces de Ajustes). */
+  | { readonly type: 'voice_used'; readonly turnId: string; readonly voice: VoiceFamily }
   /**
    * Medidor visible. Se manda en minutos, no en dolares: el usuario compra tiempo de
    * conversacion, y mostrarle su costo de proveedor seria a la vez confuso y una
@@ -95,6 +115,7 @@ export function isClientMessage(value: unknown): value is ClientMessage {
     type === 'interrupt' ||
     type === 'text_turn' ||
     type === 'mode' ||
+    type === 'voice_choice' ||
     type === 'bye'
   );
 }

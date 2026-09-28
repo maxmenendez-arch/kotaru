@@ -38,6 +38,12 @@ export interface RouteRequest {
   readonly quality: QualityTier;
   readonly ctx: ProviderContext;
   readonly predicted: PredictedUsage;
+  /**
+   * Proveedores que pide esta peticion, en orden (p. ej. la voz elegida para probar en
+   * Ajustes). Van antes que la preferencia del operador; si no pasan las restricciones
+   * duras, se ignoran y el resto sigue de respaldo.
+   */
+  readonly prefer?: readonly string[];
 }
 
 export interface ExcludedProvider {

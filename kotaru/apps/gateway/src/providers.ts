@@ -29,6 +29,8 @@ export interface ProviderSet {
    * sin AssemblyAI). Con todo simulado (`mock`, desarrollo y pruebas) la voz sigue.
    */
   readonly voiceUnavailable: boolean;
+  /** Proveedor de cada voz que se puede elegir en Ajustes (solo las que estan activas). */
+  readonly voiceChoices: Readonly<Partial<Record<'gemini' | 'cartesia', string>>>;
 }
 
 /**
@@ -160,6 +162,10 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     moderation: new CrisisLexiconModeration(),
     registered: all.map((p) => p.descriptor.id),
     voiceUnavailable: realLlm && !realStt,
+    voiceChoices: {
+      ...(settings.geminiTts && tts.has(settings.geminiTts.model) ? { gemini: settings.geminiTts.model } : {}),
+      ...(tts.has('together-cartesia-sonic-3') ? { cartesia: 'together-cartesia-sonic-3' } : {}),
+    },
     blocked: all.flatMap((p) => {
       const d = p.descriptor;
       if (!d.retentionKnown) return [{ id: d.id, reason: 'retencion sin confirmar' }];

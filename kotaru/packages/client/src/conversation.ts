@@ -73,6 +73,8 @@ export type ClientEvent =
   | { readonly type: 'audio'; readonly pcm: Uint8Array; readonly sampleRate: number; readonly seq: number }
   | { readonly type: 'usage'; readonly remainingSeconds: number; readonly planSeconds: number }
   | { readonly type: 'turn_done'; readonly turnId: string }
+  /** Que voz hablo en el turno: gemini, cartesia, kokoro u other (prueba de voces). */
+  | { readonly type: 'voice_used'; readonly voice: string }
   /** Al conectar: si el servidor puede oir de verdad. Si no, solo texto. */
   | { readonly type: 'voice'; readonly available: boolean }
   | { readonly type: 'rejected'; readonly reason: string }
@@ -115,6 +117,7 @@ export class ConversationClient {
   #closedByUser = false;
   #counter = 0;
   #mode: 'friend' | 'flirt' | 'ask' = 'ask';
+  #voiceChoice: 'auto' | 'gemini' | 'cartesia' = 'auto';
 
   constructor(options: ConversationClientOptions) {
     this.#o = options;
@@ -154,6 +157,7 @@ export class ConversationClient {
           this.#attempt = 0;
           this.#o.onEvent({ type: 'voice', available: message.voiceAvailable !== false });
           if (this.#mode !== 'ask') this.#send({ type: 'mode', mode: this.#mode });
+          if (this.#voiceChoice !== 'auto') this.#send({ type: 'voice_choice', choice: this.#voiceChoice });
           this.#set('idle');
           resolve();
         } else if (!settled && message.type === 'rejected') {
@@ -220,6 +224,15 @@ export class ConversationClient {
     if (this.#socket?.readyState === OPEN) this.#send({ type: 'mode', mode });
   }
 
+  /**
+   * Voz elegida en Ajustes para probar (Gemini o Cartesia; 'auto' deja el orden del
+   * servidor). Se recuerda y se reenvia al reconectar; vale desde la siguiente respuesta.
+   */
+  setVoiceChoice(choice: 'auto' | 'gemini' | 'cartesia'): void {
+    this.#voiceChoice = choice;
+    if (this.#socket?.readyState === OPEN) this.#send({ type: 'voice_choice', choice });
+  }
+
   /** PCM 16 bits mono, en trozos pequenos (20-100 ms). */
   sendAudio(pcm: Uint8Array): void {
     if (this.#state !== 'listening' || this.#socket?.readyState !== OPEN) return;
@@ -278,6 +291,10 @@ export class ConversationClient {
         if (message.turnId !== this.#turnId) return;
         this.#o.onEvent({ type: 'turn_done', turnId: message.turnId });
         if (this.#state !== 'safety_handoff' && this.#state !== 'limit_reached' && this.#state !== 'listening') this.#set('idle');
+        return;
+      case 'voice_used':
+        if (message.turnId !== this.#turnId) return;
+        this.#o.onEvent({ type: 'voice_used', voice: message.voice });
         return;
       case 'usage':
         this.#o.onEvent({ type: 'usage', remainingSeconds: message.remainingSeconds, planSeconds: message.planSeconds });

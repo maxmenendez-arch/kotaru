@@ -1114,3 +1114,25 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   mapa y una lista en la raíz y no se podía leer con un parser).
 - `COST_MODEL.md`: la voz de Gemini duplica su precio el 1 de enero de 2027 (de ~0,54 a
   ~1,08 USD por hora de voz del personaje).
+
+## 2026-09-28 — Voz clara con sonidos de fondo y prueba de voces en Ajustes
+
+- **Voz con sonido de fondo (webapp):** el dueño oía mal la voz con lluvia o fogata.
+  Causas y arreglos:
+  - El turno "termina" cuando el servidor acaba de mandar el audio, pero el navegador aún
+    tiene segundos de voz en cola: el ambiente volvía a subir con el personaje hablando.
+    Ahora el ambiente sigue bajo mientras quede voz por sonar (`AudioOutput.isPlaying`, web y
+    móvil).
+  - Voz y ambiente tenían cada uno su contexto de audio y el sistema los sumaba sin control
+    (picos por encima del máximo). Ahora comparten uno (`mobile/src/web-audio.ts`) con un
+    limitador al final.
+  - El ambiente baja más (al 15 %) y más rápido al empezar a hablar (0,15 s); vuelve en 0,9 s.
+  - 120 ms de margen al empezar a sonar (antes 50) para que un trozo tardío no corte la voz.
+  - Verificado en Chromium sin pantalla: con lluvia y voz a volumen máximo el pico de la
+    mezcla es 0,92 (sin saturar) y el ambiente sigue bajo los 3 s que la voz sigue sonando.
+- **Prueba de voces en Ajustes:** Automática / Gemini / Cartesia. Viaja como
+  `{type:'voice_choice'}`; el router la pone por delante del orden del operador
+  (`RouteRequest.prefer`) y, si falla, habla la siguiente. Tras cada respuesta el servidor
+  dice qué voz habló (`voice_used`) y la app lo muestra bajo el personaje.
+  **Orden de despliegue:** gateway primero, luego la web.
+- Verificado: 453 pruebas (router, gateway y cliente nuevas), 16 de la app, typecheck y lint.

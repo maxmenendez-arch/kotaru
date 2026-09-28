@@ -5,7 +5,9 @@ import type { Lang } from '../i18n';
 import { t } from '../i18n';
 import { color, radius, space, type } from '../theme';
 import { Body, Button, Card, Screen, Title } from '../ui/kit';
+import type { VoiceChoice } from './Conversation';
 
+const VOICE_CHOICES: readonly VoiceChoice[] = ['auto', 'gemini', 'cartesia'];
 const RETENTION_CHOICES = [7, 30, 90, 365] as const;
 
 export function Settings({
@@ -13,12 +15,16 @@ export function Settings({
   connection,
   onConnection,
   showDevConnection,
+  voiceChoice = 'auto',
+  onVoiceChoice,
 }: {
   lang: Lang;
   connection: Connection | null;
   onConnection: (c: DevConnection) => void;
   /** En builds de produccion con servidor de cuentas no se ofrece la conexion manual. */
   showDevConnection: boolean;
+  voiceChoice?: VoiceChoice;
+  onVoiceChoice?: (choice: VoiceChoice) => void;
 }) {
   const s = t(lang);
   const [days, setDays] = useState<number | null>(null);
@@ -130,6 +136,23 @@ export function Settings({
               <Button label={s.sensualEnable} kind="quiet" onPress={() => setConfirmSensual(true)} />
             )}
             {sensualNote ? <Body muted>{sensualNote}</Body> : null}
+          </Card>
+        ) : null}
+
+        {connection && onVoiceChoice ? (
+          <Card>
+            <Text style={styles.label}>{s.voiceTestTitle}</Text>
+            <Body muted>{s.voiceTestBody}</Body>
+            <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={s.voiceTestTitle}>
+              {VOICE_CHOICES.map((c) => (
+                <Button
+                  key={c}
+                  label={s.voiceChoices[c]}
+                  kind={c === voiceChoice ? 'primary' : 'quiet'}
+                  onPress={() => onVoiceChoice(c)}
+                />
+              ))}
+            </View>
           </Card>
         ) : null}
 

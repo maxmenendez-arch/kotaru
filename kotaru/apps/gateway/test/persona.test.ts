@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { DomainMessage, LlmOptions } from '@kotaru/ai-contracts';
+import type { DomainMessage, LlmOptions, RouteRequest } from '@kotaru/ai-contracts';
 import { PROTOCOL_VERSION, signGrant } from '@kotaru/gateway';
 import { startGatewayServer, type GatewayServerHandle } from '../src/index.js';
 import { AUDIENCE, buildDeps, claims, connect, key, waitFor } from './helpers.js';
@@ -83,5 +83,46 @@ describe('lo que recibe el modelo', () => {
     expect(seen[0]!.at(-1)).toMatchObject({ role: 'user', content: 'hola' });
     expect(seen[0]!.at(-2)).toMatchObject({ role: 'system' });
     expect(seen[0]!.at(-2)!.content).toMatch(/modo Amigo/);
+  });
+});
+
+describe('prueba de voces (Ajustes)', () => {
+  it('la voz elegida va como preferencia del turno y el servidor dice cual hablo', async () => {
+    const { deps } = buildDeps('hola');
+    const ttsRequests: RouteRequest[] = [];
+    const router = {
+      select: (req: RouteRequest) => {
+        if (req.capability === 'tts') ttsRequests.push(req);
+        return deps.router.select(req);
+      },
+      report: deps.router.report.bind(deps.router),
+    };
+    const ttsId = 'mock-tts';
+    server = await startGatewayServer({
+      port: 0, keys: [key], audience: AUDIENCE,
+      deps: { ...deps, router, voiceChoices: { cartesia: ttsId } },
+    });
+    const { socket, collected } = await connect(server.port);
+    socket.send(JSON.stringify({ type: 'hello', grant: signGrant(claims, key, { nowSeconds: Math.floor(Date.now() / 1000) }), protocolVersion: PROTOCOL_VERSION }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'ready'));
+    // Un valor raro se ignora sin cerrar la conversacion.
+    socket.send(JSON.stringify({ type: 'voice_choice', choice: 'robot' }));
+    socket.send(JSON.stringify({ type: 'voice_choice', choice: 'cartesia' }));
+    socket.send(JSON.stringify({ type: 'turn_start', turnId: 't1' }));
+    for (let i = 0; i < 8; i += 1) socket.send(Buffer.alloc(24000 * 2 * 0.02), { binary: true });
+    socket.send(JSON.stringify({ type: 'turn_end', turnId: 't1' }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'turn_done'));
+    // Gemini no esta activa en este servidor: pedirla no cambia nada.
+    socket.send(JSON.stringify({ type: 'voice_choice', choice: 'gemini' }));
+    socket.send(JSON.stringify({ type: 'turn_start', turnId: 't2' }));
+    for (let i = 0; i < 8; i += 1) socket.send(Buffer.alloc(24000 * 2 * 0.02), { binary: true });
+    socket.send(JSON.stringify({ type: 'turn_end', turnId: 't2' }));
+    await waitFor(collected, (m) => m.filter((x) => x.type === 'turn_done').length === 2);
+    socket.close();
+
+    expect(ttsRequests[0]?.prefer).toEqual([ttsId]);
+    expect(ttsRequests[1]?.prefer).toBeUndefined();
+    const used = collected.messages.filter((m) => m.type === 'voice_used');
+    expect(used[0]).toMatchObject({ type: 'voice_used', turnId: 't1', voice: 'other' });
   });
 });

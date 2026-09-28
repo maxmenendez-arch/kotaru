@@ -55,6 +55,8 @@ export interface TurnInput {
   readonly voice: VoiceConfig;
   readonly quality: QualityTier;
   readonly predicted: PredictedUsage;
+  /** Voz pedida para este turno (ids de proveedor, en orden); el resto queda de respaldo. */
+  readonly ttsPrefer?: readonly string[];
 }
 
 /**
@@ -280,7 +282,13 @@ async function drive(
     });
     const speak = input.speak !== false;
     const ttsDecision = speak
-      ? deps.router.select({ capability: 'tts', quality: input.quality, ctx, predicted: input.predicted })
+      ? deps.router.select({
+          capability: 'tts',
+          quality: input.quality,
+          ctx,
+          predicted: input.predicted,
+          ...(input.ttsPrefer && input.ttsPrefer.length > 0 ? { prefer: input.ttsPrefer } : {}),
+        })
       : null;
 
     const sentences = new AsyncQueue<TextChunk>();

@@ -42,6 +42,31 @@ describe('cliente', () => {
     client.close();
   });
 
+  it('la voz elegida en Ajustes se envia al conectar y al cambiarla; "auto" no manda nada al conectar', async () => {
+    const sent: { type: string; choice?: string }[] = [];
+    let socket!: FakeSocket;
+    const make = () =>
+      new ConversationClient({
+        url: 'ws://x', getGrant: async () => 'g', onEvent: () => undefined,
+        createSocket: () =>
+          (socket = new FakeSocket((m) => {
+            sent.push(m as { type: string; choice?: string });
+            if (m.type === 'hello') socket.receive({ type: 'ready', sessionId: 's', protocolVersion: PROTOCOL_VERSION, voiceAvailable: true });
+          })),
+      });
+    const auto = make();
+    await auto.connect();
+    expect(sent.filter((m) => m.type === 'voice_choice')).toEqual([]);
+    auto.close();
+    const client = make();
+    client.setVoiceChoice('cartesia');
+    await client.connect();
+    expect(sent.filter((m) => m.type === 'voice_choice')).toEqual([{ type: 'voice_choice', choice: 'cartesia' }]);
+    client.setVoiceChoice('auto');
+    expect(sent.filter((m) => m.type === 'voice_choice').at(-1)).toEqual({ type: 'voice_choice', choice: 'auto' });
+    client.close();
+  });
+
   it('el aviso de limite no tapa la tarjeta de crisis', async () => {
     const events: ClientEvent[] = [];
     let socket!: FakeSocket;

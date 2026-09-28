@@ -256,4 +256,20 @@ describe('preferencia del operador', () => {
     const withoutMain = new DefaultAiRouter({ preferred: { tts: ['realista', 'media'] } }).register(cheap).register(mid);
     expect(withoutMain.select(req()).providerId).toBe('media');
   });
+
+  it('lo que pide la peticion (la voz elegida en Ajustes) va antes que el operador; el resto sigue de respaldo', () => {
+    const cheap = provider('barata', 0.001, { capability: 'tts', quality: 0.6 });
+    const mid = provider('media', 0.02, { capability: 'tts', quality: 0.85 });
+    const good = provider('realista', 0.01, { capability: 'tts', quality: 0.88 });
+    const r = new DefaultAiRouter({ preferred: { tts: ['realista', 'media'] } }).register(cheap).register(mid).register(good);
+    const d = r.select({ ...req(), prefer: ['media'] });
+    expect(d.providerId).toBe('media');
+    expect(d.fallbacks).toEqual(['realista', 'barata']);
+    // Si lo pedido no se puede usar, manda el orden del operador.
+    const blocked = new DefaultAiRouter({ preferred: { tts: ['realista'] } })
+      .register(cheap)
+      .register(good)
+      .register(provider('media', 0.02, { capability: 'tts', quality: 0.85, trainingOptOut: false }));
+    expect(blocked.select({ ...req(), prefer: ['media'] }).providerId).toBe('realista');
+  });
 });

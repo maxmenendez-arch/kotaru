@@ -53,7 +53,10 @@ const RING: Record<ConversationState, string> = {
   closed: color.inkLine,
 };
 
-export function Conversation({ lang, connection }: { lang: Lang; connection: Connection | null }) {
+export type VoiceChoice = 'auto' | 'gemini' | 'cartesia';
+const VOICE_NAMES: Readonly<Record<string, string>> = { gemini: 'Gemini', cartesia: 'Cartesia', kokoro: 'Kokoro' };
+
+export function Conversation({ lang, connection, voiceChoice = 'auto' }: { lang: Lang; connection: Connection | null; voiceChoice?: VoiceChoice }) {
   const s = t(lang);
   const [state, setState] = useState<ConversationState>('closed');
   const [heard, setHeard] = useState('');
@@ -65,6 +68,8 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const [history, setHistory] = useState<Exchange[]>([]);
   // El servidor dice al conectar si puede oir de verdad; hasta entonces se asume que si.
   const [voiceOn, setVoiceOn] = useState(true);
+  // Que voz hablo en la ultima respuesta (solo se muestra si se eligio una en Ajustes).
+  const [voiceUsed, setVoiceUsed] = useState<string | null>(null);
   const [companionId, setCompanionId] = useState<CompanionId>('luna');
   const companion = companionById(companionId);
   // Por personaje: su conversacion en el servidor (para retomarla) y lo que se vio en pantalla.
@@ -88,6 +93,16 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
 
   useEffect(installNoSelect, []);
 
+  // El servidor manda la respuesta mas rapido de lo que se oye: el turno termina con voz
+  // todavia en cola. El ambiente sigue bajo hasta que esa voz acaba de sonar.
+  const speakingState = useRef(false);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      ambient.duck(speakingState.current || speaker.current.isPlaying?.() === true);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [ambient]);
+
   useEffect(
     () => () => {
       client.current?.close();
@@ -109,8 +124,10 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     switch (e.type) {
       case 'state':
         setState(e.state);
-        // El ambiente baja mientras habla el personaje, para que se le entienda.
-        ambient.duck(e.state === 'speaking');
+        // El ambiente baja mientras habla el personaje (ver el efecto de mas abajo, que
+        // ademas espera a que termine de sonar lo que quedo en cola).
+        speakingState.current = e.state === 'speaking';
+        ambient.duck(speakingState.current || speaker.current.isPlaying?.() === true);
         if (e.state === 'interrupted') speaker.current.stopNow();
         return;
       case 'user_transcript':
@@ -132,6 +149,9 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         return;
       case 'voice':
         setVoiceOn(e.available);
+        return;
+      case 'voice_used':
+        setVoiceUsed(VOICE_NAMES[e.voice] ?? e.voice);
         return;
       case 'usage':
         setMinutes(Math.floor(e.remainingSeconds / 60));
@@ -164,6 +184,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
       },
     });
     next.setMode(modes[who] ?? 'ask');
+    next.setVoiceChoice(voiceChoice);
     client.current = next;
     setLimitNote(null);
     try {
@@ -238,6 +259,11 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     client.current?.stopTalking();
   };
 
+  useEffect(() => {
+    client.current?.setVoiceChoice(voiceChoice);
+    if (voiceChoice === 'auto') setVoiceUsed(null);
+  }, [voiceChoice]);
+
   const chooseMode = (m: ConversationMode) => {
     setModes((all) => ({ ...all, [companionId]: m }));
     client.current?.setMode(m);
@@ -281,6 +307,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         {state === 'closed' && history.length === 0 ? <Text style={styles.tagline}>{companion.tagline[lang]}</Text> : null}
         {companion.flirts ? <ModePicker mode={mode} onChoose={chooseMode} lang={lang} accent={companion.accent} /> : null}
         {minutes !== null && voiceOn ? <Text style={styles.minutes}>{s.minutesLeft(minutes)}</Text> : null}
+        {voiceChoice !== 'auto' && voiceUsed ? <Text style={styles.minutes}>{s.voiceUsed(voiceUsed)}</Text> : null}
       </View>
 
       {state === 'safety_handoff' ? (

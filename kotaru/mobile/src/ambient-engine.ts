@@ -10,7 +10,18 @@ import type { Ambient, AmbientKind } from './ambient-types';
  */
 
 const FADE_S = 1.2;
-const DUCK_LEVEL = 0.3;
+/** Mientras habla el personaje el ambiente queda casi de fondo, para que se le entienda. */
+const DUCK_LEVEL = 0.15;
+/** Baja rapido cuando empieza a hablar y vuelve despacio cuando termina. */
+const DUCK_DOWN_S = 0.15;
+const DUCK_UP_S = 0.9;
+
+export interface EngineOptions {
+  /** Donde se conecta el volumen maestro (en la web, la mezcla con limitador). */
+  readonly output?: (ctx: AudioContext) => AudioNode;
+  /** El contexto es compartido con la voz: al cerrar la pantalla no se cierra. */
+  readonly sharedContext?: boolean;
+}
 
 /** Un sonido en marcha: sus nodos y sus temporizadores, para pararlo limpio. */
 interface Voice {
@@ -28,15 +39,17 @@ export class EngineAmbient implements Ambient {
   #ducked = false;
   readonly #makeContext: () => AudioContext | null;
   readonly #beforePlay: () => void;
+  readonly #options: EngineOptions;
 
   /**
    * @param makeContext crea el contexto de audio (Web Audio en el navegador,
    *   react-native-audio-api en iOS/Android: tienen los mismos nodos).
    * @param beforePlay se llama antes de sonar (en el movil activa la sesion de audio).
    */
-  constructor(makeContext: () => AudioContext | null, beforePlay: () => void = () => undefined) {
+  constructor(makeContext: () => AudioContext | null, beforePlay: () => void = () => undefined, options: EngineOptions = {}) {
     this.#makeContext = makeContext;
     this.#beforePlay = beforePlay;
+    this.#options = options;
   }
 
   get playing(): AmbientKind | null {
@@ -73,14 +86,16 @@ export class EngineAmbient implements Ambient {
   duck(on: boolean): void {
     if (this.#ducked === on) return;
     this.#ducked = on;
-    this.#applyMaster(0.4);
+    this.#applyMaster(on ? DUCK_DOWN_S : DUCK_UP_S);
   }
 
   dispose(): void {
     this.#current?.voice.stop();
     this.#current = null;
-    void this.#context?.close();
+    if (this.#options.sharedContext) this.#master?.disconnect();
+    else void this.#context?.close();
     this.#context = null;
+    this.#master = null;
   }
 
   #ensure(): AudioContext | null {
@@ -89,7 +104,7 @@ export class EngineAmbient implements Ambient {
     if (!ctx) return null;
     this.#context = ctx;
     this.#master = ctx.createGain();
-    this.#master.connect(ctx.destination);
+    this.#master.connect(this.#options.output?.(ctx) ?? ctx.destination);
     this.#noise = { white: noise(ctx, 'white'), pink: noise(ctx, 'pink'), brown: noise(ctx, 'brown') };
     this.#applyMaster(0);
     return ctx;

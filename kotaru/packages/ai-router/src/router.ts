@@ -169,7 +169,9 @@ export class DefaultAiRouter implements AiRouter {
     // primero es la opcion principal y los siguientes, los respaldos preferidos). Los que no
     // pueden usarse ya se excluyeron arriba; el resto sigue ordenado por puntuacion.
     const pinned = this.#preferred[req.capability];
-    const order = pinned === undefined ? [] : typeof pinned === 'string' ? [pinned] : pinned;
+    const operator = pinned === undefined ? [] : typeof pinned === 'string' ? [pinned] : pinned;
+    // Lo que pide la propia peticion va antes que la preferencia del operador.
+    const order = [...new Set([...(req.prefer ?? []), ...operator])];
     for (const id of [...order].reverse()) {
       const at = scored.findIndex((s) => s.candidate.provider.descriptor.id === id);
       if (at > 0) scored.unshift(...scored.splice(at, 1));

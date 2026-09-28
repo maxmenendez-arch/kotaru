@@ -6,7 +6,7 @@ import { openAccount, SERVER_URL } from './src/auth';
 import type { Connection } from './src/connection';
 import type { Lang } from './src/i18n';
 import { t } from './src/i18n';
-import { Conversation } from './src/screens/Conversation';
+import { Conversation, type VoiceChoice } from './src/screens/Conversation';
 import { Memories } from './src/screens/Memories';
 import { Settings } from './src/screens/Settings';
 import { SignIn } from './src/screens/SignIn';
@@ -25,6 +25,8 @@ export default function App() {
   const [welcomed, setWelcomed] = useState(false);
   const [tab, setTab] = useState<Tab>('talk');
   const [connection, setConnection] = useState<Connection | null>(null);
+  // Voz elegida en Ajustes para probar (se olvida al recargar: es para comparar, no una preferencia).
+  const [voiceChoice, setVoiceChoice] = useState<VoiceChoice>('auto');
   // Con servidor de cuentas configurado: 'loading' hasta leer la sesion guardada,
   // 'signin' si no la hay, 'app' dentro. Sin servidor se entra directo (desarrollo).
   const [gate, setGate] = useState<'loading' | 'signin' | 'app'>(SERVER_URL ? 'loading' : 'app');
@@ -95,13 +97,15 @@ export default function App() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <View style={styles.body}>
-        {tab === 'talk' ? <Conversation lang={lang} connection={connection} /> : null}
+        {tab === 'talk' ? <Conversation lang={lang} connection={connection} voiceChoice={voiceChoice} /> : null}
         {tab === 'memory' ? <Memories lang={lang} connection={connection} /> : null}
         {tab === 'settings' ? (
           <Settings
             lang={lang}
             connection={connection}
             showDevConnection={showDevConnection}
+            voiceChoice={voiceChoice}
+            onVoiceChoice={setVoiceChoice}
             onConnection={(c) => {
               setConnection(c);
               setTab('talk');
