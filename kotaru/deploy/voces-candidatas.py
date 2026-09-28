@@ -114,7 +114,7 @@ def main():
                             walk(value)
 
             walk(data)
-            spanish = [v for v in voices if re.search(r"span|espa|\bes[-_]|latin|mexic", v[2], re.I)]
+            spanish = [v for v in voices if re.search(r'span|espa|latin|mexic|"language": "es', v[2], re.I)]
             print(f"[together] {mid}: {len(voices)} voces, {len(spanish)} en espanol: "
                   + ", ".join(f"{n}={i}" for n, i, _ in spanish[:12]))
             rows.append((mid, spanish or voices[:3]))
