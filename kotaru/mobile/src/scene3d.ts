@@ -49,6 +49,68 @@ class Kit {
     return m;
   }
 
+  /** Textura dibujada con canvas 2D (cielos, ciudad, nubes). Solo en navegador. */
+  canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+    draw(ctx, width, height);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return this.track(texture);
+  }
+
+  #glowTexture: THREE.CanvasTexture | null = null;
+  /** Punto de luz suave (centro blanco que se desvanece): luces, chispas, luciernagas. */
+  glowSprite(): THREE.CanvasTexture {
+    this.#glowTexture ??= this.canvasTexture(64, 64, (ctx, w) => {
+      const g = ctx.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(0.25, 'rgba(255,255,255,0.8)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, w);
+    });
+    return this.#glowTexture;
+  }
+
+  /**
+   * Nube de puntos luminosos que se mueven. `size` es el de three.js con atenuacion: a unos
+   * 4 m de la camara, 0,1 son unos 6 puntos de pantalla en el escenario normal.: `step(i, t, p)` escribe la posicion del punto i
+   * en `p` (x, y, z) y devuelve su brillo (0-1). Brillo por punto via color.
+   */
+  movingLights(count: number, size: number, color: (i: number) => number, step: (i: number, t: number, p: THREE.Vector3) => number): void {
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const base = Array.from({ length: count }, (_, i) => new THREE.Color(color(i)));
+    const geo = this.track(new THREE.BufferGeometry());
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const mat = this.track(
+      new THREE.PointsMaterial({ size, map: this.glowSprite(), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
+    );
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    this.group.add(points);
+    const p = new THREE.Vector3();
+    const update = (t: number) => {
+      for (let i = 0; i < count; i++) {
+        const k = step(i, t, p);
+        positions[i * 3] = p.x;
+        positions[i * 3 + 1] = p.y;
+        positions[i * 3 + 2] = p.z;
+        colors[i * 3] = base[i]!.r * k;
+        colors[i * 3 + 1] = base[i]!.g * k;
+        colors[i * 3 + 2] = base[i]!.b * k;
+      }
+      geo.attributes['position']!.needsUpdate = true;
+      geo.attributes['color']!.needsUpdate = true;
+    };
+    update(0);
+    this.updaters.push(update);
+  }
+
   track<T extends { dispose(): void }>(thing: T): T {
     this.#disposables.push(thing);
     return thing;
@@ -272,27 +334,154 @@ function novaRoom(kit: Kit, focus: THREE.Vector3): void {
   kit.box(8, 0.05, 8, kit.matte(0x241318, 0.6), 0, -0.025, -1.5);
   kit.mesh(new THREE.CircleGeometry(1.1, 40), kit.matte(0x8a4a67, 1), 0.2, 0.002, -1.6).rotation.x = -Math.PI / 2;
 
-  // Ventana a la derecha con la ciudad de noche.
+  // Ventana a la derecha: la ciudad de noche bajo la lluvia.
   const win = { x: 1.0, y: focus.y + 0.2, w: 1.2, h: 1.5 };
-  kit.box(win.w, win.h, 0.02, kit.glow(0x1a2350, 1, false), win.x, win.y, wallZ + 0.06);
-  // Edificios recortados y ventanas encendidas.
-  const skyline = kit.glow(0x0e1230, 1, false);
-  const lit = [kit.glow(0xffd28a, 1, false), kit.glow(0xffb3d1, 1, false), kit.glow(0x9fd0ff, 1, false)];
-  let bx = win.x - win.w / 2 + 0.04;
-  while (bx < win.x + win.w / 2 - 0.08) {
-    const bw = 0.1 + kit.random() * 0.14;
-    const bh = 0.3 + kit.random() * 0.7;
-    const baseY = win.y - win.h / 2;
-    kit.box(bw, bh, 0.01, skyline, bx + bw / 2, baseY + bh / 2, wallZ + 0.075);
-    for (let wy = baseY + 0.06; wy < baseY + bh - 0.05; wy += 0.07) {
-      for (let wx = bx + 0.025; wx < bx + bw - 0.02; wx += 0.045) {
-        if (kit.random() < 0.35) kit.box(0.018, 0.024, 0.005, lit[Math.floor(kit.random() * 3)]!, wx, wy, wallZ + 0.082);
-      }
+  const glassZ = wallZ + 0.12;
+  const cityZ = wallZ + 0.06;
+  // Altura de los carros en la vista (el bulevar ocupa la parte baja de la ventana).
+  const street = { y: win.y - win.h / 2 + 0.26 };
+  // La vista: cielo nublado que brilla con las luces de la ciudad, edificios a dos
+  // distancias con ventanas encendidas y un bulevar abajo. Pintada una vez en canvas.
+  const cityRandom = seeded(90210);
+  const cityTex = kit.canvasTexture(512, 640, (ctx, w, h) => {
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#0b0f26');
+    sky.addColorStop(0.55, '#231a45');
+    sky.addColorStop(0.8, '#4a2f5e');
+    sky.addColorStop(1, '#2a1d3a');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+    // Nubes bajas iluminadas desde abajo.
+    for (let i = 0; i < 14; i++) {
+      const g = ctx.createRadialGradient(cityRandom() * w, h * (0.15 + cityRandom() * 0.4), 0, cityRandom() * w, h * 0.3, 90 + cityRandom() * 120);
+      g.addColorStop(0, 'rgba(120,90,150,0.18)');
+      g.addColorStop(1, 'rgba(120,90,150,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
     }
-    bx += bw + 0.015;
-  }
-  // Luna llena pequeña en el cielo de la ventana.
-  kit.mesh(new THREE.CircleGeometry(0.07, 24), kit.glow(0xfff0e0, 1, false), win.x + 0.3, win.y + win.h / 2 - 0.2, wallZ + 0.075);
+    const building = (x: number, bw: number, top: number, fill: string, lit: number, blur: number) => {
+      ctx.filter = blur > 0 ? `blur(${blur}px)` : 'none';
+      ctx.fillStyle = fill;
+      ctx.fillRect(x, top, bw, h - top);
+      const colors = ['#ffd28a', '#ffe7b8', '#9fd0ff', '#ffb3d1'];
+      for (let wy = top + 8; wy < h - 60; wy += 12) {
+        for (let wx = x + 5; wx < x + bw - 6; wx += 9) {
+          if (cityRandom() < lit) {
+            ctx.fillStyle = colors[Math.floor(cityRandom() * colors.length)]!;
+            ctx.globalAlpha = 0.55 + cityRandom() * 0.45;
+            ctx.fillRect(wx, wy, 4, 6);
+            ctx.globalAlpha = 1;
+          }
+        }
+      }
+      ctx.filter = 'none';
+    };
+    // Lejos: bajos, borrosos y morados.
+    for (let x = -10; x < w; ) {
+      const bw = 30 + cityRandom() * 50;
+      building(x, bw, h * (0.35 + cityRandom() * 0.25), '#1c1638', 0.25, 2);
+      x += bw + 2;
+    }
+    // Cerca: altos, nitidos, casi negros.
+    for (let x = -20; x < w; ) {
+      const bw = 50 + cityRandom() * 70;
+      building(x, bw, h * (0.18 + cityRandom() * 0.4), '#0a0a1a', 0.33, 0);
+      // Antena con luz roja en algunos.
+      x += bw + 6 + cityRandom() * 20;
+    }
+    // Bulevar mojado: asfalto con reflejos de luces.
+    const road = ctx.createLinearGradient(0, h - 150, 0, h);
+    road.addColorStop(0, '#15101f');
+    road.addColorStop(1, '#241a2e');
+    ctx.fillStyle = road;
+    ctx.fillRect(0, h - 150, w, 150);
+    for (let i = 0; i < 60; i++) {
+      ctx.fillStyle = i % 2 ? 'rgba(255,200,140,0.16)' : 'rgba(255,90,120,0.13)';
+      ctx.fillRect(cityRandom() * w, h - 140 + cityRandom() * 130, 2, 10 + cityRandom() * 24);
+    }
+    // Farolas.
+    for (let x = 30; x < w; x += 110) {
+      ctx.fillStyle = '#0a0a14';
+      ctx.fillRect(x, h - 215, 3, 70);
+      const g = ctx.createRadialGradient(x + 1, h - 215, 0, x + 1, h - 215, 26);
+      g.addColorStop(0, 'rgba(255,215,160,0.95)');
+      g.addColorStop(1, 'rgba(255,215,160,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - 26, h - 241, 54, 54);
+    }
+  });
+  kit.mesh(new THREE.PlaneGeometry(win.w, win.h), kit.track(new THREE.MeshBasicMaterial({ map: cityTex, fog: false })), win.x, win.y, cityZ);
+
+  // Luces de los carros por el bulevar: faros blancos hacia un lado, pilotos rojos hacia
+  // el otro, a velocidades distintas.
+  const carCount = 14;
+  const carSpeed = Array.from({ length: carCount }, () => 0.12 + kit.random() * 0.1);
+  const carOffset = Array.from({ length: carCount }, () => kit.random());
+  kit.movingLights(
+    carCount * 2,
+    0.17,
+    (i) => (Math.floor(i / 2) % 2 ? 0xff3b3b : 0xfff2d6),
+    (i, t, p) => {
+      const car = Math.floor(i / 2);
+      const dir = car % 2 ? -1 : 1;
+      const u = (carOffset[car]! + t * carSpeed[car]! * dir + 10) % 1;
+      const lane = car % 2 ? 0.0 : 0.045;
+      p.set(win.x - win.w / 2 + u * win.w + (i % 2) * 0.028 * dir, street.y - 0.12 + lane, cityZ + 0.01);
+      // Se apagan al llegar a los bordes (entran y salen de la vista).
+      return Math.min(1, u * 8, (1 - u) * 8);
+    },
+  );
+  // Alguna ventana que se enciende y se apaga, y la luz roja de una antena.
+  const blink = [
+    [win.x - 0.3, win.y + 0.1],
+    [win.x + 0.15, win.y - 0.05],
+    [win.x + 0.4, win.y + 0.25],
+    [win.x - 0.1, win.y + 0.3],
+  ];
+  kit.movingLights(blink.length, 0.09, () => 0xffd28a, (i, t, p) => {
+    p.set(blink[i]![0]!, blink[i]![1]!, cityZ + 0.01);
+    return Math.sin(t * 0.21 + i * 2.3) > 0.3 ? 0.9 : 0;
+  });
+  kit.movingLights(1, 0.14, () => 0xff2020, (_i, t, p) => {
+    p.set(win.x - 0.05, win.y + win.h / 2 - 0.35, cityZ + 0.01);
+    return Math.sin(t * 3) > 0.6 ? 1 : 0.15;
+  });
+
+  // Lluvia afuera: trazos finos que caen en diagonal entre la ciudad y el cristal.
+  const drops = 160;
+  const rainPos = new Float32Array(drops * 6);
+  const rainSeed = Array.from({ length: drops }, () => [kit.random(), kit.random(), 0.8 + kit.random() * 0.6] as const);
+  const rainGeo = kit.track(new THREE.BufferGeometry());
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+  const rain = new THREE.LineSegments(rainGeo, kit.track(new THREE.LineBasicMaterial({ color: 0xb8c4ff, transparent: true, opacity: 0.35, fog: false })));
+  rain.frustumCulled = false;
+  kit.group.add(rain);
+  kit.updaters.push((t) => {
+    for (let i = 0; i < drops; i++) {
+      const [sx, sy, speed] = rainSeed[i]!;
+      const fall = (sy + t * speed) % 1;
+      const x = win.x - win.w / 2 + ((sx + fall * 0.08) % 1) * win.w;
+      const y = win.y + win.h / 2 - fall * win.h;
+      const len = 0.05 + speed * 0.03;
+      rainPos.set([x, y, cityZ + 0.02, x - len * 0.18, y - len, cityZ + 0.02], i * 6);
+    }
+    rainGeo.attributes['position']!.needsUpdate = true;
+  });
+
+  // Gotas en el cristal: bajan despacio y a saltos, cada una a su ritmo.
+  const beads = 45;
+  const bead = Array.from({ length: beads }, () => ({ x: kit.random(), y: kit.random(), speed: 0.01 + kit.random() * 0.05, phase: kit.random() * 10 }));
+  kit.movingLights(beads, 0.07, () => 0xcfd8ff, (i, t, p) => {
+    const b = bead[i]!;
+    // A saltos: casi quietas y de pronto resbalan un tramo.
+    const stepT = t * b.speed * 6 + b.phase;
+    const slide = Math.floor(stepT) + Math.min(1, (stepT % 1) * 3);
+    const y = (b.y + slide * 0.06) % 1;
+    p.set(win.x - win.w / 2 + 0.03 + b.x * (win.w - 0.06), win.y + win.h / 2 - 0.03 - y * (win.h - 0.06), glassZ);
+    return 0.55;
+  });
+  // El cristal: un velo frio muy tenue (se nota que hay vidrio y humedad).
+  kit.mesh(new THREE.PlaneGeometry(win.w, win.h), kit.glow(0x8090c0, 0.08, false), win.x, win.y, glassZ - 0.005);
   const frame = kit.matte(0x1a0d1c, 0.5);
   kit.box(win.w + 0.08, 0.05, 0.08, frame, win.x, win.y + win.h / 2, wallZ + 0.09);
   kit.box(win.w + 0.08, 0.05, 0.08, frame, win.x, win.y - win.h / 2, wallZ + 0.09);
