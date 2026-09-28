@@ -85,6 +85,8 @@ export class GeminiTtsProvider implements TextToSpeechProvider {
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
   #lastError: number | null = null;
+  /** Cuota agotada (p. ej. el tope diario de peticiones): no se llama a Google hasta entonces. */
+  #blockedUntil = 0;
 
   constructor(options: GeminiTtsOptions) {
     if (!options.apiKey) throw new Error('Gemini TTS: falta la clave de API');
@@ -113,9 +115,15 @@ export class GeminiTtsProvider implements TextToSpeechProvider {
     const style = voice.locale.startsWith('es') ? chosen.style.es : chosen.style.en;
     let seq = 0;
 
-    for await (const chunk of text) {
+    if (this.#now() < this.#blockedUntil) {
+      // Cuota agotada: se falla al instante para que el orquestador pase al respaldo sin
+      // esperar a Google en cada turno.
+      throw new ProviderError(this.descriptor.id, 'quota_exhausted', true, 429);
+    }
+
+    for await (const group of batched(text)) {
       if (ctx.signal.aborted) return;
-      for (const piece of split(chunk.text.trim())) {
+      for (const piece of split(group)) {
         const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.deadlineMs)]);
         let response: Response;
         try {
@@ -149,7 +157,9 @@ export class GeminiTtsProvider implements TextToSpeechProvider {
         }
         if (!response.ok) {
           this.#lastError = this.#now();
-          throw await httpError(this.descriptor.id, response);
+          const error = await httpError(this.descriptor.id, response);
+          if (error.status === 429) this.#blockedUntil = this.#now() + error.retryAfterMs;
+          throw error;
         }
 
         const pcm = new PcmStripper();
@@ -159,6 +169,11 @@ export class GeminiTtsProvider implements TextToSpeechProvider {
             if (ctx.signal.aborted) return;
             if (event.error) {
               this.#lastError = this.#now();
+              const quota = quotaWait(`${event.error.status ?? ''} ${event.error.message ?? ''}`, event.error.code);
+              if (quota !== null) {
+                this.#blockedUntil = this.#now() + quota;
+                throw new ProviderError(this.descriptor.id, 'quota_exhausted', true, 429);
+              }
               throw new ProviderError(this.descriptor.id, (event.error.status ?? 'stream_error').toLowerCase(), true);
             }
             if (event.event_type !== 'step.delta' || event.delta?.type !== 'audio' || !event.delta.data) continue;
@@ -194,6 +209,9 @@ export class GeminiTtsProvider implements TextToSpeechProvider {
   }
 
   async health(): Promise<ProviderHealth> {
+    if (this.#now() < this.#blockedUntil) {
+      return { status: 'down', p95LatencyMs: 0, errorRate: 1, observedAt: new Date().toISOString() };
+    }
     const recent = this.#lastError !== null && this.#now() - this.#lastError < 60_000;
     return { status: recent ? 'degraded' : 'healthy', p95LatencyMs: 0, errorRate: recent ? 1 : 0, observedAt: new Date().toISOString() };
   }
@@ -271,16 +289,59 @@ function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
   return out;
 }
 
-async function httpError(providerId: string, response: Response): Promise<ProviderError> {
+async function httpError(providerId: string, response: Response): Promise<ProviderError & { retryAfterMs: number }> {
   let status = '';
+  let message = '';
   try {
-    const body = (await response.json()) as { error?: { status?: string } };
+    const body = (await response.json()) as { error?: { status?: string; message?: string } };
     status = body.error?.status ?? '';
+    message = body.error?.message ?? '';
   } catch {
     // cuerpo no JSON
   }
   const retryable = response.status === 429 || response.status >= 500;
-  return new ProviderError(providerId, (status || `http_${response.status}`).toLowerCase(), retryable, response.status);
+  const error = new ProviderError(providerId, (status || `http_${response.status}`).toLowerCase(), retryable, response.status);
+  return Object.assign(error, { retryAfterMs: quotaWait(message, response.status) ?? QUOTA_MIN_WAIT_MS });
+}
+
+/** Sin plazo en el mensaje, un 429 aparta a Gemini este tiempo. */
+const QUOTA_MIN_WAIT_MS = 60_000;
+/** Nunca mas de un dia: si Google dice otra cosa rara, se vuelve a probar manana. */
+const QUOTA_MAX_WAIT_MS = 24 * 3600_000;
+
+/**
+ * Cuanto esperar si el error es de cuota. Google lo dice en el mensaje ("Please retry in
+ * 17h29m40s" o "retry in 12.5s"); null si no es un error de cuota.
+ */
+export function quotaWait(message: string, code?: number): number | null {
+  const isQuota = code === 429 || /rate limit|quota|resource.?exhausted/i.test(message);
+  if (!isQuota) return null;
+  const m = /retry in\s+(?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?/i.exec(message);
+  if (!m || (!m[1] && !m[2] && !m[3])) return QUOTA_MIN_WAIT_MS;
+  const ms = ((Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60 + Number(m[3] ?? 0)) * 1000;
+  return Math.min(QUOTA_MAX_WAIT_MS, Math.max(1000, Math.ceil(ms)));
+}
+
+/**
+ * Agrupa el texto que llega por frases en MENOS peticiones: la primera frase sale sola
+ * (para que la voz empiece cuanto antes) y todo lo demas va junto en una segunda peticion.
+ * Cada peticion cuenta para la cuota diaria de Google, asi que un turno usa 1 o 2, no una
+ * por frase.
+ */
+async function* batched(text: AsyncIterable<TextChunk>): AsyncIterable<string> {
+  let first = true;
+  let rest = '';
+  for await (const chunk of text) {
+    const piece = chunk.text.trim();
+    if (!piece) continue;
+    if (first) {
+      first = false;
+      yield piece;
+    } else {
+      rest = rest ? `${rest} ${piece}` : piece;
+    }
+  }
+  if (rest) yield rest;
 }
 
 /** Lee un cuerpo SSE y entrega cada `data:` ya parseado (ignora `[DONE]` y comentarios). */

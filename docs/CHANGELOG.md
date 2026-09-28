@@ -999,3 +999,17 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Verificado: 428 pruebas + 14 de la app (lógica del avatar), `typecheck`, lint; Playwright
   con WebGL: los tres modelos cargan en menos de 1 s en local, se cambia de personaje sin
   perder el contexto WebGL, el retrato se achica sin recargar y no hay errores de CSP.
+
+## 2026-09-28 — La voz de Gemini se agotaba (cuota diaria)
+
+- **Causa**: la voz de Gemini (`gemini-3.8-flash-lite-tts`) tiene un tope de **100 peticiones
+  al día** en el nivel 1 de Google, y el adaptador hacía una petición por frase (3 a 6 por
+  turno). Hacia las 02:20 (hora de Cuba) se agotó y cada turno caía a Kokoro, que suena
+  distinto: parecía "otro modelo". El texto seguía siendo Gemini. Diagnóstico:
+  `app.turn_metrics` (tts_provider y fallback_used) y `deploy/diag-tts.sh`.
+- **Arreglo**: un turno gasta como mucho 2 peticiones (la primera frase sola, para que empiece
+  a hablar enseguida, y el resto junto). Con la cuota agotada, el adaptador lee el plazo que
+  da Google ("retry in 17h29m40s"), deja de llamarlo hasta entonces y falla al instante, así
+  el respaldo entra sin esperar. Salud `down` mientras dure.
+- Pendiente del dueño: subir de nivel en Google (nivel 2: 100 USD pagados y 3 días desde el
+  primer pago) o pedir más cuota; con el tope actual da para unos 50 turnos de voz al día.
