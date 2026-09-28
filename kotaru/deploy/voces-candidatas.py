@@ -80,8 +80,8 @@ def main():
             for m in json.loads(raw):
                 mid = m.get("id", "")
                 kind = (m.get("type") or "").lower()
-                if "audio" in kind or "tts" in kind or re.search(r"sonic|rime|arcana|mist|minimax|speech|orpheus|kokoro|tts", mid, re.I):
-                    if re.search(r"whisper|parakeet|nemotron|asr|transcri", mid, re.I):
+                if re.match(r"(rime-labs|minimax|cartesia|deepgram|canopylabs|hexgrad|elevenlabs|inworld|resemble)/", mid, re.I) or kind in ("audio", "tts"):
+                    if re.search(r"whisper|parakeet|nemotron|asr|transcri|nova-", mid, re.I):
                         continue
                     price = (m.get("pricing") or {})
                     models.append(mid)
@@ -94,12 +94,26 @@ def main():
                 print(f"[together] {mid}: voces HTTP {status} {short(raw, 160)}")
                 continue
             data = json.loads(raw)
+            if "--crudo" in sys.argv:
+                print(f"[together] {mid} crudo: {short(raw, 500)}")
             voices = []
-            for entry in data.get("data", data if isinstance(data, list) else []):
-                for v in entry.get("voices", [entry]) if isinstance(entry, dict) else []:
-                    name = v.get("name") or v.get("id") or ""
-                    blob = json.dumps(v, ensure_ascii=False)
-                    voices.append((name, v.get("id", name), blob))
+
+            def walk(node):
+                if isinstance(node, dict):
+                    if ("id" in node or "name" in node) and not isinstance(node.get("voices"), list):
+                        name = str(node.get("name") or node.get("id"))
+                        voices.append((name, str(node.get("id") or name), json.dumps(node, ensure_ascii=False)))
+                        return
+                    for value in node.values():
+                        walk(value)
+                elif isinstance(node, list):
+                    for value in node:
+                        if isinstance(value, str):
+                            voices.append((value, value, value))
+                        else:
+                            walk(value)
+
+            walk(data)
             spanish = [v for v in voices if re.search(r"span|espa|\bes[-_]|latin|mexic", v[2], re.I)]
             print(f"[together] {mid}: {len(voices)} voces, {len(spanish)} en espanol: "
                   + ", ".join(f"{n}={i}" for n, i, _ in spanish[:12]))
