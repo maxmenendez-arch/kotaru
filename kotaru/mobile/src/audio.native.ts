@@ -1,4 +1,5 @@
 import { AudioContext, AudioManager, AudioRecorder, type AudioBufferQueueSourceNode } from 'react-native-audio-api';
+import { configureAudioSession } from './audio-session';
 import { INPUT_SAMPLE_RATE, type AppAudio, type AudioInput, type AudioOutput } from './audio-types';
 import { floatToPcm16, pcm16ToFloat, resampleLinear } from './pcm';
 
@@ -7,24 +8,11 @@ export * from './audio-types';
 /**
  * Audio real en iOS y Android con react-native-audio-api (Software Mansion, MIT).
  *
- * Una sola libreria gobierna la sesion de audio para captura y reproduccion: con dos
- * (p. ej. expo-audio para el micro) cada una reconfigura la sesion de iOS a su manera y
- * se pisan. Sesion `playAndRecord` + `voiceChat`: iOS aplica cancelacion de eco, asi el
- * micro no recoge la voz de Rio cuando el usuario la interrumpe.
+ * Una sola libreria gobierna la sesion de audio para captura y reproduccion (con dos se
+ * pisan); la configuracion esta en audio-session.ts y la comparten los sonidos relajantes.
  *
  * No se guarda audio en ningun sitio: los trozos van al gateway y se olvidan.
  */
-let sessionConfigured = false;
-function configureSession(): void {
-  if (sessionConfigured) return;
-  sessionConfigured = true;
-  AudioManager.setAudioSessionOptions({
-    iosCategory: 'playAndRecord',
-    iosMode: 'voiceChat',
-    iosOptions: ['defaultToSpeaker', 'allowBluetoothHFP'],
-  });
-}
-
 /** 20 ms por trozo: poca latencia y pocas llamadas al puente. */
 const CHUNK_MS = 20;
 
@@ -39,7 +27,7 @@ class NativeMicrophone implements AudioInput {
     if (permission !== 'Granted') return false;
     // Se solto el boton mientras se pedia el permiso.
     if (generation !== this.#generation) return true;
-    configureSession();
+    configureAudioSession();
     await AudioManager.setAudioSessionActivity(true);
 
     const recorder = new AudioRecorder();
@@ -84,7 +72,7 @@ class NativeSpeaker implements AudioOutput {
 
   play(pcm: Uint8Array, sampleRate: number): void {
     if (pcm.byteLength < 2) return;
-    configureSession();
+    configureAudioSession();
     this.#context ??= new AudioContext();
     const context = this.#context;
     // Se remuestrea a la frecuencia del contexto en vez de fiar la conversion al motor:

@@ -1040,3 +1040,15 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - `npm run smoke -- <url> --audio=archivo` y `deploy/prueba-voz.sh "frase"`: prueba de punta
   a punta con voz real (oído, modelo, voz), dice qué proveedores respondieron, la emoción y si
   hubo derivación de crisis. Crea y borra su usuario de prueba.
+
+## 2026-09-28 — Sonidos relajantes en iOS/Android y tarjeta de crisis siempre visible
+
+- **Sonidos nativos**: el motor de los sonidos (`mobile/src/ambient-engine.ts`) es ahora común
+  a la web y al móvil; en iOS/Android corre sobre react-native-audio-api (mismos nodos que
+  Web Audio). La sesión de audio del móvil vive en `audio-session.ts` y la comparten la voz y
+  los sonidos. Verificado: el paquete de iOS compila (`expo export --platform ios`) y en la web
+  siguen sonando lluvia y fogata con su volumen (Playwright). **Falta oírlos en un teléfono.**
+- **Arreglo de seguridad**: si tras una derivación de crisis llegaba el aviso de límite de gasto,
+  el estado pasaba a "límite" y la tarjeta con el 988 desaparecía. Ahora la tarjeta se queda;
+  el límite se avisa igual y se aplica al siguiente turno. Prueba nueva en el cliente y en
+  Playwright (tarjeta visible con el límite activo).

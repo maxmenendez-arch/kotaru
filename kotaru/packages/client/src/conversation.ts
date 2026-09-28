@@ -272,7 +272,9 @@ export class ConversationClient {
         this.#o.onEvent({ type: 'usage', remainingSeconds: message.remainingSeconds, planSeconds: message.planSeconds });
         return;
       case 'limit':
-        this.#set('limit_reached');
+        // Una derivacion de crisis no se tapa con el aviso de limite: la tarjeta de ayuda
+        // sigue a la vista (el limite se avisa igual y se aplica al siguiente turno).
+        if (this.#state !== 'safety_handoff') this.#set('limit_reached');
         this.#o.onEvent({ type: 'limit', kind: message.kind });
         return;
       case 'safety':

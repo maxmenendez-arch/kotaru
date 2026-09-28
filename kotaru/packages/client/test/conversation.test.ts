@@ -23,6 +23,24 @@ describe('cliente', () => {
     expect(events).toContainEqual({ type: 'rejected', reason: 'replayed' });
   });
 
+  it('el aviso de limite no tapa la tarjeta de crisis', async () => {
+    const events: ClientEvent[] = [];
+    let socket!: FakeSocket;
+    const client = new ConversationClient({
+      url: 'ws://x', getGrant: async () => 'g', onEvent: (e) => events.push(e), newTurnId: () => 't1',
+      createSocket: () =>
+        (socket = new FakeSocket((m) => m.type === 'hello' && socket.receive({ type: 'ready', sessionId: 's', protocolVersion: PROTOCOL_VERSION, voiceAvailable: true }))),
+    });
+    await client.connect();
+    client.sendText('ya no quiero vivir');
+    socket.receive({ type: 'safety', turnId: 't1', action: 'crisis_handoff' });
+    socket.receive({ type: 'limit', kind: 'spend' });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(client.state).toBe('safety_handoff');
+    expect(events).toContainEqual({ type: 'limit', kind: 'spend' });
+    client.close();
+  });
+
   it('pasa la emocion del turno actual al avatar y descarta la de un turno viejo', async () => {
     const events: ClientEvent[] = [];
     let socket!: FakeSocket;
