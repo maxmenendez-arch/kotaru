@@ -1135,4 +1135,6 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   (`RouteRequest.prefer`) y, si falla, habla la siguiente. Tras cada respuesta el servidor
   dice qué voz habló (`voice_used`) y la app lo muestra bajo el personaje.
   **Orden de despliegue:** gateway primero, luego la web.
+- `prueba-voz.sh "frase" --voz=gemini|cartesia`: pide esa voz como en Ajustes y comprueba que
+  habló esa.
 - Verificado: 453 pruebas (router, gateway y cliente nuevas), 16 de la app, typecheck y lint.

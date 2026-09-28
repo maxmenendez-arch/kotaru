@@ -32,6 +32,8 @@ const companionArg = process.argv.find((a) => a.startsWith('--personaje='))?.sli
 const sensualArg = process.argv.includes('--sensual');
 /** Modo elegido en la app para Nova o Rio (--modo=friend|flirt). */
 const modeArg = process.argv.find((a) => a.startsWith('--modo='))?.slice('--modo='.length);
+/** Voz elegida como en Ajustes (--voz=gemini|cartesia): comprueba que habla esa. */
+const voiceArg = process.argv.find((a) => a.startsWith('--voz='))?.slice('--voz='.length);
 const voice = Boolean(audioArg) || process.argv.includes('--voz') || config.providers.every((p) => p === 'mock');
 
 /** PCM 16 bits del archivo: sin la cabecera WAV si la trae. */
@@ -97,6 +99,7 @@ try {
     check('sesion de voz aceptada', messages.some((m) => m.type === 'ready'), messages.find((m) => m.type === 'rejected') ? 'rechazada' : undefined);
 
     if (modeArg) ws.send(JSON.stringify({ type: 'mode', mode: modeArg }));
+    if (voiceArg) ws.send(JSON.stringify({ type: 'voice_choice', choice: voiceArg }));
     ws.send(JSON.stringify({ type: 'turn_start', turnId: 'smoke_1' }));
     const frame = 24000 * 2 * 0.02;
     if (audioArg) {
@@ -128,6 +131,10 @@ try {
       if (crisis) check('seguridad', true, 'crisis detectada: se muestran los recursos (988)');
       check('respuesta sin etiquetas de emocion', !/\[\[|\]\]/.test(reply), `"${reply.slice(0, 100)}"`);
       check('emocion para el avatar', true, affect?.emotion ?? 'no llego (no es un fallo)');
+      if (voiceArg && !crisis) {
+        const used = (messages.find((m) => m.type === 'voice_used') as { voice?: string } | undefined)?.voice;
+        check('voz elegida', used === voiceArg, `pedida ${voiceArg}, hablo ${used ?? 'sin aviso'}`);
+      }
       const sql = pgClient({ connectionString: config.databaseUrl, max: 1 });
       try {
         await new Promise((r) => setTimeout(r, 500));
