@@ -65,7 +65,56 @@ def wav_from_pcm(pcm, rate=24000):
             + b"data" + struct.pack("<I", len(pcm)) + pcm)
 
 
+PERSONAJES = {
+    "nova": ("¡Hola, guapo! Te estaba esperando. ¿Sabes que tu sonrisa me alegra el día? Cuéntame algo divertido.",
+             ["Lucia - Radiant Host", "Mariana - Welcome Host", "Carmen - Friendly Neighbor", "Isabella - Warm Storyteller",
+              "Elena - Client Liaison", "Sofia - Methodical Moderator", "Helena - Solution Facilitator"]),
+    "rio": ("¡Qué tal! Hoy traigo un juego buenísimo: adivina en qué animal estoy pensando. Te doy una pista: tiene rayas.",
+            ["Mateo - Friendly Host", "Carlos", "Diego - Hype Guy", "Daniel - Modern Assistant"]),
+}
+
+
+def personajes():
+    """Muestras de Cartesia Sonic-3 para elegir la voz de Nova y de Rio."""
+    key = env("TOGETHER_API_KEY")
+    th = {"Authorization": f"Bearer {key}", "content-type": "application/json"}
+    status, _, raw = call("https://api.together.xyz/v1/voices?model=cartesia/sonic-3", th)
+    ids = {v.get("name"): v.get("id") for v in json.loads(raw).get("voices", [])} if status == 200 else {}
+    os.makedirs(OUT, exist_ok=True)
+    sections = []
+    for who, (text, names) in PERSONAJES.items():
+        items = []
+        for name in names:
+            vid = ids.get(name)
+            if not vid:
+                print(f"  x {who}: no encuentro la voz {name}")
+                continue
+            body = {"model": "cartesia/sonic-3", "input": text, "voice": vid, "response_format": "wav", "language": "es", "stream": False}
+            status, _, audio = call("https://api.together.xyz/v1/audio/speech", th, body, timeout=90)
+            if status != 200 or len(audio) < 4000:
+                print(f"  x {who} {name}: HTTP {status} {short(audio)}")
+                continue
+            filename = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{who}-{name}") + ".wav"
+            with open(os.path.join(OUT, filename), "wb") as f:
+                f.write(audio)
+            items.append(f'<li><div><strong>{name}</strong> <span>{vid}</span></div><audio controls preload="none" src="{filename}"></audio></li>')
+            print(f"  ok {who}: {name}")
+        sections.append(f"<h2>{who.capitalize()}</h2><p>«{text}»</p><ul>{''.join(items)}</ul>")
+    html = f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voces de Nova y Rio</title><style>body{{margin:0;background:#0B1020;color:#F5F7FC;font:16px/1.5 system-ui,sans-serif;padding:24px 16px}}
+main{{max-width:680px;margin:0 auto}}h1{{font-size:24px;margin:0 0 8px}}h2{{margin-top:28px}}p{{color:#AAB3C8}}ul{{list-style:none;padding:0;display:grid;gap:12px}}
+li{{background:#151B31;border:1px solid #252D4A;border-radius:16px;padding:12px 16px;display:grid;gap:8px}}span{{color:#6F7A96;font-size:12px}}audio{{width:100%}}</style></head>
+<body><main><h1>Voz de respaldo (Cartesia) para Nova y Rio</h1><p>Luna ya tiene a Helena. Dime el nombre que te guste para cada uno. Página temporal.</p>{''.join(sections)}</main></body></html>"""
+    with open(os.path.join(OUT, "personajes.html"), "w", encoding="utf-8") as f:
+        f.write(html)
+    os.system(f"chmod -R a+rX {OUT}")
+    print("Listo: https://app.kotaru.app/voces/personajes.html")
+
+
 def main():
+    if "--personajes" in sys.argv:
+        personajes()
+        return
     samples = "--muestras" in sys.argv
     together = env("TOGETHER_API_KEY")
     gemini = env("GEMINI_API_KEY")
