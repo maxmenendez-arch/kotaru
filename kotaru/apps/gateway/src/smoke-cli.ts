@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import WebSocket from 'ws';
 import { PROTOCOL_VERSION, signAccessToken, signGrant, type ServerMessage } from '@kotaru/gateway';
 import { purgeSubject } from '@kotaru/persistence';
@@ -17,10 +18,24 @@ import { pgClient } from './pg-client.js';
  * El turno de voz solo se prueba con proveedores simulados. Con los reales costaria
  * dinero y, como la prueba envia silencio, el STT devolveria vacio y fallaria siempre;
  * se fuerza con --voz (por ejemplo, tras cambiar de proveedor, con alguien hablando).
+ *
+ * Con --audio=archivo.wav (PCM 16 bits mono a 24 kHz, con o sin cabecera WAV) el turno lleva
+ * voz de verdad en vez de silencio: prueba de punta a punta con los proveedores reales
+ * (oido, modelo y voz). Dice que proveedores contestaron, la emocion y el texto. Cuesta
+ * centavos.
  */
 const base = (process.argv.slice(2).find((a) => !a.startsWith('--')) ?? 'http://127.0.0.1:8080').replace(/\/$/, '');
 const config = loadConfig(process.env);
-const voice = process.argv.includes('--voz') || config.providers.every((p) => p === 'mock');
+const audioArg = process.argv.find((a) => a.startsWith('--audio='))?.slice('--audio='.length);
+const voice = Boolean(audioArg) || process.argv.includes('--voz') || config.providers.every((p) => p === 'mock');
+
+/** PCM 16 bits del archivo: sin la cabecera WAV si la trae. */
+function speech(path: string): Buffer {
+  const raw = readFileSync(path);
+  if (raw.subarray(0, 4).toString('latin1') !== 'RIFF') return raw;
+  const at = raw.indexOf('data', 12, 'latin1');
+  return at > 0 ? raw.subarray(at + 8) : raw.subarray(44);
+}
 const subjectId = randomUUID();
 const conversationId = randomUUID();
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -73,11 +88,41 @@ try {
     check('sesion de voz aceptada', messages.some((m) => m.type === 'ready'), messages.find((m) => m.type === 'rejected') ? 'rechazada' : undefined);
 
     ws.send(JSON.stringify({ type: 'turn_start', turnId: 'smoke_1' }));
-    for (let i = 0; i < 25; i += 1) ws.send(Buffer.alloc(24000 * 2 * 0.02), { binary: true });
+    const frame = 24000 * 2 * 0.02;
+    if (audioArg) {
+      // Voz real, a ritmo de tiempo real (como la manda el microfono).
+      const pcm = speech(audioArg);
+      for (let at = 0; at < pcm.byteLength; at += frame) {
+        ws.send(pcm.subarray(at, Math.min(pcm.byteLength, at + frame)), { binary: true });
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    } else {
+      for (let i = 0; i < 25; i += 1) ws.send(Buffer.alloc(frame), { binary: true });
+    }
     ws.send(JSON.stringify({ type: 'turn_end', turnId: 'smoke_1' }));
-    await until(() => messages.some((m) => m.type === 'turn_done'));
+    await until(() => messages.some((m) => m.type === 'turn_done'), audioArg ? 60_000 : 10_000);
     await until(() => messages.filter((m) => m.type === 'usage').length >= 2);
     check('turno completo', messages.some((m) => m.type === 'token') && audioFrames > 0, `${audioFrames} frames de audio`);
+    if (audioArg) {
+      const heard = messages.filter((m) => m.type === 'transcript' && m.final).map((m) => (m as { text: string }).text).join(' ');
+      const reply = messages.filter((m) => m.type === 'token').map((m) => (m as { text: string }).text).join('');
+      const affect = messages.find((m) => m.type === 'affect') as { emotion?: string } | undefined;
+      check('oyo la voz', heard.trim().length > 0, `"${heard.slice(0, 80)}"`);
+      check('respuesta sin etiquetas de emocion', !/\[\[|\]\]/.test(reply), `"${reply.slice(0, 100)}"`);
+      check('emocion para el avatar', true, affect?.emotion ?? 'no llego (no es un fallo)');
+      const sql = pgClient({ connectionString: config.databaseUrl, max: 1 });
+      try {
+        await new Promise((r) => setTimeout(r, 500));
+        const rows = await sql.query<{ stt_provider: string; llm_provider: string; tts_provider: string; fallback_used: boolean; total_cost_usd: string }>(
+          'select stt_provider, llm_provider, tts_provider, fallback_used, total_cost_usd from app.turn_metrics where conversation_id = $1',
+          [conversationId],
+        );
+        const m = rows.rows[0];
+        check('proveedores del turno', Boolean(m), m ? `oido ${m.stt_provider}, modelo ${m.llm_provider}, voz ${m.tts_provider}${m.fallback_used ? ' (respaldo)' : ''}, ${m.total_cost_usd} USD` : 'sin metrica');
+      } finally {
+        await sql.close();
+      }
+    }
     ws.send(JSON.stringify({ type: 'bye' }));
     ws.close();
   }
