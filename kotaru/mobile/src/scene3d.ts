@@ -706,7 +706,34 @@ function novaRoom(kit: Kit, focus: THREE.Vector3): void {
 
   // Espejo redondo con marco dorado a la derecha del corazon.
   kit.mesh(new THREE.TorusGeometry(0.2, 0.025, 10, 40), kit.matte(0xd4af37, 0.35, 0.8), -1.2, focus.y + 0.2, wallZ + 0.08);
-  kit.mesh(new THREE.CircleGeometry(0.2, 32), kit.matte(0x9a6f9e, 0.08, 0.85), -1.2, focus.y + 0.2, wallZ + 0.07);
+  // Cristal del espejo: reflejo difuso del cuarto (rosa arriba, oscuro abajo) con un brillo
+  // diagonal suave, para que se lea como espejo y no como un aro.
+  const mirrorTex = kit.canvasTexture(128, 128, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#b77aa6');
+    g.addColorStop(0.5, '#6d3f6a');
+    g.addColorStop(1, '#2a1528');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(-0.7);
+    const shine = ctx.createLinearGradient(-w, 0, w, 0);
+    shine.addColorStop(0.35, 'rgba(255,255,255,0)');
+    shine.addColorStop(0.47, 'rgba(255,235,245,0.45)');
+    shine.addColorStop(0.53, 'rgba(255,235,245,0.45)');
+    shine.addColorStop(0.65, 'rgba(255,255,255,0)');
+    ctx.fillStyle = shine;
+    ctx.fillRect(-w, -h, 2 * w, 2 * h);
+    ctx.restore();
+    // Reflejo borroso del neon del corazon.
+    const glow = ctx.createRadialGradient(w * 0.72, h * 0.3, 0, w * 0.72, h * 0.3, w * 0.25);
+    glow.addColorStop(0, 'rgba(255,110,180,0.7)');
+    glow.addColorStop(1, 'rgba(255,110,180,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+  });
+  kit.mesh(new THREE.CircleGeometry(0.2, 32), kit.track(new THREE.MeshBasicMaterial({ map: mirrorTex })), -1.2, focus.y + 0.2, wallZ + 0.07);
 
   // Luz de relleno violeta desde abajo a la derecha (ambiente de noche).
   const fill = new THREE.PointLight(0x9a5cff, 1.2, 4, 2);
