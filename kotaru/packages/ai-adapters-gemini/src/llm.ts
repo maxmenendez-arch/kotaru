@@ -265,42 +265,70 @@ const TAG_WINDOW = 32;
  * sabe si hay etiqueta retiene lo recibido (como mucho TAG_WINDOW caracteres); luego deja
  * pasar todo tal cual. Una etiqueta invalida se quita igual, sin emocion.
  */
+/** Etiqueta completa a mitad de texto, con el espacio de despues para no dejar dos seguidos. */
+const LATE_TAG = /\[\[\s*([a-zA-Z_]{1,20})\s*\]\] ?/g;
+/** Final de trozo que podria ser el comienzo de una etiqueta: "[", "[[hap", "[[happy]". */
+const PARTIAL_TAG = /\[(?:\[\s*[a-zA-Z_]{0,20}\s*\]?)?$/;
+
 export class AffectTagFilter {
   #buffer = '';
+  #tail = '';
   #done = false;
 
   push(text: string): { text: string; affect?: AffectSignal; crisis?: true } {
-    if (this.#done) return { text };
+    if (this.#done) return this.#later(text);
     this.#buffer += text;
     const lead = this.#buffer.trimStart();
     if (lead.length === 0) return { text: '' };
-    if (!lead.startsWith('[')) return this.#release(this.#buffer);
-    if (lead.length > 1 && !lead.startsWith('[[')) return this.#release(this.#buffer);
+    if (!lead.startsWith('[')) return this.#start(this.#buffer);
+    if (lead.length > 1 && !lead.startsWith('[[')) return this.#start(this.#buffer);
     const end = lead.indexOf(']]');
     if (end === -1) {
-      return lead.length > TAG_WINDOW ? this.#release(this.#buffer) : { text: '' };
+      return lead.length > TAG_WINDOW ? this.#start(this.#buffer) : { text: '' };
     }
     const name = lead.slice(2, end).trim().toLowerCase();
-    const after = lead.slice(end + 2).replace(/^\s+/, '');
-    const out = this.#release(after);
-    if (name === 'crisis') return { ...out, crisis: true, affect: { emotion: 'concerned', intensity: 0.8 } };
+    const out = this.#start(lead.slice(end + 2).replace(/^\s+/, ''));
+    if (name === 'crisis' || out.crisis) return { text: out.text, crisis: true, affect: { emotion: 'concerned', intensity: 0.8 } };
     const affect = parseAffect({ emotion: name, intensity: 0.7 });
     return affect ? { ...out, affect } : out;
   }
 
   /** Al terminar la respuesta: lo que quedara retenido (una etiqueta sin cerrar se descarta). */
   flush(): string {
-    if (this.#done) return '';
+    if (this.#done) {
+      // Un trozo retenido por si era el comienzo de otra etiqueta y no lo fue: se devuelve.
+      const tail = this.#tail;
+      this.#tail = '';
+      return tail;
+    }
     const lead = this.#buffer.trimStart();
     this.#done = true;
     this.#buffer = '';
     return lead.startsWith('[[') ? '' : lead;
   }
 
-  #release(text: string): { text: string } {
+  /**
+   * Despues de la primera etiqueta: a veces el modelo repite una a mitad de respuesta
+   * ("... [[happy]] ..."). Se quita para que la voz no la lea, y un [[crisis]] tardio se
+   * sigue avisando. Solo se retiene un final que parezca el comienzo de una etiqueta.
+   */
+  #later(text: string): { text: string; crisis?: true } {
+    let crisis = false;
+    const joined = (this.#tail + text).replace(LATE_TAG, (_match, name: string) => {
+      if (name.toLowerCase() === 'crisis') crisis = true;
+      return '';
+    });
+    const pending = PARTIAL_TAG.exec(joined);
+    this.#tail = pending ? pending[0] : '';
+    const out = pending ? joined.slice(0, pending.index) : joined;
+    return crisis ? { text: out, crisis: true } : { text: out };
+  }
+
+  /** Deja de buscar la etiqueta inicial; el resto pasa por el filtro de etiquetas tardias. */
+  #start(text: string): { text: string; crisis?: true } {
     this.#done = true;
     this.#buffer = '';
-    return { text };
+    return this.#later(text);
   }
 }
 

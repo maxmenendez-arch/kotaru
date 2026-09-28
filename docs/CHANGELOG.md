@@ -1092,3 +1092,13 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   **Orden de despliegue:** primero el gateway (install.sh), después la web (web.sh): un gateway
   viejo cerraría la conversación al recibir un mensaje que no conoce.
 - `prueba-voz.sh ... --modo=friend|flirt` para probarlo en el servidor.
+
+## 2026-09-28 — Etiquetas de emoción repetidas a mitad de respuesta
+
+- Gemini a veces podría repetir la etiqueta de emoción dentro de la respuesta ("… [[happy]] …").
+  El filtro solo quitaba la del principio, así que la voz la habría leído. Ahora quita también
+  las que aparecen después, aunque lleguen partidas entre trozos, y un `[[crisis]]` tardío
+  sigue activando el aviso de crisis. Solo retiene un final de trozo que parezca el comienzo de
+  una etiqueta (`[`, `[[hap`); lo que no lo sea pasa intacto (`[nota]`).
+- Verificado: 450 pruebas (2 nuevas en `ai-adapters-gemini`), typecheck y lint.
+  **Pendiente de desplegar** (solo gateway: `install.sh`).

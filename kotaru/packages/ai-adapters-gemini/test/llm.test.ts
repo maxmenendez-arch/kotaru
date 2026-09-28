@@ -191,6 +191,19 @@ describe('canal de emocion de Gemini', () => {
     expect(run(['[[', 'esto no se cierra nunca y sigue y sigue y sigue'])).toEqual({ text: '[[esto no se cierra nunca y sigue y sigue y sigue', affects: [] });
   });
 
+  it('una etiqueta repetida a mitad de respuesta tampoco se lee en voz alta, aunque llegue partida', () => {
+    expect(run(['[[happy]] ¡Qué bien! [[play', 'ful]] Te reto.'])).toEqual({ text: '¡Qué bien! Te reto.', affects: [{ emotion: 'happy', intensity: 0.7 }] });
+    expect(run(['Hola [', '[warm]] qué tal'])).toEqual({ text: 'Hola qué tal', affects: [] });
+    expect(run(['[[warm]] Mira esto [', 'nota] y ya'])).toEqual({ text: 'Mira esto [nota] y ya', affects: [{ emotion: 'warm', intensity: 0.7 }] });
+    expect(run(['[[warm]] termina en corchete ['])).toEqual({ text: 'termina en corchete [', affects: [{ emotion: 'warm', intensity: 0.7 }] });
+  });
+
+  it('un [[crisis]] tardio tambien avisa', () => {
+    const f = new AffectTagFilter();
+    expect(f.push('[[warm]] Entiendo. ')).toEqual({ text: 'Entiendo. ', affect: { emotion: 'warm', intensity: 0.7 } });
+    expect(f.push('[[crisis]] Quiero que estés a salvo.')).toEqual({ text: 'Quiero que estés a salvo.', crisis: true });
+  });
+
   it('el proveedor emite affect antes del texto y sin la etiqueta en los tokens', async () => {
     const base = await fakeGemini({ chunks: [chunk('[[play'), chunk('ful]] Te '), chunk('reto.', { finishReason: 'STOP' })] });
     const events = await collect(provider(base).stream([{ role: 'user', content: 'hola' }], opts, ctx()));
