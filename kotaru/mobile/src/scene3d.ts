@@ -398,9 +398,23 @@ function novaRoom(kit: Kit, focus: THREE.Vector3): void {
     }
   });
 
+  // En el alfeizar, junto a las velas: una rosa roja en un jarron fino y un frasco de perfume.
+  const vaseX = win.x + 0.2;
+  const vaseZ = wallZ + 0.22;
+  kit.mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.2, 16), kit.track(new THREE.MeshStandardMaterial({ color: 0xd9c3e8, transparent: true, opacity: 0.55, roughness: 0.1, metalness: 0.1 })), vaseX, sillY + 0.1, vaseZ);
+  kit.mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.22, 5), kit.matte(0x3d6b3a), vaseX, sillY + 0.3, vaseZ);
+  const rose = kit.mesh(new THREE.SphereGeometry(0.035, 14, 10), kit.matte(0xb3123a, 0.7), vaseX, sillY + 0.42, vaseZ);
+  rose.scale.set(1, 0.85, 1);
+  kit.mesh(new THREE.SphereGeometry(0.018, 8, 6), kit.matte(0x3d6b3a), vaseX + 0.03, sillY + 0.34, vaseZ).scale.set(1.6, 0.5, 0.7);
+  const perfume = new THREE.Group();
+  perfume.position.set(win.x + 0.02, sillY, wallZ + 0.26);
+  kit.group.add(perfume);
+  kit.box(0.07, 0.09, 0.04, kit.track(new THREE.MeshStandardMaterial({ color: 0xf7b6d2, transparent: true, opacity: 0.75, roughness: 0.05, metalness: 0.2 })), 0, 0.045, 0, perfume);
+  kit.mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.03, 10), kit.matte(0xd4af37, 0.3, 0.9), 0, 0.105, 0, perfume);
+
   // Espejo redondo con marco dorado a la derecha del corazon.
   kit.mesh(new THREE.TorusGeometry(0.2, 0.025, 10, 40), kit.matte(0xd4af37, 0.35, 0.8), -1.2, focus.y + 0.2, wallZ + 0.08);
-  kit.mesh(new THREE.CircleGeometry(0.2, 32), kit.matte(0x6a4f7a, 0.15, 0.6), -1.2, focus.y + 0.2, wallZ + 0.07);
+  kit.mesh(new THREE.CircleGeometry(0.2, 32), kit.matte(0x9a6f9e, 0.08, 0.85), -1.2, focus.y + 0.2, wallZ + 0.07);
 
   // Luz de relleno violeta desde abajo a la derecha (ambiente de noche).
   const fill = new THREE.PointLight(0x9a5cff, 1.2, 4, 2);
