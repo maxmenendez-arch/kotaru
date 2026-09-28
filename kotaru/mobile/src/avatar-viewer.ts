@@ -153,9 +153,26 @@ function animate(
   const neck = vrm.humanoid.getNormalizedBoneNode('neck');
   const head = vrm.humanoid.getNormalizedBoneNode('head');
 
+  // Con fondo se dibuja mucho mas por cuadro: a 30 por segundo basta (lluvia, velas y boca
+  // se ven igual de fluidas) y el telefono gasta la mitad. Y si el escenario no esta en
+  // pantalla (pagina desplazada), no se dibuja.
+  const minFrameMs = stage ? 1000 / 30 - 2 : 0;
+  let lastDraw = 0;
+  let visible = true;
+  const observer =
+    stage && typeof IntersectionObserver !== 'undefined'
+      ? new IntersectionObserver((entries) => {
+          visible = entries.some((e) => e.isIntersecting);
+        })
+      : null;
+  observer?.observe(renderer.domElement);
+
   const tick = () => {
     if (!running) return;
     frame = requestAnimationFrame(tick);
+    const nowMs = performance.now();
+    if (!visible || nowMs - lastDraw < minFrameMs) return;
+    lastDraw = nowMs;
     timer.update();
     const dt = Math.min(timer.getDelta(), 0.1);
     const t = timer.getElapsed();
@@ -206,6 +223,7 @@ function animate(
   return () => {
     running = false;
     cancelAnimationFrame(frame);
+    observer?.disconnect();
     timer.dispose();
     cleanup();
   };

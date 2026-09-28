@@ -1179,3 +1179,6 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
     luciérnagas y destellos del sol en el lago.
   - Ayudas nuevas en `scene3d.ts`: texturas pintadas con canvas y `movingLights` (puntos de
     luz animados en un solo objeto, barato para la GPU).
+- Rendimiento: con fondo el visor dibuja a 30 cuadros por segundo (la mitad de trabajo para
+  la GPU y la batería; los movimientos son lentos y se ven igual) y deja de dibujar cuando el
+  escenario no está en pantalla (IntersectionObserver).
