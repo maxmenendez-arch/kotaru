@@ -31,6 +31,12 @@ export type LlmStopReason = 'complete' | 'length' | 'cancelled' | 'safety';
 export type LlmEvent =
   | { readonly type: 'token'; readonly text: string }
   | { readonly type: 'affect'; readonly affect: AffectSignal }
+  /**
+   * El propio modelo juzga que la persona expresa riesgo de suicidio o autolesion (segunda
+   * capa, detras del lexico de @kotaru/safety: capta lo que no se dice con palabras
+   * explicitas). El orquestador corta la respuesta y deriva a los recursos de crisis.
+   */
+  | { readonly type: 'crisis_signal' }
   | { readonly type: 'stop'; readonly reason: LlmStopReason }
   | { readonly type: 'usage'; readonly usage: Usage; readonly cost: CostEstimate };
 

@@ -201,6 +201,16 @@ describe('canal de emocion de Gemini', () => {
     expect(events.filter((e) => e.type === 'token').map((e) => (e as { text: string }).text).join('')).toBe('Te reto.');
   });
 
+  it('[[crisis]] es la señal de seguridad del modelo: se emite antes del texto y no se oye', async () => {
+    const f = new AffectTagFilter();
+    expect(f.push('[[crisis]] Estoy aquí contigo.')).toEqual({ text: 'Estoy aquí contigo.', crisis: true, affect: { emotion: 'concerned', intensity: 0.8 } });
+    const base = await fakeGemini({ chunks: [chunk('[[cri'), chunk('sis]] Estoy aquí.', { finishReason: 'STOP' })] });
+    const events = await collect(provider(base).stream([{ role: 'user', content: 'ya no puedo más' }], opts, ctx()));
+    expect(events[0]).toEqual({ type: 'crisis_signal' });
+    expect(events.filter((e) => e.type === 'token').map((e) => (e as { text: string }).text).join('')).toBe('Estoy aquí.');
+    expect(AFFECT_INSTRUCTION).toContain('[[crisis]]');
+  });
+
   it('sin canal de emocion no se pide etiqueta ni se filtra nada', async () => {
     const base = await fakeGemini({ chunks: [chunk('[[happy]] hola', { finishReason: 'STOP' })] });
     const events = await collect(provider(base).stream([{ role: 'user', content: 'hola' }], { ...opts, allowAffectChannel: false }, ctx()));

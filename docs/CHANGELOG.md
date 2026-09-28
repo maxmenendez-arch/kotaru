@@ -1028,3 +1028,15 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Router: la preferencia del operador acepta un orden (`preferred: { tts: [gemini, cartesia] }`):
   Gemini primero, Cartesia de respaldo y Kokoro al final. `deploy/cartesia.sh` lo activa con
   prueba real previa y vuelta atrás si el gateway no arranca.
+
+## 2026-09-28 — Segunda capa de detección de crisis: el propio modelo
+
+- Además del léxico (instantáneo, frases explícitas), el modelo puede marcar la respuesta con
+  `[[crisis]]` cuando la persona expresa, aunque sea de forma indirecta, ganas de morir, de
+  hacerse daño o peligro inmediato. Va en la misma etiqueta de emoción: sin latencia ni
+  costo extra. El adaptador de Gemini emite `crisis_signal`; el orquestador corta la
+  respuesta del personaje (ni texto ni voz) y deriva igual que el léxico (tarjeta con el 988),
+  con la política `llm-crisis-signal@1.0.0` registrada.
+- `npm run smoke -- <url> --audio=archivo` y `deploy/prueba-voz.sh "frase"`: prueba de punta
+  a punta con voz real (oído, modelo, voz), dice qué proveedores respondieron, la emoción y si
+  hubo derivación de crisis. Crea y borra su usuario de prueba.

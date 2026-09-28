@@ -40,6 +40,8 @@ const subjectId = randomUUID();
 const conversationId = randomUUID();
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const steps: { step: string; ok: boolean; detail?: string }[] = [];
+/** El turno de prueba acabo en derivacion de crisis (no se guarda conversacion). */
+let crisisSeen = false;
 
 function check(step: string, ok: boolean, detail?: string): void {
   steps.push({ step, ok, ...(detail ? { detail } : {}) });
@@ -102,12 +104,19 @@ try {
     ws.send(JSON.stringify({ type: 'turn_end', turnId: 'smoke_1' }));
     await until(() => messages.some((m) => m.type === 'turn_done'), audioArg ? 60_000 : 10_000);
     await until(() => messages.filter((m) => m.type === 'usage').length >= 2);
-    check('turno completo', messages.some((m) => m.type === 'token') && audioFrames > 0, `${audioFrames} frames de audio`);
+    const crisis = messages.some((m) => m.type === 'safety' && m.action === 'crisis_handoff');
+    crisisSeen = crisis;
+    check(
+      'turno completo',
+      crisis || (messages.some((m) => m.type === 'token') && audioFrames > 0),
+      crisis ? 'derivado a recursos de crisis (sin respuesta del personaje)' : `${audioFrames} frames de audio`,
+    );
     if (audioArg) {
       const heard = messages.filter((m) => m.type === 'transcript' && m.final).map((m) => (m as { text: string }).text).join(' ');
       const reply = messages.filter((m) => m.type === 'token').map((m) => (m as { text: string }).text).join('');
       const affect = messages.find((m) => m.type === 'affect') as { emotion?: string } | undefined;
       check('oyo la voz', heard.trim().length > 0, `"${heard.slice(0, 80)}"`);
+      if (crisis) check('seguridad', true, 'crisis detectada: se muestran los recursos (988)');
       check('respuesta sin etiquetas de emocion', !/\[\[|\]\]/.test(reply), `"${reply.slice(0, 100)}"`);
       check('emocion para el avatar', true, affect?.emotion ?? 'no llego (no es un fallo)');
       const sql = pgClient({ connectionString: config.databaseUrl, max: 1 });
@@ -136,7 +145,7 @@ try {
   const data = (await exported.json()) as { conversations?: { messages: unknown[] }[] };
   check(
     'exportacion',
-    exported.status === 200 && (!voice || (data.conversations?.[0]?.messages.length ?? 0) === 2),
+    exported.status === 200 && (!voice || (data.conversations?.[0]?.messages.length ?? 0) === 2 || crisisSeen),
     voice ? 'la conversacion quedo guardada' : undefined,
   );
 

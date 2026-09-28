@@ -310,6 +310,22 @@ async function drive(
 
       for (let step = llm.first; step.done !== true; step = await llm.iterator.next()) {
         const event = step.value;
+        if (event.type === 'crisis_signal') {
+          // El modelo ve riesgo que el lexico no vio: se aparta al personaje igual que con el
+          // lexico (sin su voz ni su respuesta) y se muestran los recursos de crisis.
+          out.push({
+            type: 'safety',
+            verdict: {
+              allowed: false,
+              categories: [{ category: 'self_harm', score: 0.8 }],
+              action: 'crisis_handoff',
+              policyVersion: LLM_CRISIS_SIGNAL_VERSION,
+            },
+          });
+          await llm.iterator.return?.(undefined);
+          sentences.close();
+          return;
+        }
         switch (event.type) {
           case 'affect':
             out.push({ type: 'affect', affect: event.affect });
@@ -368,6 +384,9 @@ async function drive(
     finish(ctx.signal.aborted);
   }
 }
+
+/** Version de la señal de crisis del modelo (segunda capa); se registra como politica. */
+export const LLM_CRISIS_SIGNAL_VERSION = 'llm-crisis-signal@1.0.0';
 
 interface MetricParts {
   input: TurnInput;

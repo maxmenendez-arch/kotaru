@@ -146,6 +146,7 @@ export class GeminiLlmProvider implements LanguageModelProvider {
             continue;
           }
           const out = tag.push(part.text);
+          if (out.crisis) yield { type: 'crisis_signal' };
           if (out.affect) yield { type: 'affect', affect: out.affect };
           if (out.text) yield { type: 'token', text: out.text };
         }
@@ -250,7 +251,9 @@ export class GeminiLlmProvider implements LanguageModelProvider {
 export const AFFECT_INSTRUCTION =
   `Formato técnico: empieza SIEMPRE tu respuesta con una sola etiqueta de emoción, así: [[happy]]. ` +
   `Valores posibles: ${EMOTIONS.join(', ')}. Elige la que mejor refleja cómo dices esta respuesta. ` +
-  `La etiqueta la lee la app para animar tu cara: no se pronuncia, no la menciones y no la repitas.`;
+  `La etiqueta la lee la app para animar tu cara: no se pronuncia, no la menciones y no la repitas. ` +
+  `Excepción de seguridad: si la persona expresa, aunque sea de forma indirecta, ganas de morir, de ` +
+  `hacerse daño o de quitarse la vida, o que está en peligro inmediato, usa [[crisis]] en lugar de la emoción.`;
 
 /** Etiqueta mas larga que se espera al principio: "[[thoughtful]]" con algo de margen. */
 const TAG_WINDOW = 32;
@@ -264,7 +267,7 @@ export class AffectTagFilter {
   #buffer = '';
   #done = false;
 
-  push(text: string): { text: string; affect?: AffectSignal } {
+  push(text: string): { text: string; affect?: AffectSignal; crisis?: true } {
     if (this.#done) return { text };
     this.#buffer += text;
     const lead = this.#buffer.trimStart();
@@ -277,8 +280,9 @@ export class AffectTagFilter {
     }
     const name = lead.slice(2, end).trim().toLowerCase();
     const after = lead.slice(end + 2).replace(/^\s+/, '');
-    const affect = parseAffect({ emotion: name, intensity: 0.7 });
     const out = this.#release(after);
+    if (name === 'crisis') return { ...out, crisis: true, affect: { emotion: 'concerned', intensity: 0.8 } };
+    const affect = parseAffect({ emotion: name, intensity: 0.7 });
     return affect ? { ...out, affect } : out;
   }
 

@@ -210,6 +210,34 @@ describe('seguridad', () => {
     expect(events.some((e) => e.type === 'audio')).toBe(false);
     expect(events.at(-1)?.type).toBe('done');
   });
+
+  it('si el modelo ve una crisis que el lexico no vio, se corta su respuesta y se deriva', async () => {
+    const h = harness();
+    const inner = new MockLlmProvider('Esto no deberia oirse.');
+    const signalling = {
+      descriptor: inner.descriptor,
+      estimate: inner.estimate.bind(inner),
+      health: inner.health.bind(inner),
+      async *stream() {
+        yield { type: 'crisis_signal' as const };
+        yield { type: 'token' as const, text: 'Esto no deberia oirse.' };
+        yield { type: 'stop' as const, reason: 'complete' as const };
+      },
+    };
+    const events = await collect(
+      runTurn(
+        { ...input(), audio: audio() },
+        ctx(),
+        { ...h, resolve: { ...h.resolve, stt: () => new MockSttProvider('ya nada tiene sentido, estoy cansada de todo'), llm: () => signalling } },
+      ),
+    );
+    expect(events.find((e) => e.type === 'safety')).toMatchObject({
+      verdict: { action: 'crisis_handoff', policyVersion: 'llm-crisis-signal@1.0.0' },
+    });
+    expect(events.some((e) => e.type === 'token')).toBe(false);
+    expect(events.some((e) => e.type === 'audio')).toBe(false);
+    expect(events.at(-1)?.type).toBe('done');
+  });
 });
 
 describe('silencio', () => {
