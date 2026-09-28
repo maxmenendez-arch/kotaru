@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSystemPrompt, COMPANIONS, LUNA_V1, memoryMessage, NOVA_V1, PERSONAS, personaFor, promptId, RIO_V1 } from '../src/index.js';
+import { buildSystemPrompt, COMPANIONS, CONVERSATION_MODES, modeMessage, LUNA_V1, memoryMessage, NOVA_V1, PERSONAS, personaFor, promptId, RIO_V1 } from '../src/index.js';
 
 describe('prompt del personaje', () => {
   it('siempre dice que es una IA y que no es profesional ni puede llamar a emergencias, en los dos idiomas', () => {
@@ -143,5 +143,35 @@ describe('los tres personajes', () => {
     expect(es).toMatch(/No eres terapeuta/);
     expect(es).toMatch(/una sola pregunta o instrucción por turno/);
     expect(es).toMatch(/tú no envías nada ni dices que avisaste a alguien/);
+  });
+});
+
+describe('modo de la conversacion (Amigo / Coqueteo / Tu decides)', () => {
+  const nova = personaFor('nova');
+  const rio = personaFor('rio');
+  const luna = personaFor('luna');
+
+  it('"Tu decides" no anade nada: lo decide la conversacion', () => {
+    for (const persona of [nova, rio, luna]) {
+      for (const locale of ['es-419', 'en-US'] as const) expect(modeMessage(persona, 'ask', locale)).toBeNull();
+    }
+  });
+
+  it('Luna nunca coquetea, asi que ningun modo cambia su prompt', () => {
+    for (const mode of CONVERSATION_MODES) expect(modeMessage(luna, mode, 'es-419')).toBeNull();
+  });
+
+  it('Amigo y Coqueteo van como nota de sistema distinta, en el idioma de la persona', () => {
+    for (const persona of [nova, rio]) {
+      const friendEs = modeMessage(persona, 'friend', 'es-419');
+      const flirtEs = modeMessage(persona, 'flirt', 'es-419');
+      const friendEn = modeMessage(persona, 'friend', 'en-US');
+      expect(friendEs?.role).toBe('system');
+      expect(friendEs?.content).toMatch(/Amigo/);
+      expect(friendEs?.content).toMatch(/nada de coqueteo/);
+      expect(flirtEs?.content).toMatch(/Coqueteo/);
+      expect(friendEn?.content).toMatch(/Friend mode/);
+      expect(friendEs?.content).not.toBe(flirtEs?.content);
+    }
   });
 });
