@@ -15,6 +15,11 @@ import type { BudgetGrant, Locale, QualityTier, Region, Sensitivity } from '@kot
 export interface SessionGrant {
   readonly subjectId: string;
   readonly conversationId: string;
+  /**
+   * Con que personaje es la conversacion ('nova', 'sage', 'rio'). Ausente en grants
+   * anteriores a los tres personajes: es Rio.
+   */
+  readonly companionId?: string;
   readonly plan: string;
   readonly region: Region;
   readonly locale: Locale;

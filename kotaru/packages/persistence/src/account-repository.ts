@@ -170,10 +170,15 @@ export class AccountRepository {
 
   /** La conversacion existe y es de este seudonimo. */
   async ownsConversation(subjectId: string, conversationId: string): Promise<boolean> {
-    const { rows } = await this.#sql.query('select 1 as ok from app.conversations where id = $1 and subject_id = $2', [
-      conversationId,
-      subjectId,
-    ]);
-    return rows.length > 0;
+    return (await this.conversationCompanion(subjectId, conversationId)) !== null;
+  }
+
+  /** Con que personaje es la conversacion, si existe y es de este seudonimo; si no, null. */
+  async conversationCompanion(subjectId: string, conversationId: string): Promise<string | null> {
+    const { rows } = await this.#sql.query<{ companion_id: string }>(
+      'select companion_id from app.conversations where id = $1 and subject_id = $2',
+      [conversationId, subjectId],
+    );
+    return rows[0]?.companion_id ?? null;
   }
 }

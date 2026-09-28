@@ -22,7 +22,7 @@ import {
   type ProviderResolver,
   type RouterPort,
 } from '@kotaru/orchestrator';
-import { buildSystemPrompt, memoryMessage, promptId, RIO_V1 } from '@kotaru/persona';
+import { buildSystemPrompt, memoryMessage, personaFor, promptId, type PersonaCard } from '@kotaru/persona';
 import { evaluateSafety, statesMinorAge } from '@kotaru/safety';
 import type { MetricSink } from '@kotaru/telemetry';
 
@@ -107,6 +107,8 @@ export interface SessionTransport {
  */
 export class GatewaySession {
   readonly #grant: SessionGrant;
+  /** El personaje de esta conversacion (del grant; Rio si el grant es anterior). */
+  readonly #persona: PersonaCard;
   readonly #transport: SessionTransport;
   readonly #deps: SessionDeps;
   readonly #startedAtMs: number;
@@ -136,6 +138,7 @@ export class GatewaySession {
 
   constructor(grant: SessionGrant, transport: SessionTransport, deps: SessionDeps) {
     this.#grant = grant;
+    this.#persona = personaFor(grant.companionId);
     this.#transport = transport;
     this.#deps = deps;
     this.#startedAtMs = deps.now();
@@ -143,7 +146,7 @@ export class GatewaySession {
 
     // El prompt del personaje, versionado. Las reglas (es una IA, no es profesional, no
     // presiona) van fijas dentro y ninguna personalizacion las quita.
-    this.#history.push({ role: 'system', content: buildSystemPrompt(RIO_V1, grant.locale) });
+    this.#history.push({ role: 'system', content: buildSystemPrompt(this.#persona, grant.locale) });
   }
 
   get turnsCompleted(): number {
@@ -339,13 +342,13 @@ export class GatewaySession {
         ...('text' in source ? { text: source.text, speak: false } : { audio: source.audio }),
         history,
         llmOptions: {
-          personaId: RIO_V1.id,
-          promptVersion: promptId(RIO_V1),
+          personaId: this.#persona.id,
+          promptVersion: promptId(this.#persona),
           maxOutputTokens: 256,
           temperature: 0.7,
           allowAffectChannel: true,
         },
-        voice: { voiceId: 'rio-es', locale: this.#grant.locale, speed: 1, expressive: true },
+        voice: { voiceId: this.#persona.slug, locale: this.#grant.locale, speed: 1, expressive: true },
         quality: this.#entitlement().quality,
         predicted: { audioSeconds: 20, inputTokens: 2_000, outputTokens: 120, characters: 400 },
       },
@@ -477,7 +480,7 @@ export class GatewaySession {
     await log.open({
       conversationId: this.#grant.conversationId,
       subjectId: this.#grant.subjectId,
-      companionId: 'rio',
+      companionId: this.#persona.slug,
       atIso: nowIso,
     });
     const previous = await log.recentMessages(
@@ -517,7 +520,7 @@ export class GatewaySession {
       await this.#deps.memory
         .propose({
           subjectId: this.#grant.subjectId,
-          companionId: 'rio',
+          companionId: this.#persona.slug,
           candidate,
           sourceTurnId: turnId,
         })
@@ -529,7 +532,7 @@ export class GatewaySession {
     const last = this.#history.at(-1);
     const recalled = await this.#deps.memory.recall({
       subjectId: this.#grant.subjectId,
-      companionId: 'rio',
+      companionId: this.#persona.slug,
       text: typeof last?.content === 'string' ? last.content : '',
       limit: 5,
     });

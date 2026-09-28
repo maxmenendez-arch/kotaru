@@ -105,7 +105,9 @@ export class AuthApi {
   }
 
   /** Un grant de voz nuevo (son de un solo uso). */
-  async voiceGrant(options: { readonly conversationId?: string; readonly locale?: string } = {}): Promise<{ grant: string; conversationId: string }> {
+  async voiceGrant(
+    options: { readonly conversationId?: string; readonly locale?: string; readonly companion?: string } = {},
+  ): Promise<{ grant: string; conversationId: string }> {
     return this.#call('POST', '/v1/session/grant', options, await this.accessToken());
   }
 

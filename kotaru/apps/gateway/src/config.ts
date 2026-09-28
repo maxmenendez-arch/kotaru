@@ -1,4 +1,5 @@
 import type { SigningKey } from '@kotaru/gateway';
+import { parseVoiceOverrides } from './voices.js';
 
 export interface GatewayConfig {
   readonly host: string;
@@ -53,11 +54,18 @@ export interface ProviderSettings {
     readonly zeroRetentionConfirmed: boolean;
     readonly commercialTermsReviewed: boolean;
   };
+  /** Voz de Gemini (misma clave y confirmacion que el LLM). */
+  readonly geminiTts?: {
+    readonly apiKey: string;
+    readonly model: 'gemini-3.8-flash-lite-tts' | 'gemini-3.8-flash-tts';
+    readonly paidTierConfirmed: boolean;
+    readonly voices: Readonly<Partial<Record<'nova' | 'sage' | 'rio', string>>>;
+  };
   /** Whisper Large v3 servido por Together AI (voz a texto; misma clave que Kokoro). */
   readonly whisper?: { readonly apiKey: string; readonly zeroRetentionConfirmed: boolean };
 }
 
-const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly', 'kokoro', 'whisper']);
+const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly', 'kokoro', 'whisper', 'gemini-tts']);
 
 export class ConfigError extends Error {
   constructor(readonly problems: readonly string[]) {
@@ -166,6 +174,18 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
         }
       : {}),
   };
+  if (providers.includes('gemini-tts')) {
+    const model = env.GEMINI_TTS_MODEL?.trim() || 'gemini-3.8-flash-lite-tts';
+    if (model !== 'gemini-3.8-flash-lite-tts' && model !== 'gemini-3.8-flash-tts') {
+      problems.push('GEMINI_TTS_MODEL debe ser gemini-3.8-flash-lite-tts o gemini-3.8-flash-tts');
+    }
+    (providerSettings as { geminiTts?: ProviderSettings['geminiTts'] }).geminiTts = {
+      apiKey: providers.includes('gemini') ? providerSettings.gemini!.apiKey : required('GEMINI_API_KEY'),
+      model: model === 'gemini-3.8-flash-tts' ? model : 'gemini-3.8-flash-lite-tts',
+      paidTierConfirmed: flag('KOTARU_GEMINI_PAID_TIER_CONFIRMED'),
+      voices: parseVoiceOverrides(env.KOTARU_GEMINI_VOICES, problems),
+    };
+  }
   if (providers.includes('whisper')) {
     (providerSettings as { whisper?: ProviderSettings['whisper'] }).whisper = {
       apiKey: providers.includes('kokoro') ? providerSettings.kokoro!.apiKey : required('TOGETHER_API_KEY'),

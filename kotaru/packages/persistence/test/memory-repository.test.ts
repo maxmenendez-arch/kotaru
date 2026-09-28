@@ -13,9 +13,7 @@ describeMemoryStore(
   async () => {
     const sql = pgliteClient(new PGlite());
     await runMigrations(sql, MIGRATIONS);
-    await sql.query(
-      "insert into app.companions (id, slug, display_name, persona_version) values (gen_random_uuid(),'nova','Nova','0.1.0')",
-    );
+    // Nova y Sage los da de alta la migracion 0012.
     return new SqlMemoryRepository(sql);
   },
   { subject: (n) => `00000000-0000-4000-9000-${String(n).padStart(12, '0')}` },

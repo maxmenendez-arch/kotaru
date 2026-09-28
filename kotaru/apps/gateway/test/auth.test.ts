@@ -211,6 +211,23 @@ describe('grant de voz', () => {
     expect((await post('/v1/session/grant', { conversationId: issued.body.conversationId }, other.body.accessToken)).status).toBe(404);
   });
 
+  it('cada conversacion es con un personaje: se elige al pedir el grant y no se mezcla al retomarla', async () => {
+    const login = await post('/v1/auth/apple', { idToken: apple('apple-022') });
+    expect((await post('/v1/session/grant', { companion: 'otro' }, login.body.accessToken)).status).toBe(400);
+    const issued = await post('/v1/session/grant', { companion: 'nova' }, login.body.accessToken);
+    expect(issued.status).toBe(200);
+    const { socket, collected } = await connect(server.port);
+    socket.send(JSON.stringify({ type: 'hello', grant: issued.body.grant, protocolVersion: PROTOCOL_VERSION }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'ready'));
+    socket.close();
+    const { rows } = await sql.query<{ companion_id: string }>('select companion_id from app.conversations where id = $1', [issued.body.conversationId]);
+    expect(rows[0]?.companion_id).toBe('nova');
+    const again = await post('/v1/session/grant', { conversationId: issued.body.conversationId, companion: 'nova' }, login.body.accessToken);
+    expect(again.status).toBe(200);
+    const mixed = await post('/v1/session/grant', { conversationId: issued.body.conversationId, companion: 'sage' }, login.body.accessToken);
+    expect(mixed.status).toBe(409);
+  });
+
   it('sin token no hay grant', async () => {
     expect((await post('/v1/session/grant', {})).status).toBe(401);
   });

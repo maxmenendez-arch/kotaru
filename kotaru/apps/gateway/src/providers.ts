@@ -8,7 +8,8 @@ import type {
 import { DefaultAiRouter } from '@kotaru/ai-router';
 import { MockLlmProvider, MockModerationProvider, MockSttProvider, MockTtsProvider } from '@kotaru/ai-adapters-mock';
 import { AssemblyAiSttProvider } from '@kotaru/ai-adapters-assemblyai';
-import { GeminiLlmProvider, GEMINI_RATES } from '@kotaru/ai-adapters-gemini';
+import { GeminiLlmProvider, GEMINI_RATES, GeminiTtsProvider } from '@kotaru/ai-adapters-gemini';
+import { geminiVoices, maleVoiceIds } from './voices.js';
 import { PollyTtsProvider } from '@kotaru/ai-adapters-polly';
 import { KokoroTtsProvider, WhisperSttProvider } from '@kotaru/ai-adapters-together';
 import type { ProviderResolver, RouterPort } from '@kotaru/orchestrator';
@@ -61,7 +62,7 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
   } else if (enabled.includes('mock-voice')) {
     // Solo lo que falte: un simulado gratis junto a uno real lo ganaria siempre por precio.
     if (!settings.assemblyai && !settings.whisper) add(stt, new MockSttProvider());
-    if (!settings.polly && !settings.kokoro) add(tts, new MockTtsProvider());
+    if (!settings.polly && !settings.kokoro && !settings.geminiTts) add(tts, new MockTtsProvider());
   }
   if (settings.assemblyai) {
     const s = new AssemblyAiSttProvider({
@@ -85,6 +86,7 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
       region: settings.polly.region,
       aiOptOutConfirmed: settings.polly.aiOptOutConfirmed,
       commercialTermsReviewed: settings.polly.commercialTermsReviewed,
+      maleVoices: maleVoiceIds(),
     });
     add(tts, t);
   }
@@ -98,11 +100,29 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
         apiKey: settings.kokoro.apiKey,
         zeroRetentionConfirmed: settings.kokoro.zeroRetentionConfirmed,
         commercialTermsReviewed: settings.kokoro.commercialTermsReviewed,
+        maleVoices: maleVoiceIds(),
       }),
     );
   }
 
-  const router = new DefaultAiRouter({ now });
+  if (settings.geminiTts) {
+    const voices = geminiVoices(settings.geminiTts.voices);
+    add(
+      tts,
+      new GeminiTtsProvider({
+        apiKey: settings.geminiTts.apiKey,
+        model: settings.geminiTts.model,
+        paidTierConfirmed: settings.geminiTts.paidTierConfirmed,
+        voices,
+        fallback: voices.rio,
+        now,
+      }),
+    );
+  }
+
+  // La voz es el producto: con Gemini TTS activo, es la primera opcion y el resto (Kokoro,
+  // Polly) queda de respaldo. Sin esto, en el nivel "balanced" ganaria la mas barata.
+  const router = new DefaultAiRouter({ now, preferred: settings.geminiTts ? { tts: settings.geminiTts.model } : {} });
   for (const p of stt.values()) router.register({ descriptor: p.descriptor, estimate: (u: PredictedUsage, c) => p.estimate({ audioSeconds: u.audioSeconds ?? 0 }, c) });
   for (const p of llm.values()) router.register({ descriptor: p.descriptor, estimate: (u: PredictedUsage, c) => p.estimate({ inputTokens: u.inputTokens ?? 0, outputTokens: u.outputTokens ?? 0 }, c) });
   for (const p of tts.values()) router.register({ descriptor: p.descriptor, estimate: (u: PredictedUsage, c) => p.estimate({ characters: u.characters ?? 0 }, c) });

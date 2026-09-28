@@ -3,6 +3,7 @@ import type { Locale } from '@kotaru/ai-contracts';
 import { signAccessToken, signGrant, type SigningKey } from '@kotaru/gateway';
 import { IdentityProviderUnavailable, IdTokenError, type IdTokenVerifier } from './id-token.js';
 import { handlePasskey, type PasskeyDeps } from './passkey.js';
+import { DEFAULT_COMPANION, isCompanion } from '@kotaru/persona';
 
 /** Lo que el servicio de cuentas necesita de la base. `AccountRepository` lo cumple. */
 export interface AccountStore {
@@ -23,7 +24,8 @@ export interface AccountStore {
   revokeAll(accountId: string): Promise<number>;
   revokeFamilyOf(tokenHash: Uint8Array): Promise<boolean>;
   currentPlan(subjectId: string, nowIso: string): Promise<string>;
-  ownsConversation(subjectId: string, conversationId: string): Promise<boolean>;
+  /** Personaje de la conversacion si existe y es de este seudonimo; si no, null. */
+  conversationCompanion(subjectId: string, conversationId: string): Promise<string | null>;
 }
 
 export interface AuthDeps {
@@ -138,9 +140,11 @@ export async function openSession(
 
 /** POST /v1/session/grant (autenticado): un grant de voz de un solo uso. */
 export async function issueGrant(subjectId: string, body: unknown, deps: AuthDeps): Promise<unknown> {
-  const input = (body ?? {}) as { conversationId?: unknown; locale?: unknown };
+  const input = (body ?? {}) as { conversationId?: unknown; locale?: unknown; companion?: unknown };
   const locale = input.locale === undefined ? 'es-419' : input.locale;
   if (typeof locale !== 'string' || !LOCALES.includes(locale as Locale)) throw new AuthHttpError(400, 'invalid_locale');
+  const companion = input.companion === undefined ? DEFAULT_COMPANION : input.companion;
+  if (!isCompanion(companion)) throw new AuthHttpError(400, 'invalid_companion');
 
   let conversationId: string;
   if (input.conversationId === undefined) {
@@ -149,7 +153,10 @@ export async function issueGrant(subjectId: string, body: unknown, deps: AuthDep
     if (typeof input.conversationId !== 'string' || !UUID.test(input.conversationId)) throw new AuthHttpError(400, 'invalid_conversation');
     // Retomar solo conversaciones propias. Una que no existe todavia no se acepta del
     // cliente: las nuevas las numera el servidor.
-    if (!(await deps.accounts.ownsConversation(subjectId, input.conversationId))) throw new AuthHttpError(404, 'not_found');
+    const owner = await deps.accounts.conversationCompanion(subjectId, input.conversationId);
+    if (owner === null) throw new AuthHttpError(404, 'not_found');
+    // Cada conversacion es con un personaje: retomarla con otro mezclaria su historial.
+    if (owner !== companion) throw new AuthHttpError(409, 'companion_mismatch');
     conversationId = input.conversationId;
   }
 
@@ -158,6 +165,7 @@ export async function issueGrant(subjectId: string, body: unknown, deps: AuthDep
     {
       subjectId,
       conversationId,
+      companionId: companion,
       plan,
       region: 'us',
       locale: locale as Locale,

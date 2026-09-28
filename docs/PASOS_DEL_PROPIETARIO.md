@@ -115,6 +115,17 @@ No pide nada. Sustituye al oído simulado: Rio transcribe lo que dices al soltar
 Con esto AssemblyAI deja de ser imprescindible para probar; sigue siendo la opción para la
 conversación manos libres (streaming).
 
+### Voces realistas de Gemini (Nova, Sage y Rio)
+
+Con la clave de Gemini ya puesta:
+```bash
+cd ~/Kotaru/kotaru && bash deploy/voces.sh
+```
+Hace una prueba real de voz con Google (menos de una milésima de centavo) y solo activa las
+voces si llega audio. Una voz distinta por personaje; Kokoro queda de respaldo. Para cambiar
+una voz tras escucharlas: en `gateway.env`, `KOTARU_GEMINI_VOICES=nova:Leda,sage:Sulafat,rio:Achird`
+(cualquiera de las 30 voces de Gemini) y `systemctl restart kotaru-gateway`.
+
 ### AWS Polly (texto a voz) — 16 USD por millón de caracteres
 
 1. Crear cuenta de AWS: <https://portal.aws.amazon.com/billing/signup>.

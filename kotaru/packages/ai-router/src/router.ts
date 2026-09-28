@@ -2,6 +2,7 @@ import {
   NoViableRouteError,
   SENSITIVITY_ORDER,
   type AiRouter,
+  type Capability,
   type CostEstimate,
   type ExcludedProvider,
   type HardConstraint,
@@ -33,6 +34,13 @@ export interface RouterOptions {
   readonly circuitBreaker?: Partial<CircuitBreakerOptions>;
   /** Reloj inyectable: las pruebas no dependen del tiempo real. */
   readonly now?: () => number;
+  /**
+   * Preferencia del operador por capacidad: si ese proveedor pasa las restricciones duras
+   * (region, retencion, derechos, presupuesto, circuito), va primero aunque puntue menos;
+   * los demas quedan de respaldo en su orden. Sirve cuando la calidad es el producto (la
+   * voz de un personaje) y el puntaje por precio elegiria la opcion barata.
+   */
+  readonly preferred?: Readonly<Partial<Record<Capability, string>>>;
 }
 
 const DEFAULT_WEIGHTS: ScoringWeights = { quality: 1.0, cost: 0.8, latency: 0.5, health: 0.6 };
@@ -75,11 +83,13 @@ export class DefaultAiRouter implements AiRouter {
   readonly #providers = new Map<string, RegisteredProvider>();
   readonly #state = new Map<string, ProviderState>();
   readonly #weights: ScoringWeights;
+  readonly #preferred: Readonly<Partial<Record<Capability, string>>>;
   readonly #breaker: CircuitBreakerOptions;
   readonly #now: () => number;
 
   constructor(options: RouterOptions = {}) {
     this.#weights = { ...DEFAULT_WEIGHTS, ...options.weights };
+    this.#preferred = options.preferred ?? {};
     this.#breaker = { ...DEFAULT_BREAKER, ...options.circuitBreaker };
     this.#now = options.now ?? (() => Date.now());
   }
@@ -155,6 +165,9 @@ export class DefaultAiRouter implements AiRouter {
     }
 
     const scored = this.#score(candidates, req);
+    const pinned = this.#preferred[req.capability];
+    const pinnedAt = pinned === undefined ? -1 : scored.findIndex((s) => s.candidate.provider.descriptor.id === pinned);
+    if (pinnedAt > 0) scored.unshift(...scored.splice(pinnedAt, 1));
     const winner = scored[0]!;
 
     return {

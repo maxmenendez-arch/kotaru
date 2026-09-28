@@ -901,3 +901,30 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   `selectstart` bloqueados solo dentro del botón). En iOS/Android nativo no hace nada.
 - Verificado con Playwright: pulsar, arrastrar y mantener 1,5 s deja la selección vacía,
   el menú contextual queda bloqueado y el turno de voz sigue funcionando; sin errores.
+
+## 2026-09-27 (noche) — Tres personajes con personalidad y voz propia: Nova, Sage y Rio
+
+- **Personajes** (`@kotaru/persona`): Nova (chispa creativa), Sage (calma y claridad) y Rio
+  (calidez social, ahora masculino), del elenco de 09_BRAND. Cada ficha trae rasgos concretos
+  de conversación, gustos de personaje y cómo suena su voz. Reglas nuevas para que el diálogo
+  se sienta vivo (`rules@1.1.0`): reaccionar primero, no terminar siempre en pregunta, variar
+  el largo, retomar detalles, nada de frases de asistente. Las reglas de seguridad no cambian
+  y van primero para los tres. Género gramatical correcto en español.
+- **Voces realistas**: `GeminiTtsProvider` (Gemini 3.8 Flash-Lite TTS por la Interactions
+  API, streaming SSE, PCM 24 kHz). Tarifas verificadas el 2026-09-27 (6 USD/M tokens de audio
+  en 2026, 12 desde el 1 de enero de 2027; 25 tokens por segundo) y términos: Google no
+  reclama el audio y en el nivel de pago no usa el contenido. Voz por personaje (Laomedeia,
+  Vindemiatrix, Achird; el género de cada voz es `ASSUMPTION` hasta oírlas) y estilo de
+  lectura. Proveedor `gemini-tts`; el router acepta una preferencia del operador por
+  capacidad (la voz de Gemini primero, Kokoro de respaldo) porque en "balanced" ganaba la
+  más barata. Kokoro y Polly usan ahora voz masculina para Rio.
+- **Elegir personaje**: el grant lleva `companionId`; `POST /v1/session/grant` acepta
+  `companion` y no deja retomar una conversación con otro personaje (409). Migración 0012 da
+  de alta a Nova y Sage. En la app: selector arriba (monograma con color y nombre), retrato y
+  nombres del personaje, y cada uno guarda su conversación: al volver, se retoma.
+- `deploy/voces.sh`: prueba real con Google antes de activar (si no llega audio en el formato
+  esperado, no cambia nada y muestra por qué), añade `gemini-tts` y vuelve atrás si falla.
+- Verificado: 379 pruebas + 30 contra PostgreSQL, lint de arquitectura; Playwright: tres
+  personajes, conversación con Nova, cambio a Sage (pantalla limpia), vuelta a Nova (sigue su
+  conversación y el servidor la retoma con el mismo id), turno de voz con Rio; sin errores.
+  La voz real de Gemini se prueba con `voces.sh` en el servidor (aquí no hay salida a Google).

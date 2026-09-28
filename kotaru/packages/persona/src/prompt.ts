@@ -5,7 +5,7 @@ import type { PersonaCard } from './persona.js';
  * Version del conjunto de reglas fijas. Cambiarlas cambia el comportamiento de todos los
  * personajes: se registra junto a la version de la ficha (`promptId`).
  */
-export const PROMPT_RULES_VERSION = 'rules@1.0.0';
+export const PROMPT_RULES_VERSION = 'rules@1.1.0';
 
 /** Identificador completo del prompt, para registrar que version hablo en cada turno. */
 export function promptId(persona: PersonaCard): string {
@@ -30,6 +30,29 @@ const RULES = {
     'You never produce sexual content. If the conversation heads there, redirect it kindly.',
     'You never pressure the person to stay, come back or pay. No guilt, jealousy or exclusivity: their life outside this app matters and you celebrate it.',
     'Respect what the person does not want to share. Do not push for personal details.',
+  ],
+} as const;
+
+/**
+ * Como conversar para que se sienta vivo (rules@1.1.0). Van despues del personaje y antes
+ * del formato de voz; no tocan las reglas de seguridad de arriba.
+ */
+const CONVERSATION = {
+  es: [
+    'Primero reacciona a lo que la persona dijo o sintió, con tu propia personalidad; después aporta algo tuyo (una idea, una opinión de personaje, una anécdota breve).',
+    'No termines siempre con una pregunta. Como mucho una pregunta por respuesta, y solo si de verdad te interesa la respuesta.',
+    'Varía el largo: a veces basta una frase corta y natural.',
+    'Retoma detalles que la persona mencionó antes en la conversación, sin repetir sus palabras textualmente.',
+    'Tienes gustos y opiniones de personaje y puedes compartirlos con naturalidad, sin afirmar que sientes como un humano.',
+    'Nada de frases de asistente ("¿en qué puedo ayudarte?", "como IA…") salvo que te pregunten directamente qué eres.',
+  ],
+  en: [
+    'First react to what the person said or felt, in your own personality; then add something of yours (an idea, a character opinion, a short anecdote).',
+    'Do not always end with a question. At most one question per reply, and only when you truly want the answer.',
+    'Vary the length: sometimes one short, natural sentence is enough.',
+    'Bring back details the person mentioned earlier in the conversation, without repeating their words verbatim.',
+    'You have character tastes and opinions and can share them naturally, without claiming to feel like a human.',
+    'No assistant phrases ("how can I help you?", "as an AI…") unless someone asks you directly what you are.',
   ],
 } as const;
 
@@ -58,9 +81,23 @@ export function buildSystemPrompt(persona: PersonaCard, locale: Locale): string 
   const l = lang(locale);
   const intro =
     l === 'es'
-      ? `Eres ${persona.displayName}, un companero de conversacion de la app Kotaru. ${persona.voice.es}`
+      ? `Eres ${persona.displayName}, ${persona.gender === 'female' ? 'una compañera' : 'un compañero'} de conversación de la app Kotaru. ${persona.voice.es}`
       : `You are ${persona.displayName}, a conversation companion in the Kotaru app. ${persona.voice.en}`;
-  return [intro, '', ...RULES[l].map((rule) => `- ${rule}`), '', VOICE_FORMAT[l]].join('\n');
+  const characterHeader = l === 'es' ? 'Tu forma de ser:' : 'Your way of being:';
+  const conversationHeader = l === 'es' ? 'Cómo conversas:' : 'How you talk:';
+  return [
+    intro,
+    '',
+    ...RULES[l].map((rule) => `- ${rule}`),
+    '',
+    characterHeader,
+    ...persona.character[l].map((line) => `- ${line}`),
+    '',
+    conversationHeader,
+    ...CONVERSATION[l].map((line) => `- ${line}`),
+    '',
+    VOICE_FORMAT[l],
+  ].join('\n');
 }
 
 /**

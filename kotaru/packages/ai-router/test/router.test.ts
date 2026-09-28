@@ -221,3 +221,27 @@ describe('puntuacion', () => {
     expect(decision.fallbacks).toEqual(['segundo', 'tercero']);
   });
 });
+
+describe('preferencia del operador', () => {
+  const req = (quality: 'balanced' | 'premium' = 'balanced'): RouteRequest => ({
+    capability: 'tts', quality, ctx: ctx(), predicted: { characters: 300 } as PredictedUsage,
+  });
+
+  it('el preferido va primero aunque puntue menos; los demas quedan de respaldo', () => {
+    const cheap = provider('barata', 0.001, { capability: 'tts', quality: 0.6 });
+    const good = provider('realista', 0.01, { capability: 'tts', quality: 0.88 });
+    const plain = new DefaultAiRouter().register(cheap).register(good);
+    expect(plain.select(req()).providerId).toBe('barata');
+    const pinned = new DefaultAiRouter({ preferred: { tts: 'realista' } }).register(cheap).register(good);
+    const d = pinned.select(req());
+    expect(d.providerId).toBe('realista');
+    expect(d.fallbacks).toEqual(['barata']);
+  });
+
+  it('si el preferido no pasa las restricciones duras, no se fuerza', () => {
+    const cheap = provider('barata', 0.001, { capability: 'tts', quality: 0.6 });
+    const blocked = provider('realista', 0.01, { capability: 'tts', quality: 0.88, trainingOptOut: false });
+    const r = new DefaultAiRouter({ preferred: { tts: 'realista' } }).register(cheap).register(blocked);
+    expect(r.select(req()).providerId).toBe('barata');
+  });
+});

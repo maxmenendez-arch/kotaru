@@ -129,4 +129,32 @@ describe('proveedores del gateway', () => {
     expect(select(set, 'stt').providerId).toBe('together-whisper');
     expect(set.voiceUnavailable).toBe(false);
   });
+
+  it('gemini-tts: voz realista por personaje; con Kokoro presente, el router elige la de Gemini y Kokoro queda de respaldo', () => {
+    const config = loadConfig({
+      ...base,
+      KOTARU_PROVIDERS: 'gemini,kokoro,whisper,gemini-tts',
+      GEMINI_API_KEY: 'k2',
+      KOTARU_GEMINI_PAID_TIER_CONFIRMED: 'true',
+      TOGETHER_API_KEY: 'k3',
+      KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED: 'true',
+      KOTARU_TOGETHER_COMMERCIAL_TERMS_REVIEWED: 'true',
+      KOTARU_GEMINI_VOICES: 'sage:Sulafat',
+    });
+    expect(config.providerSettings.geminiTts).toMatchObject({ model: 'gemini-3.8-flash-lite-tts', voices: { sage: 'Sulafat' } });
+    const set = buildProviders(config.providers, config.providerSettings, Date.now);
+    expect(set.registered).toContain('gemini-3.8-flash-lite-tts');
+    expect(set.blocked).toEqual([]);
+    for (const quality of ['premium', 'balanced'] as const) {
+      const d = set.router.select({ capability: 'tts', quality, ctx, predicted: { characters: 300 } });
+      expect(d.providerId).toBe('gemini-3.8-flash-lite-tts');
+      expect(d.fallbacks).toContain('together-kokoro');
+    }
+  });
+
+  it('KOTARU_GEMINI_VOICES mal escrito es un error de configuracion', () => {
+    const env = { ...base, KOTARU_PROVIDERS: 'gemini,gemini-tts', GEMINI_API_KEY: 'k', KOTARU_GEMINI_PAID_TIER_CONFIRMED: 'true' };
+    expect(() => loadConfig({ ...env, KOTARU_GEMINI_VOICES: 'nova:Inventada' })).toThrow(/no es una voz de Gemini/);
+    expect(() => loadConfig({ ...env, KOTARU_GEMINI_VOICES: 'yuki:Leda' })).toThrow(/personaje:Voz/);
+  });
 });

@@ -1,4 +1,4 @@
-import { ConversationClient, MemoryApi, type AuthApi, type ClientEvent, type SocketLike } from '@kotaru/client';
+import { ApiError, ConversationClient, MemoryApi, type AuthApi, type ClientEvent, type SocketLike } from '@kotaru/client';
 import type { Lang } from './i18n';
 
 /**
@@ -30,7 +30,20 @@ export function localeFor(lang: Lang): 'es-419' | 'en-US' {
   return lang === 'en' ? 'en-US' : 'es-419';
 }
 
-export function createConversation(conn: Connection, lang: Lang, onEvent: (e: ClientEvent) => void): ConversationClient {
+/** Con quien se habla y en que conversacion (para retomarla al volver al personaje). */
+export interface ConversationTarget {
+  readonly companion: string;
+  readonly conversationId?: string;
+  /** Avisa del id de conversacion que numero el servidor. */
+  readonly onConversation?: (conversationId: string) => void;
+}
+
+export function createConversation(
+  conn: Connection,
+  lang: Lang,
+  onEvent: (e: ClientEvent) => void,
+  target: ConversationTarget = { companion: 'rio' },
+): ConversationClient {
   const common = {
     url: wsUrl(conn.serverUrl),
     createSocket: (url: string) => new WebSocket(url) as unknown as SocketLike,
@@ -39,12 +52,21 @@ export function createConversation(conn: Connection, lang: Lang, onEvent: (e: Cl
   if (conn.kind === 'account') {
     // Cada reconexion pide un grant nuevo para la misma conversacion: el servidor solo
     // deja retomar conversaciones propias, y numera el las nuevas.
-    let conversationId: string | undefined;
+    let conversationId: string | undefined = target.conversationId;
     return new ConversationClient({
       ...common,
       getGrant: async () => {
         const locale = localeFor(lang);
-        const issued = await conn.auth.voiceGrant(conversationId ? { conversationId, locale } : { locale });
+        const request = { locale, companion: target.companion };
+        let issued;
+        try {
+          issued = await conn.auth.voiceGrant(conversationId ? { ...request, conversationId } : request);
+        } catch (err) {
+          // La conversacion guardada ya no existe (retencion, borrado): se empieza otra.
+          if (!conversationId || !(err instanceof ApiError) || (err.status !== 404 && err.status !== 409)) throw err;
+          issued = await conn.auth.voiceGrant(request);
+        }
+        if (issued.conversationId !== conversationId) target.onConversation?.(issued.conversationId);
         conversationId = issued.conversationId;
         return issued.grant;
       },

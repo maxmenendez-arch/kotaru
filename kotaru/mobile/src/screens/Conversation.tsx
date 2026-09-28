@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAudio } from '../audio';
+import { COMPANIONS, companionById, type Companion, type CompanionId } from '../companions';
 import { createConversation, type Connection } from '../connection';
 import { installNoSelect, NO_SELECT_ATTR } from '../no-select';
 import type { Lang } from '../i18n';
@@ -55,6 +56,11 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   const [history, setHistory] = useState<Exchange[]>([]);
   // El servidor dice al conectar si puede oir de verdad; hasta entonces se asume que si.
   const [voiceOn, setVoiceOn] = useState(true);
+  const [companionId, setCompanionId] = useState<CompanionId>('rio');
+  const companion = companionById(companionId);
+  // Por personaje: su conversacion en el servidor (para retomarla) y lo que se vio en pantalla.
+  const conversations = useRef<Partial<Record<CompanionId, string>>>({});
+  const screens = useRef<Partial<Record<CompanionId, Exchange[]>>>({});
   const nextId = useRef(0);
   const scroll = useRef<ScrollView | null>(null);
   const client = useRef<ConversationClient | null>(null);
@@ -120,7 +126,14 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     setError(null);
     speaker.current.unlock?.();
     client.current?.close();
-    client.current = createConversation(connection, lang, onEvent);
+    const who = companionId;
+    client.current = createConversation(connection, lang, onEvent, {
+      companion: who,
+      ...(conversations.current[who] ? { conversationId: conversations.current[who] } : {}),
+      onConversation: (id) => {
+        conversations.current[who] = id;
+      },
+    });
     setLimitNote(null);
     try {
       await client.current.connect();
@@ -131,7 +144,28 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     }
   };
 
-  /** Escribirle a Rio. Si la conversacion se cerro (inactividad), se reabre sola. */
+  /**
+   * Cambiar de personaje: se cierra la conversacion actual y se muestra la del otro, con
+   * lo que ya se habia dicho en pantalla. Al conectar se retoma su conversacion.
+   */
+  const choose = (next: CompanionId) => {
+    if (next === companionId) return;
+    const current = [...history, ...(heard || reply ? [{ id: nextId.current++, heard, reply }] : [])].slice(-HISTORY_MAX);
+    screens.current[companionId] = current;
+    mic.current.stop();
+    speaker.current.stopNow();
+    client.current?.close();
+    client.current = null;
+    setState('closed');
+    setHeard('');
+    setReply('');
+    setError(null);
+    setLimitNote(null);
+    setHistory(screens.current[next] ?? []);
+    setCompanionId(next);
+  };
+
+  /** Escribirle al personaje. Si la conversacion se cerro (inactividad), se reabre sola. */
   const sendText = async () => {
     const text = draft.trim();
     if (!text || !connection) return;
@@ -153,7 +187,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
     archiveCurrent();
     setHeard('');
     setReply('');
-    // Barge-in: Rio calla en cuanto se pulsa, sin esperar al servidor.
+    // Barge-in: el personaje calla en cuanto se pulsa, sin esperar al servidor.
     speaker.current.stopNow();
     speaker.current.unlock?.();
     client.current.startTalking();
@@ -179,15 +213,24 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
 
   return (
     <Screen>
+      <CompanionPicker selected={companionId} onChoose={choose} label={s.chooseCompanion} lang={lang} />
       <View style={[styles.portraitArea, compact && styles.portraitAreaCompact]}>
-        <View style={[styles.ring, compact && styles.ringCompact, { borderColor: RING[state] }]}>
-          <View style={[styles.portrait, compact && styles.portraitCompact]} accessibilityLabel="Rio" accessibilityRole="image">
-            <Text style={[styles.initial, compact && styles.initialCompact]}>R</Text>
+        <View style={[styles.ring, compact && styles.ringCompact, { borderColor: state === 'idle' || state === 'closed' ? companion.accent : RING[state] }]}>
+          <View
+            style={[styles.portrait, compact && styles.portraitCompact, { backgroundColor: companion.tint }]}
+            accessibilityLabel={companion.name}
+            accessibilityRole="image"
+          >
+            <Text style={[styles.initial, compact && styles.initialCompact, { color: companion.accent }]}>{companion.name[0]}</Text>
           </View>
         </View>
+        <Text accessibilityRole="header" style={styles.name}>
+          {companion.name}
+        </Text>
         <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.state}>
           {label}
         </Text>
+        {state === 'closed' && history.length === 0 ? <Text style={styles.tagline}>{companion.tagline[lang]}</Text> : null}
         {minutes !== null && voiceOn ? <Text style={styles.minutes}>{s.minutesLeft(minutes)}</Text> : null}
       </View>
 
@@ -213,9 +256,9 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
       >
         {history.map((x) => (
-          <ExchangeView key={x.id} heard={x.heard} reply={x.reply} you={s.you} past />
+          <ExchangeView key={x.id} heard={x.heard} reply={x.reply} you={s.you} them={companion.name} past />
         ))}
-        <ExchangeView heard={heard} reply={reply} you={s.you} />
+        <ExchangeView heard={heard} reply={reply} you={s.you} them={companion.name} />
       </ScrollView>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -223,8 +266,8 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
       {connection ? (
         <View style={styles.compose}>
           <TextInput
-            accessibilityLabel={s.writePlaceholder}
-            placeholder={s.writePlaceholder}
+            accessibilityLabel={s.writePlaceholder(companion.name)}
+            placeholder={s.writePlaceholder(companion.name)}
             placeholderTextColor={color.mist}
             value={draft}
             onChangeText={setDraft}
@@ -251,7 +294,7 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
       ) : state === 'closed' ? (
         <Button label={s.connect} onPress={() => void connect()} />
       ) : !voiceOn ? (
-        <Text style={styles.note}>{s.voiceNotYet}</Text>
+        <Text style={styles.note}>{s.voiceNotYet(companion.name)}</Text>
       ) : (
         <>
           <Pressable
@@ -273,8 +316,38 @@ export function Conversation({ lang, connection }: { lang: Lang; connection: Con
   );
 }
 
-/** Un intercambio: lo que dijiste (o escribiste) y lo que contesto Rio. */
-function ExchangeView({ heard, reply, you, past }: { heard: string; reply: string; you: string; past?: boolean }) {
+/**
+ * Los tres personajes, arriba. Monograma con su color MAS el nombre escrito: el color nunca
+ * es la unica señal (09_BRAND). Se puede cambiar en cualquier momento.
+ */
+function CompanionPicker({ selected, onChoose, label, lang }: { selected: CompanionId; onChoose: (id: CompanionId) => void; label: string; lang: Lang }) {
+  return (
+    <View style={styles.picker} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      {COMPANIONS.map((c: Companion) => {
+        const on = c.id === selected;
+        return (
+          <Pressable
+            key={c.id}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on, checked: on }}
+            accessibilityLabel={c.name}
+            accessibilityHint={c.tagline[lang]}
+            onPress={() => onChoose(c.id)}
+            style={[styles.chip, on && { borderColor: c.accent, backgroundColor: c.tint }]}
+          >
+            <View style={[styles.chipDot, { backgroundColor: c.tint, borderColor: c.accent }]}>
+              <Text style={[styles.chipInitial, { color: c.accent }]}>{c.name[0]}</Text>
+            </View>
+            <Text style={[styles.chipName, on && styles.chipNameOn]}>{c.name}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Un intercambio: lo que dijiste (o escribiste) y lo que contesto el personaje. */
+function ExchangeView({ heard, reply, you, them, past }: { heard: string; reply: string; you: string; them: string; past?: boolean }) {
   if (!heard && !reply) return null;
   return (
     <View style={[styles.exchange, past && styles.past]}>
@@ -286,7 +359,7 @@ function ExchangeView({ heard, reply, you, past }: { heard: string; reply: strin
       ) : null}
       {reply ? (
         <Text style={styles.reply}>
-          <Text style={styles.speaker}>Rio: </Text>
+          <Text style={styles.speaker}>{them}: </Text>
           {reply}
         </Text>
       ) : null}
@@ -324,6 +397,24 @@ function connectMessage(err: unknown, s: ReturnType<typeof t>): string {
 }
 
 const styles = StyleSheet.create({
+  picker: { flexDirection: 'row', justifyContent: 'center', gap: space.s, marginBottom: space.l },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.s,
+    paddingVertical: space.xs,
+    paddingLeft: space.xs,
+    paddingRight: space.m,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: color.inkLine,
+  },
+  chipDot: { width: 28, height: 28, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chipInitial: { ...type.support, fontWeight: '600' },
+  chipName: { ...type.support, color: color.mist },
+  chipNameOn: { color: color.cloud, fontWeight: '600' },
+  name: { ...type.title, color: color.cloud, marginTop: space.m },
+  tagline: { ...type.support, color: color.mist, marginTop: space.xs, textAlign: 'center' },
   portraitArea: { alignItems: 'center', marginBottom: space.xl },
   ring: { width: 188, height: 188, borderRadius: radius.pill, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
   portrait: { width: 164, height: 164, borderRadius: radius.pill, backgroundColor: color.inkRaised, alignItems: 'center', justifyContent: 'center' },
@@ -332,7 +423,7 @@ const styles = StyleSheet.create({
   ringCompact: { width: 96, height: 96 },
   portraitCompact: { width: 80, height: 80 },
   initialCompact: { ...type.title },
-  state: { ...type.body, color: color.cloud, marginTop: space.m },
+  state: { ...type.support, color: color.mist, marginTop: space.xs },
   minutes: { ...type.micro, color: color.mist, marginTop: space.xs },
   captions: { flex: 1, marginBottom: space.m },
   captionsContent: { gap: space.l, flexGrow: 1, justifyContent: 'flex-end' },
