@@ -5,8 +5,11 @@
 
 meta:
   contracting_entity: US
-  last_review: 2026-09-17
+  last_review: 2026-09-28
   currency: USD
+
+# Lista de proveedores (y notas de jurisdiccion), la mas reciente al final.
+providers:
 
 # ---------------------------------------------------------------- STT
 - provider: assemblyai
@@ -357,3 +360,59 @@ meta:
   notes:
     - "Sin visemas: pedirlos es una segunda peticion facturada; la boca se anima por amplitud (ADR-001)"
     - "Existe StartSpeechSynthesisStream (marzo 2026), bidireccional, solo motor generativo (30 USD/M) y sin speech marks"
+
+# ------------------------------------------------- RUTA DE VOZ EN PRODUCCION 2026-09-28 (D-014)
+# Lo que usa app.kotaru.app hoy. Precios comprobados de nuevo el 2026-09-28 en las paginas
+# oficiales; coinciden con las constantes de los adaptadores.
+- provider: together-ai
+  capability: stt
+  model: openai/whisper-large-v3
+  adapter: packages/ai-adapters-together (whisper.ts)
+  price: 0.0015
+  unit: minuto de audio enviado (solo lo que dice la persona)
+  verified_at: 2026-09-28
+  pricing_source: https://www.together.ai/pricing
+  enabled: true
+  role: primaria
+  notes:
+    - "Existe una variante en streaming a 0.0035 USD/minuto; no se usa (se transcribe al soltar el boton)"
+    - "Retencion de datos en Together: ASSUMPTION sin verificar para audio; revisar sus terminos antes del lanzamiento"
+
+- provider: google
+  capability: tts
+  model: gemini-3.8-flash-lite-tts
+  adapter: packages/ai-adapters-gemini (tts.ts, Interactions API)
+  price_input: 0.50
+  price_output_audio: 6.00
+  price_from_2027_01_01: "1.00 entrada / 12.00 audio (el adaptador ya cambia de tarifa por fecha)"
+  unit: millon de tokens (audio a 25 tokens por segundo), nivel de pago
+  verified_at: 2026-09-28
+  pricing_source: https://ai.google.dev/gemini-api/docs/pricing
+  data_use: "nivel gratuito: SI se usa para mejorar productos; nivel de pago: no (misma politica que el LLM)"
+  enabled: true
+  role: primaria
+  voices: "Nova Leda, Luna Vindemiatrix, Rio Algieba (elegidas por el dueno)"
+  blocker: >
+    Nivel 1: 100 peticiones al dia. El adaptador junta frases (maximo 2 peticiones por
+    respuesta) y, al agotarse, pasa al respaldo hasta la hora que indica Google. Salidas:
+    nivel 2 (100 USD pagados y 3 dias) o Chirp 3 HD con credencial de Google Cloud.
+  note: "El precio se DUPLICA el 1 de enero de 2027: rehacer el modelo de costos por plan antes de esa fecha"
+
+- provider: together-ai
+  capability: tts
+  model: cartesia/sonic-3
+  adapter: packages/ai-adapters-together (cartesia.ts)
+  price: 65.00
+  unit: millon de caracteres (~1.3 centavos por respuesta tipica)
+  spanish: "si — sin errores en las muestras transcritas con Whisper (2026-09-28)"
+  verified_at: 2026-09-28
+  pricing_source: https://www.together.ai/pricing
+  enabled: true
+  role: primer respaldo (si Gemini falla o agota su cuota)
+  voices: "Luna Helena (elegida por el dueno); Nova Lucia y Rio Mateo provisionales"
+  commercial_audio_rights: "ASSUMPTION — no verificado en los terminos de Together/Cartesia; revisar antes del lanzamiento"
+
+- provider: together-ai
+  capability: tts
+  model: kokoro-82m
+  role_update_2026-09-28: "ultimo respaldo; el dueno lo descarto como voz principal por sonar plano (D-011 sustituida por D-014)"

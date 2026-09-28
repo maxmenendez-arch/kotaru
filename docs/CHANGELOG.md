@@ -1103,3 +1103,14 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
 - Verificado: 450 pruebas (2 nuevas en `ai-adapters-gemini`), typecheck y lint. Desplegado
   (b64bc87, `install.sh` con su prueba de humo) y comprobado con `prueba-voz.sh`: todo en orden,
   voz de Gemini, emoción "warm", 0,4 centavos el turno.
+
+## 2026-09-28 — Registro de proveedores al día con la ruta de voz real
+
+- `PROVIDER_REGISTRY.yaml`: entradas nuevas para lo que usa producción (Whisper en Together,
+  Gemini 3.8 Flash-Lite TTS, Cartesia Sonic-3), con precios comprobados hoy en las páginas
+  oficiales (coinciden con las constantes de los adaptadores) y lo que sigue sin verificar
+  marcado `ASSUMPTION` (retención de audio en Together, derechos comerciales del audio de Cartesia).
+- El archivo ahora es YAML válido: la lista va bajo la clave `providers:` (antes mezclaba un
+  mapa y una lista en la raíz y no se podía leer con un parser).
+- `COST_MODEL.md`: la voz de Gemini duplica su precio el 1 de enero de 2027 (de ~0,54 a
+  ~1,08 USD por hora de voz del personaje).

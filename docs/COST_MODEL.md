@@ -188,6 +188,11 @@ debe ajustarse por remote config sin desplegar.
 - Las tarifas de Deepgram STT son promocionales segun su propia pagina. Se modela con la regular.
 - Gemini Flash sube de precio el 1 de enero de 2027: entrada 0.75 -> 1.50, salida 3.75 -> 7.50.
   Toda proyeccion a 12 meses debe usar las tarifas de 2027.
+- Ruta de voz en produccion (D-014, verificado 2026-09-28): Gemini 3.8 Flash-Lite TTS cuesta
+  0.50 USD por millon de tokens de texto y 6.00 por millon de tokens de audio (25 tokens por
+  segundo, unos 0.54 USD por hora de voz del personaje) hasta el 31-12-2026; desde el
+  1-1-2027 pasa a 1.00 / 12.00 (unos 1.08 USD por hora). El respaldo Cartesia Sonic-3 cuesta
+  65 USD por millon de caracteres. Las proyecciones de planes para 2027 deben usar el precio doble.
 - El efectivo de Gemini TTS depende de la tasa de caracteres por segundo del habla real.
   A 15 car/s son 16.79; a 12 car/s son 20.99. Medir en espanol e ingles.
 - Azure AI Speech quedo sin cotizar: su pagina de precios no renderiza sin sesion.
