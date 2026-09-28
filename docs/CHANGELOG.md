@@ -1100,5 +1100,6 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   las que aparecen después, aunque lleguen partidas entre trozos, y un `[[crisis]]` tardío
   sigue activando el aviso de crisis. Solo retiene un final de trozo que parezca el comienzo de
   una etiqueta (`[`, `[[hap`); lo que no lo sea pasa intacto (`[nota]`).
-- Verificado: 450 pruebas (2 nuevas en `ai-adapters-gemini`), typecheck y lint.
-  **Pendiente de desplegar** (solo gateway: `install.sh`).
+- Verificado: 450 pruebas (2 nuevas en `ai-adapters-gemini`), typecheck y lint. Desplegado
+  (b64bc87, `install.sh` con su prueba de humo) y comprobado con `prueba-voz.sh`: todo en orden,
+  voz de Gemini, emoción "warm", 0,4 centavos el turno.
