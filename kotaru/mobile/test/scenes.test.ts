@@ -33,3 +33,13 @@ test('velas, neon y balanceo se mueven poco y nunca apagan del todo', () => {
   // Con "reducir movimiento" el visor pasa t = 0: todo queda en una posicion fija.
   assert.equal(sway(0, 0, 0.05), sway(0, 0, 0.05));
 });
+
+test('acabado de camara: cada escena tiene valores razonables', () => {
+  for (const id of Object.keys(PALETTES) as SceneId[]) {
+    const g = PALETTES[id].grade;
+    assert.ok(g.blur >= 0 && g.blur <= 1);
+    assert.ok(g.vignette < 0.6);
+    assert.ok(g.saturation > 0.8 && g.saturation < 1.3);
+    assert.ok(g.bloomThreshold > 0.2);
+  }
+});

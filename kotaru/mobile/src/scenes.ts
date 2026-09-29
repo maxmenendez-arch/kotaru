@@ -33,6 +33,27 @@ export interface ScenePalette {
   /** Luz principal sobre la cara (sustituye a la blanca del retrato sin fondo). */
   readonly key: number;
   readonly keyIntensity: number;
+  /** Postproceso del escenario (ver stage-post.ts). */
+  readonly grade: SceneGrade;
+}
+
+/**
+ * Acabado "de camara" de cada lugar. El fondo se desenfoca (el personaje queda nitido),
+ * lo que brilla desprende halo, y el color se ajusta como en una foto revelada.
+ */
+export interface SceneGrade {
+  /** Desenfoque del fondo, 0 (nitido) a 1 (muy suave). */
+  readonly blur: number;
+  /** Intensidad del halo de las luces del fondo. */
+  readonly bloom: number;
+  /** Brillo a partir del cual algo desprende halo (lineal, 0-1). */
+  readonly bloomThreshold: number;
+  readonly saturation: number;
+  readonly contrast: number;
+  /** Calidez: positivo mas calido (rojo arriba, azul abajo). */
+  readonly warmth: number;
+  /** Oscurecimiento de las esquinas, 0-1. */
+  readonly vignette: number;
 }
 
 export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
@@ -47,6 +68,7 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
     rimIntensity: 1.0,
     key: 0xfff6ea,
     keyIntensity: 0.95,
+    grade: { blur: 0.7, bloom: 0.25, bloomThreshold: 0.85, saturation: 1.05, contrast: 1.04, warmth: 0.02, vignette: 0.22 },
   },
   'nova-room': {
     fog: 0x1c0f22,
@@ -59,6 +81,7 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
     rimIntensity: 1.5,
     key: 0xffe8dc,
     keyIntensity: 1.9,
+    grade: { blur: 0.8, bloom: 1.0, bloomThreshold: 0.45, saturation: 1.12, contrast: 1.08, warmth: 0.0, vignette: 0.45 },
   },
   'rio-outdoors': {
     fog: 0xf0b98a,
@@ -71,6 +94,7 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
     rimIntensity: 3.0,
     key: 0xfff0dc,
     keyIntensity: 1.8,
+    grade: { blur: 0.6, bloom: 0.6, bloomThreshold: 0.7, saturation: 1.08, contrast: 1.05, warmth: 0.03, vignette: 0.3 },
   },
 };
 

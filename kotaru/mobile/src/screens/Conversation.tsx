@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAmbient, type AmbientKind } from '../ambient';
 import { createAudio } from '../audio';
@@ -38,6 +38,8 @@ interface Exchange {
 /** Diametro del retrato (y del avatar 3D), normal y achicado. */
 const PORTRAIT = 188;
 const PORTRAIT_COMPACT = 88;
+/** Fondo de los paneles que flotan sobre el escenario: tinta al 72 % (texto blanco legible). */
+const GLASS = 'rgba(11,16,32,0.72)';
 
 const RING: Record<ConversationState, string> = {
   connecting: color.inkLine,
@@ -288,63 +290,64 @@ export function Conversation({
   // (anillo, etiqueta y cabeza del avatar), no "en espera".
   const shown: ConversationState = state === 'idle' && voiceTail ? 'speaking' : state;
   const label = STATE_LABELS[lang][shown];
-  const { width: windowWidth } = useWindowDimensions();
   const listening = state === 'listening';
   // Con conversacion en pantalla, el retrato se achica para dejar sitio al texto.
   const compact = history.length > 0 || state === 'safety_handoff' || breathing;
 
-  // En la web el personaje aparece en su lugar (oficina, cuarto, montaña): un escenario
-  // ancho en vez del retrato redondo. En el movil sigue el retrato (aun sin 3D).
+  // En la web, con fondos, el personaje ocupa toda la pantalla en su lugar (oficina,
+  // cuarto, montaña) y los controles flotan encima. En el movil sigue el retrato redondo.
   const ringColor = shown === 'idle' || shown === 'closed' ? companion.accent : RING[shown];
-  const stage = backgrounds ? stageSize(windowWidth, compact) : null;
+  const immersive = backgrounds && Platform.OS === 'web';
+  const [area, setArea] = useState<{ width: number; height: number } | null>(null);
 
-  return (
-    <Screen>
-      <CompanionPicker selected={companionId} onChoose={choose} label={s.chooseCompanion} lang={lang} />
-      <View style={[styles.portraitArea, compact && styles.portraitAreaCompact]}>
-        <View
-          style={
-            stage
-              ? [styles.stageRing, { width: stage.width + 8, height: stage.height + 8, borderColor: ringColor }]
-              : [styles.ring, compact && styles.ringCompact, { borderColor: ringColor }]
-          }
-        >
-          <View
-            style={
-              stage
-                ? [styles.stage, { width: stage.width, height: stage.height, backgroundColor: companion.tint }]
-                : [styles.portrait, compact && styles.portraitCompact, { backgroundColor: companion.tint }]
-            }
-            accessibilityLabel={companion.name}
-            accessibilityRole="image"
-          >
-            <Avatar
-              companion={companionId}
-              size={stage ? stage.height : compact ? PORTRAIT_COMPACT : PORTRAIT}
-              {...(stage ? { width: stage.width, background: true } : {})}
-              state={shown}
-              affect={affect}
-              level={() => speaker.current.level?.() ?? 0}
-              fallback={
-                <Text style={[styles.initial, compact && styles.initialCompact, { color: companion.accent }]}>{companion.name[0]}</Text>
-              }
-            />
-          </View>
-        </View>
-        <Text accessibilityRole="header" style={styles.name}>
-          {companion.name}
-        </Text>
-        {/* Siempre visible (leyes de NY y California: avisar de que es una IA). */}
-        <Text style={styles.aiBadge}>{s.aiBadge}</Text>
-        <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.state}>
-          {label}
-        </Text>
-        {state === 'closed' && history.length === 0 ? <Text style={styles.tagline}>{companion.tagline[lang]}</Text> : null}
-        {companion.flirts ? <ModePicker mode={mode} onChoose={chooseMode} lang={lang} accent={companion.accent} /> : null}
-        {minutes !== null && voiceOn ? <Text style={styles.minutes}>{s.minutesLeft(minutes)}</Text> : null}
-        {voiceChoice !== 'auto' && voiceUsed ? <Text style={styles.minutes}>{s.voiceUsed(voiceUsed)}</Text> : null}
-      </View>
+  const avatar = (size: number, width?: number) => (
+    <Avatar
+      companion={companionId}
+      size={size}
+      {...(width !== undefined ? { width, background: true, immersive: true } : {})}
+      state={shown}
+      affect={affect}
+      level={() => speaker.current.level?.() ?? 0}
+      fallback={<Text style={[styles.initial, compact && !immersive && styles.initialCompact, { color: companion.accent }]}>{companion.name[0]}</Text>}
+    />
+  );
 
+  const picker = <CompanionPicker selected={companionId} onChoose={choose} label={s.chooseCompanion} lang={lang} floating={immersive} />;
+
+  // Nombre, aviso de IA (siempre visible: leyes de NY y California) y estado en texto.
+  const identity = immersive ? (
+    <View style={styles.identityFloating}>
+      <Text accessibilityRole="header" style={styles.nameFloating}>
+        {companion.name}
+      </Text>
+      <Text style={styles.aiBadgeFloating}>{s.aiBadge}</Text>
+      <View style={[styles.stateDot, { backgroundColor: ringColor }]} />
+      <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.stateFloating}>
+        {label}
+      </Text>
+    </View>
+  ) : (
+    <>
+      <Text accessibilityRole="header" style={styles.name}>
+        {companion.name}
+      </Text>
+      <Text style={styles.aiBadge}>{s.aiBadge}</Text>
+      <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.state}>
+        {label}
+      </Text>
+    </>
+  );
+  const extras = (
+    <>
+      {state === 'closed' && history.length === 0 ? <Text style={[styles.tagline, immersive && styles.taglineFloating]}>{companion.tagline[lang]}</Text> : null}
+      {companion.flirts ? <ModePicker mode={mode} onChoose={chooseMode} lang={lang} accent={companion.accent} /> : null}
+      {minutes !== null && voiceOn ? <Text style={styles.minutes}>{s.minutesLeft(minutes)}</Text> : null}
+      {voiceChoice !== 'auto' && voiceUsed ? <Text style={styles.minutes}>{s.voiceUsed(voiceUsed)}</Text> : null}
+    </>
+  );
+
+  const notices = (
+    <>
       {state === 'safety_handoff' ? (
         <Card style={styles.safety}>
           <Text accessibilityRole="header" style={styles.safetyTitle}>
@@ -359,11 +362,16 @@ export function Conversation({
           <Body muted>{limitNote ?? s.limitNote}</Body>
         </View>
       ) : null}
+    </>
+  );
 
+  const hasCaptions = history.length > 0 || heard !== '' || reply !== '';
+  const captions =
+    !immersive || hasCaptions ? (
       <ScrollView
         ref={scroll}
-        style={styles.captions}
-        contentContainerStyle={styles.captionsContent}
+        style={immersive ? [styles.captionsFloating, { maxHeight: Math.round((area?.height ?? 600) * 0.3) }] : styles.captions}
+        contentContainerStyle={immersive ? styles.captionsFloatingContent : styles.captionsContent}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
       >
         {history.map((x) => (
@@ -371,7 +379,10 @@ export function Conversation({
         ))}
         <ExchangeView heard={heard} reply={reply} you={s.you} them={companion.name} />
       </ScrollView>
+    ) : null;
 
+  const controls = (
+    <>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {companion.calm ? (
@@ -407,7 +418,7 @@ export function Conversation({
             onSubmitEditing={() => void sendText()}
             returnKeyType="send"
             maxLength={1000}
-            style={styles.input}
+            style={[styles.input, immersive && styles.inputFloating]}
           />
           <Pressable
             accessibilityRole="button"
@@ -445,7 +456,58 @@ export function Conversation({
           {audio.simulated ? <Text style={styles.note}>{s.simulatedMic}</Text> : null}
         </>
       )}
-      {breathing ? <BreatheOverlay lang={lang} accent={companion.accent} onClose={() => setBreathing(false)} /> : null}
+    </>
+  );
+
+  const breathe = breathing ? <BreatheOverlay lang={lang} accent={companion.accent} onClose={() => setBreathing(false)} /> : null;
+
+  if (immersive) {
+    return (
+      <View
+        style={[styles.immersive, { backgroundColor: companion.tint }]}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          if (!area || Math.abs(area.width - width) > 1 || Math.abs(area.height - height) > 1) setArea({ width, height });
+        }}
+      >
+        {/* El escenario detras de todo, a pantalla completa. */}
+        {area ? (
+          <View style={styles.immersiveStage} accessibilityLabel={companion.name} accessibilityRole="image">
+            {avatar(Math.round(area.height), Math.round(area.width))}
+          </View>
+        ) : null}
+        <View style={styles.immersiveColumn} pointerEvents="box-none">
+          {picker}
+          {identity}
+          <View style={styles.spacer} pointerEvents="none" />
+          <View style={styles.panel}>
+            <View style={styles.extrasFloating}>{extras}</View>
+            {notices}
+            {captions}
+            {controls}
+          </View>
+        </View>
+        {breathe}
+      </View>
+    );
+  }
+
+  return (
+    <Screen>
+      {picker}
+      <View style={[styles.portraitArea, compact && styles.portraitAreaCompact]}>
+        <View style={[styles.ring, compact && styles.ringCompact, { borderColor: ringColor }]}>
+          <View style={[styles.portrait, compact && styles.portraitCompact, { backgroundColor: companion.tint }]} accessibilityLabel={companion.name} accessibilityRole="image">
+            {avatar(compact ? PORTRAIT_COMPACT : PORTRAIT)}
+          </View>
+        </View>
+        {identity}
+        {extras}
+      </View>
+      {notices}
+      {captions}
+      {controls}
+      {breathe}
     </Screen>
   );
 }
@@ -454,19 +516,19 @@ export function Conversation({
  * Los tres personajes, arriba. Monograma con su color MAS el nombre escrito: el color nunca
  * es la unica señal (09_BRAND). Se puede cambiar en cualquier momento.
  */
-/**
- * Tamaño del escenario con fondo (solo web): casi todo el ancho, hasta 520 puntos, en
- * proporcion de ventana apaisada; mas bajo cuando hay conversacion en pantalla.
- * null en el movil (ahi sigue el retrato redondo).
- */
-function stageSize(windowWidth: number, compact: boolean): { width: number; height: number } | null {
-  if (Platform.OS !== 'web') return null;
-  const width = Math.round(Math.max(260, Math.min(windowWidth - 2 * space.l - 8, 520)));
-  const height = Math.round(compact ? Math.max(110, Math.min(width * 0.36, 170)) : Math.min(width * 0.62, 320));
-  return { width, height };
-}
-
-function CompanionPicker({ selected, onChoose, label, lang }: { selected: CompanionId; onChoose: (id: CompanionId) => void; label: string; lang: Lang }) {
+function CompanionPicker({
+  selected,
+  onChoose,
+  label,
+  lang,
+  floating,
+}: {
+  selected: CompanionId;
+  onChoose: (id: CompanionId) => void;
+  label: string;
+  lang: Lang;
+  floating?: boolean;
+}) {
   return (
     <View style={styles.picker} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {COMPANIONS.map((c: Companion) => {
@@ -479,7 +541,7 @@ function CompanionPicker({ selected, onChoose, label, lang }: { selected: Compan
             accessibilityLabel={c.name}
             accessibilityHint={c.tagline[lang]}
             onPress={() => onChoose(c.id)}
-            style={[styles.chip, on && { borderColor: c.accent, backgroundColor: c.tint }]}
+            style={[styles.chip, floating && styles.chipFloating, on && { borderColor: c.accent, backgroundColor: c.tint }]}
           >
             <View style={[styles.chipDot, { backgroundColor: c.tint, borderColor: c.accent }]}>
               <Text style={[styles.chipInitial, { color: c.accent }]}>{c.name[0]}</Text>
@@ -594,9 +656,35 @@ const styles = StyleSheet.create({
   portrait: { width: PORTRAIT, height: PORTRAIT, borderRadius: radius.pill, backgroundColor: color.inkRaised, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   initial: { ...type.display, color: color.mist },
   portraitAreaCompact: { marginBottom: space.l },
-  // El escenario: marco del color del estado, esquinas redondeadas.
-  stageRing: { borderRadius: radius.sheet + 4, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
-  stage: { borderRadius: radius.sheet, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  // Pantalla completa (web con fondos): el escenario detras y los controles encima.
+  immersive: { flex: 1, overflow: 'hidden' },
+  immersiveStage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  immersiveColumn: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center', paddingHorizontal: space.l, paddingTop: space.l },
+  // Arriba, en una sola linea compacta para no tapar la cara.
+  identityFloating: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: space.s,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.m,
+    borderRadius: radius.pill,
+    backgroundColor: GLASS,
+  },
+  nameFloating: { ...type.support, fontWeight: '600', color: color.cloud },
+  aiBadgeFloating: { ...type.micro, color: color.mist, letterSpacing: 0.5 },
+  stateFloating: { ...type.micro, color: color.cloud },
+  extrasFloating: { alignItems: 'center' },
+  taglineFloating: { marginTop: 0, marginBottom: space.s },
+  spacer: { flex: 1 },
+  // Panel de abajo: vidrio oscuro para que el texto se lea sobre cualquier fondo (AA).
+  panel: { borderRadius: radius.sheet, backgroundColor: GLASS, padding: space.l, paddingBottom: space.s, marginBottom: space.m, gap: space.xs },
+  captionsFloating: { marginBottom: space.m },
+  captionsFloatingContent: { gap: space.l },
+  inputFloating: { backgroundColor: 'rgba(11,16,32,0.6)' },
+  chipFloating: { backgroundColor: GLASS, borderColor: 'rgba(255,255,255,0.18)' },
+  stateDot: { width: 8, height: 8, borderRadius: radius.pill },
   ringCompact: { width: PORTRAIT_COMPACT + 16, height: PORTRAIT_COMPACT + 16 },
   portraitCompact: { width: PORTRAIT_COMPACT, height: PORTRAIT_COMPACT },
   initialCompact: { ...type.title },

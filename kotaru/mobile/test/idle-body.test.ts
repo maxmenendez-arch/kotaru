@@ -1,0 +1,67 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { Object3D } from 'three';
+import { IdleBody } from '../src/idle-body.ts';
+
+function rig() {
+  const bones = new Map<string, Object3D>();
+  const lookup = (name: string) => {
+    if (name.includes('Thumb')) return null;
+    let b = bones.get(name);
+    if (!b) {
+      b = new Object3D();
+      if (name === 'leftUpperArm') b.rotation.z = -1.2;
+      bones.set(name, b);
+    }
+    return b;
+  };
+  return { bones, lookup };
+}
+
+test('encuentra torso, brazos y dedos', () => {
+    const { lookup } = rig();
+    assert.equal(new IdleBody(lookup as never).boneCount, 12 + 2 * 4 * 3);
+  });
+
+test('dobla los dedos hacia la palma en cada mano', () => {
+    const { bones, lookup } = rig();
+    new IdleBody(lookup as never);
+    assert.ok(bones.get('leftMiddleProximal')!.rotation.z < 0);
+    assert.ok(bones.get('rightMiddleProximal')!.rotation.z > 0);
+  });
+
+test('se mueve alrededor de la postura de partida sin alejarse', () => {
+    const { bones, lookup } = rig();
+    const body = new IdleBody(lookup as never);
+    for (let t = 0; t < 30; t += 1 / 30) body.update(t, 1 / 30, { still: false, speaking: t > 10 && t < 20, level: 0.8 });
+    assert.ok(Math.abs(bones.get('leftUpperArm')!.rotation.z + 1.2) < 0.15);
+    assert.ok(Math.abs(bones.get('hips')!.rotation.z) < 0.05);
+  });
+
+test('al hablar dobla mas el codo', () => {
+    const { bones, lookup } = rig();
+    const body = new IdleBody(lookup as never);
+    for (let t = 0; t < 2; t += 1 / 30) body.update(t, 1 / 30, { still: false, speaking: false, level: 0 });
+    const quiet = bones.get('leftLowerArm')!.rotation.y;
+    for (let t = 2; t < 4; t += 1 / 30) body.update(t, 1 / 30, { still: false, speaking: true, level: 0.8 });
+    assert.ok(bones.get('leftLowerArm')!.rotation.y < quiet - 0.1);
+  });
+
+test('con movimiento reducido solo respira', () => {
+    const { bones, lookup } = rig();
+    const body = new IdleBody(lookup as never);
+    body.update(5, 1 / 30, { still: true, speaking: true, level: 1 });
+    assert.equal(bones.get('hips')!.rotation.z, 0);
+    assert.equal(bones.get('leftUpperArm')!.rotation.z, -1.2);
+  });
+
+test('la mirada vuelve casi siempre al centro y cambia cada pocos segundos', () => {
+    const body = new IdleBody((() => null) as never);
+    const seen = new Set<string>();
+    for (let t = 0; t < 60; t += 0.1) {
+      const g = body.glance(t);
+      assert.ok(Math.abs(g.x) <= 0.04);
+      seen.add(`${g.x},${g.y}`);
+    }
+    assert.ok(seen.size > 3);
+  });

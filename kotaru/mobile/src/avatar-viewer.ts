@@ -12,6 +12,10 @@ import {
   targetFace,
 } from './avatar-motion';
 import { buildStage, type Stage } from './scene3d';
+import { PALETTES } from './scenes';
+import { assignLayers, createStagePost, type StagePost } from './stage-post';
+import { IdleBody } from './idle-body';
+import { frameCamera, pixelRatio, type Framing } from './framing';
 
 /**
  * Motor del avatar 3D de la web (three.js + three-vrm). Solo lo importa avatar.web.tsx, con
@@ -29,23 +33,30 @@ function prefersReducedMotion(): boolean {
 /** Carga el modelo y arranca la animacion. Devuelve la funcion que lo apaga todo. */
 export async function startViewer(canvas: HTMLCanvasElement, url: string, props: () => AvatarProps): Promise<() => void> {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' });
-  // Con fondo se dibuja mucho mas: en pantallas muy densas basta con 1,5x.
   const withBackground = props().background === true;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, withBackground ? 1.5 : 2));
+  const framing: Framing = !withBackground ? 'portrait' : props().immersive ? 'immersive' : 'stage';
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  // Con fondo el encuadre es algo mas abierto, para que se vea el lugar.
-  const camera = new THREE.PerspectiveCamera(withBackground ? 26 : 20, 1, 0.05, 80);
+  const camera = new THREE.PerspectiveCamera(20, 1, 0.05, 80);
+  let post: StagePost | null = null;
+  let headY = 1.4;
+  const drawingSize = new THREE.Vector2();
   const resize = () => {
     const p = props();
     const w = p.width ?? p.size;
+    // Con fondo se dibuja mucho mas: la densidad se limita segun el tamaño (framing.ts).
+    renderer.setPixelRatio(pixelRatio(framing, w, p.size, window.devicePixelRatio || 1));
     renderer.setSize(w, p.size, false);
     camera.aspect = w / p.size;
-    // Escenario bajo (con conversacion en pantalla): se acerca a la cara para que no quede diminuta.
-    if (withBackground) camera.fov = camera.aspect > 2.1 ? 15 : 26;
+    const setup = frameCamera(framing, camera.aspect, headY);
+    camera.fov = setup.fov;
+    camera.position.set(0, setup.y, setup.z);
+    camera.lookAt(0, setup.targetY, 0);
     camera.updateProjectionMatrix();
+    renderer.getDrawingBufferSize(drawingSize);
+    post?.setSize(drawingSize.x, drawingSize.y);
   };
   resize();
   canvas.addEventListener('kotaru-resize', resize);
@@ -80,14 +91,13 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   relaxPose(bone);
   vrm.update(0);
 
-  // Encuadre de busto: la camara apunta un poco por debajo de la cabeza.
+  // Encuadre segun la altura de la cabeza de este modelo (framing.ts).
   const head = bone('head');
   const headPos = new THREE.Vector3();
   (head ?? vrm.scene).getWorldPosition(headPos);
+  headY = headPos.y;
   const focus = headPos.clone().add(new THREE.Vector3(0, -0.03, 0));
-  // Mismo tamaño de busto con o sin fondo: mas angulo, un poco mas cerca.
-  camera.position.set(focus.x, focus.y + 0.03, focus.z + (withBackground ? 1.35 : 1.5));
-  camera.lookAt(focus);
+  resize();
 
   // El lugar del personaje, con sus propias luces (sustituyen a las del retrato).
   let stage: Stage | null = null;
@@ -96,6 +106,14 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
     if (stage) {
       scene.remove(key, ambient);
       renderer.setClearColor(0x000000, 1);
+      // Acabado de camara: fondo desenfocado, halo y color. Se puede apagar con ?post=0.
+      if (postAllowed()) {
+        post = createStagePost(renderer, PALETTES[stage.id].grade);
+        if (post) {
+          assignLayers(scene, vrm.scene);
+          resize();
+        }
+      }
     }
   }
 
@@ -104,14 +122,24 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   scene.add(gaze);
   if (vrm.lookAt) vrm.lookAt.target = gaze;
 
-  return animate(renderer, scene, camera, vrm, gaze, props, stage, () => {
+  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, () => {
     canvas.removeEventListener('kotaru-resize', resize);
+    post?.dispose();
     stage?.dispose();
     scene.remove(vrm.scene);
     VRMUtils.deepDispose(vrm.scene);
     renderer.dispose();
     renderer.forceContextLoss();
   });
+}
+
+/** El acabado se puede apagar para comparar (o si un navegador lo dibuja mal): ?post=0. */
+function postAllowed(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('post') !== '0';
+  } catch {
+    return true;
+  }
 }
 
 /** De la T de VRoid a una postura natural: brazos abajo, codos algo doblados. */
@@ -133,6 +161,7 @@ function animate(
   gaze: THREE.Object3D,
   props: () => AvatarProps,
   stage: Stage | null,
+  post: StagePost | null,
   cleanup: () => void,
 ): () => void {
   const timer = new THREE.Timer();
@@ -148,8 +177,7 @@ function animate(
   let frame = 0;
   let running = true;
 
-  const spine = vrm.humanoid.getNormalizedBoneNode('spine');
-  const chest = vrm.humanoid.getNormalizedBoneNode('chest') ?? vrm.humanoid.getNormalizedBoneNode('upperChest');
+  const body = new IdleBody((name) => vrm.humanoid.getNormalizedBoneNode(name));
   const neck = vrm.humanoid.getNormalizedBoneNode('neck');
   const head = vrm.humanoid.getNormalizedBoneNode('head');
 
@@ -205,18 +233,22 @@ function animate(
     if (neck) neck.rotation.set(headX * 0.4, headY * 0.4, headZ * 0.4);
     if (head) head.rotation.set(headX * 0.6, headY * 0.6, headZ * 0.6);
 
-    // Respiracion: el pecho sube y baja unas 15 veces por minuto.
-    const breath = reduce ? 0 : Math.sin(t * 1.6);
-    if (spine) spine.rotation.x = breath * 0.012;
-    if (chest) chest.rotation.x = breath * 0.018;
+    // Cuerpo: respiracion, cambio de peso, brazos y manos vivos; mas gesto al hablar.
+    body.update(t, dt, { still: reduce, speaking, level: mouth });
 
-    // Mirada: a la camara; al pensar, arriba y a un lado.
+    // Mirada: a la camara con pequeños saltos naturales; al pensar, arriba y a un lado.
     const thinking = p.state === 'thinking';
-    gaze.position.set(camera.position.x + (thinking ? 0.25 : 0), camera.position.y + (thinking ? 0.2 : 0), camera.position.z);
+    const glance = reduce ? { x: 0, y: 0 } : body.glance(t);
+    gaze.position.set(
+      camera.position.x + (thinking ? 0.25 : glance.x),
+      camera.position.y + (thinking ? 0.2 : glance.y),
+      camera.position.z,
+    );
 
     stage?.update(t, reduce);
     vrm.update(dt);
-    renderer.render(scene, camera);
+    if (post) post.render(scene, camera, t);
+    else renderer.render(scene, camera);
   };
   frame = requestAnimationFrame(tick);
 

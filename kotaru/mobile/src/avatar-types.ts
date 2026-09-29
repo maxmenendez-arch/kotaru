@@ -10,6 +10,8 @@ export interface AvatarProps {
   readonly width?: number;
   /** true: el personaje aparece en su lugar (oficina, cuarto, montaña) en vez de sobre transparente. */
   readonly background?: boolean;
+  /** Con fondo: 'immersive' es pantalla completa, de tres cuartos (framing.ts). */
+  readonly immersive?: boolean;
   /** Estado de la conversacion (STATE de @kotaru/client): escucha, piensa, habla... */
   readonly state: string;
   /** Ultima emocion que mando el servidor, o null. */

@@ -1192,3 +1192,42 @@ corrigieron 10. Cada corrección tiene su prueba de regresión.
   materiales); solo queda la geometría compartida que three.js crea una vez para los sprites.
 - `/escenarios/`: botón «Hablar» en cada personaje: mueve la boca con un volumen simulado y
   pone la cara cálida, para ver voz y fondo juntos sin iniciar sesión (sin sonido ni servidor).
+
+## 2026-09-28 (noche) — Realismo A: pantalla completa, acabado de cámara y cuerpo vivo
+
+Pedido del dueño (19:36): acercarse al realismo de la captura de referencia sin copiarla.
+Plan en `claude/18_REALISMO_PLAN.md` (A: render y presentación; B: fondos pintados; C: modelos
+profesionales, cotizaciones en `claude/19_COTIZACIONES_MODELOS.md`).
+
+**Qué cambió**
+- **Pantalla completa (web, con fondos):** el personaje ocupa toda la pantalla de «Hablar»,
+  de tres cuartos, en su lugar. Arriba flotan el selector y una línea compacta con nombre,
+  «Inteligencia artificial» (siempre visible) y estado; abajo, un panel de vidrio oscuro con
+  subtítulos (máx. 30 % del alto), respiración/sonidos, escribir y el botón de hablar. Diseño
+  propio. Con los fondos apagados vuelve el retrato redondo; en el móvil nativo no cambia.
+- **Acabado de cámara** (`mobile/src/stage-post.ts`): fondo dibujado a media resolución y
+  desenfocado (profundidad de campo), halo de las luces del fondo (velas, neón, fogata,
+  ventanas), personaje nítido encima con antialiasing, luces altas que se redondean en vez de
+  quemarse, ajuste de color por escena (saturación, contraste, calidez, viñeta) y grano
+  mínimo contra las bandas. Valores por escena en `scenes.ts` (`grade`). Solo WebGL2; si no
+  hay, se dibuja como antes. Se puede apagar para comparar con `?post=0`.
+- **Cuerpo vivo** (`mobile/src/idle-body.ts`): respiración de pecho y hombros, cambio de peso
+  lento de la cadera con compensación de la columna, balanceo de brazos desfasado, dedos
+  relajados (no rígidos), codos y manos que acompañan la voz al hablar y microsacadas de la
+  mirada. Con «reducir movimiento» solo respira, muy poco.
+- **Encuadre** (`mobile/src/framing.ts`): retrato, escenario e inmersivo en un solo sitio;
+  la densidad de píxeles a pantalla completa se limita a ~1,6 millones por cuadro.
+
+**Costo:** ninguno de proveedor (todo se dibuja en el navegador). En Chromium sin GPU el
+acabado añade de 0,1 a 1,2 ms por cuadro (Luna 2,4→2,7; Nova 1,5→1,6; Rio 0,6→1,8 ms).
+
+**Cómo se verificó**
+- 33 pruebas de la app (nuevas: cuerpo, encuadre y valores de acabado), typecheck, 453 del
+  servidor y lint de arquitectura.
+- Capturas en Chromium sin pantalla: escenas con y sin acabado, encuadre inmersivo en
+  teléfono (390x760) y ordenador (1280x800), y la app exportada (`docs/escenarios/inmersivo-*`,
+  `acabado-nova-720x450.png`).
+
+**Pendiente de mirar el dueño:** la ropa del modelo actual de Nova (camisa blanca con corbata
+y liga en el muslo) se lee como uniforme; la regla de los personajes lo excluye. Se corrige
+con el modelo nuevo (C) o retocando la ropa en VRoid.
