@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { candleFlicker, neonPulse, PALETTES, SCENE_FOR, seeded, sway, type SceneId } from './scenes';
+import { candleFlicker, neonPulse, PALETTES, PLATES, SCENE_FOR, seeded, sway, type SceneId } from './scenes';
 
 /**
  * Los fondos de ambientacion en 3D (three.js), detras del avatar. Solo los usa
@@ -80,7 +80,7 @@ class Kit {
    * 4 m de la camara, 0,1 son unos 6 puntos de pantalla en el escenario normal.: `step(i, t, p)` escribe la posicion del punto i
    * en `p` (x, y, z) y devuelve su brillo (0-1). Brillo por punto via color.
    */
-  movingLights(count: number, size: number, color: (i: number) => number, step: (i: number, t: number, p: THREE.Vector3) => number): void {
+  movingLights(count: number, size: number, color: (i: number) => number, step: (i: number, t: number, p: THREE.Vector3) => number): THREE.Points {
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
     const base = Array.from({ length: count }, (_, i) => new THREE.Color(color(i)));
@@ -109,6 +109,30 @@ class Kit {
     };
     update(0);
     this.updaters.push(update);
+    return points;
+  }
+
+  /**
+   * Vista pintada (B del plan de realismo): si la escena tiene imagen en PLATES, se carga
+   * aparte y, cuando llega, `apply` la pone en su sitio (y oculta lo procedural que
+   * sustituye). Si no hay imagen o falla, se queda la vista dibujada con codigo.
+   */
+  plate(url: string | null, apply: (texture: THREE.Texture) => void): void {
+    if (!url) return;
+    new THREE.TextureLoader().load(
+      url,
+      (texture) => {
+        if (this.#disposed) {
+          texture.dispose();
+          return;
+        }
+        texture.colorSpace = THREE.SRGBColorSpace;
+        this.track(texture);
+        apply(texture);
+      },
+      undefined,
+      () => console.info('[escena] sin vista pintada, sigue la dibujada:', url),
+    );
   }
 
   track<T extends { dispose(): void }>(thing: T): T {
@@ -128,7 +152,10 @@ class Kit {
     return this.mesh(new THREE.BoxGeometry(w, h, d), material, x, y, z, parent);
   }
 
+  #disposed = false;
+
   dispose(): void {
+    this.#disposed = true;
     for (const d of this.#disposables) d.dispose();
     this.#disposables.length = 0;
   }
@@ -153,7 +180,7 @@ export function buildStage(companion: string, scene: THREE.Scene, focus: THREE.V
   rim.target.position.copy(focus);
   kit.group.add(hemi, key, key.target, rim, rim.target);
 
-  BUILDERS[id](kit, focus);
+  BUILDERS[id](kit, focus, PLATES[id]);
   scene.add(kit.group);
 
   return {
@@ -173,7 +200,7 @@ export function buildStage(companion: string, scene: THREE.Scene, focus: THREE.V
 
 // ---- Luna: oficina tranquila de dia --------------------------------------------------
 
-function lunaOffice(kit: Kit, focus: THREE.Vector3): void {
+function lunaOffice(kit: Kit, focus: THREE.Vector3, plate: string | null): void {
   const wallZ = -2.6;
   const wall = kit.matte(0xe8dfd0);
   const wood = kit.matte(0x9a6b45, 0.7);
@@ -250,7 +277,16 @@ function lunaOffice(kit: Kit, focus: THREE.Vector3): void {
       ctx.fill();
     }
   });
-  kit.mesh(new THREE.PlaneGeometry(win.w, win.h), kit.track(new THREE.MeshBasicMaterial({ map: parkTex, transparent: true, fog: false, depthWrite: false })), win.x, win.y, viewZ + 0.004);
+  const parkMat = kit.track(new THREE.MeshBasicMaterial({ map: parkTex, transparent: true, fog: false, depthWrite: false }));
+  kit.mesh(new THREE.PlaneGeometry(win.w, win.h), parkMat, win.x, win.y, viewZ + 0.004);
+  // Vista pintada: sustituye cielo, nubes y parque dibujados (la rama y la luz siguen).
+  kit.plate(plate, (texture) => {
+    fitCover(texture, win.w / win.h);
+    parkMat.map = texture;
+    parkMat.transparent = false;
+    parkMat.needsUpdate = true;
+    clouds.visible = false;
+  });
   // Una rama cerca de la ventana, por fuera, que se mece con la brisa.
   const branch = new THREE.Group();
   branch.position.set(win.x + win.w / 2 - 0.1, win.y + win.h / 2 - 0.1, viewZ + 0.01);
@@ -430,7 +466,7 @@ function heartShape(size: number): THREE.Shape {
   return s;
 }
 
-function novaRoom(kit: Kit, focus: THREE.Vector3): void {
+function novaRoom(kit: Kit, focus: THREE.Vector3, plate: string | null): void {
   const wallZ = -2.6;
   // Paredes ciruela oscuro y suelo de madera casi negra con alfombra rosa empolvado.
   kit.box(8, 4, 0.1, kit.matte(0x3b1b3f), 0, 2, wallZ);
@@ -513,14 +549,17 @@ function novaRoom(kit: Kit, focus: THREE.Vector3): void {
       ctx.fillRect(x - 26, h - 241, 54, 54);
     }
   });
-  kit.mesh(new THREE.PlaneGeometry(win.w, win.h), kit.track(new THREE.MeshBasicMaterial({ map: cityTex, fog: false })), win.x, win.y, cityZ);
+  const cityMat = kit.track(new THREE.MeshBasicMaterial({ map: cityTex, fog: false }));
+  kit.mesh(new THREE.PlaneGeometry(win.w, win.h), cityMat, win.x, win.y, cityZ);
+  // Luces pegadas a la ciudad dibujada: con la vista pintada no coinciden y se apagan.
+  const cityLights: THREE.Object3D[] = [];
 
   // Luces de los carros por el bulevar: faros blancos hacia un lado, pilotos rojos hacia
   // el otro, a velocidades distintas.
   const carCount = 14;
   const carSpeed = Array.from({ length: carCount }, () => 0.12 + kit.random() * 0.1);
   const carOffset = Array.from({ length: carCount }, () => kit.random());
-  kit.movingLights(
+  const cars = kit.movingLights(
     carCount * 2,
     0.17,
     (i) => (Math.floor(i / 2) % 2 ? 0xff3b3b : 0xfff2d6),
@@ -541,13 +580,22 @@ function novaRoom(kit: Kit, focus: THREE.Vector3): void {
     [win.x + 0.4, win.y + 0.25],
     [win.x - 0.1, win.y + 0.3],
   ];
-  kit.movingLights(blink.length, 0.09, () => 0xffd28a, (i, t, p) => {
+  cityLights.push(cars);
+  const windows = kit.movingLights(blink.length, 0.09, () => 0xffd28a, (i, t, p) => {
     p.set(blink[i]![0]!, blink[i]![1]!, cityZ + 0.01);
     return Math.sin(t * 0.21 + i * 2.3) > 0.3 ? 0.9 : 0;
   });
-  kit.movingLights(1, 0.14, () => 0xff2020, (_i, t, p) => {
+  const antenna = kit.movingLights(1, 0.14, () => 0xff2020, (_i, t, p) => {
     p.set(win.x - 0.05, win.y + win.h / 2 - 0.35, cityZ + 0.01);
     return Math.sin(t * 3) > 0.6 ? 1 : 0.15;
+  });
+  cityLights.push(windows, antenna);
+  // Vista pintada de la ciudad: la lluvia, las gotas del cristal y el cuarto siguen igual.
+  kit.plate(plate, (texture) => {
+    fitCover(texture, win.w / win.h);
+    cityMat.map = texture;
+    cityMat.needsUpdate = true;
+    for (const o of cityLights) o.visible = false;
   });
 
   // Lluvia afuera: trazos finos que caen en diagonal entre la ciudad y el cristal.
@@ -743,7 +791,7 @@ function novaRoom(kit: Kit, focus: THREE.Vector3): void {
 
 // ---- Rio: claro de montaña al atardecer ---------------------------------------------
 
-function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
+function rioOutdoors(kit: Kit, focus: THREE.Vector3, plate: string | null): void {
   // Cielo: una cupula grande con degradado del azul arriba al naranja en el horizonte.
   const skyGeo = new THREE.SphereGeometry(40, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
   const pos = skyGeo.attributes['position']!;
@@ -760,9 +808,11 @@ function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
   const sky = kit.mesh(skyGeo, kit.track(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false })), 0, -2, 0);
   sky.renderOrder = -1;
 
+  // Lo lejano (sol y montañas): se oculta si llega la vista pintada, que ya lo trae.
+  const farView: THREE.Object3D[] = [];
   // Sol bajo, entre las montañas, con halo.
-  kit.mesh(new THREE.CircleGeometry(0.9, 32), kit.glow(0xfff1c8, 1, false), -3.2, 3.2, -30);
-  kit.mesh(new THREE.CircleGeometry(2.4, 32), kit.glow(0xffd9a0, 0.35, false), -3.2, 3.2, -30.1);
+  farView.push(kit.mesh(new THREE.CircleGeometry(0.9, 32), kit.glow(0xfff1c8, 1, false), -3.2, 3.2, -30));
+  farView.push(kit.mesh(new THREE.CircleGeometry(2.4, 32), kit.glow(0xffd9a0, 0.35, false), -3.2, 3.2, -30.1));
 
   // Montañas en capas: cuanto mas lejos, mas del color del cielo (perspectiva atmosferica).
   const ranges: { z: number; color: number; height: number; seed: number }[] = [
@@ -793,8 +843,18 @@ function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
       cols.push(c.r, c.g, c.b);
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    kit.mesh(geo, kit.track(new THREE.MeshBasicMaterial({ vertexColors: true, fog: false })), 0, 0, r.z);
+    farView.push(kit.mesh(geo, kit.track(new THREE.MeshBasicMaterial({ vertexColors: true, fog: false })), 0, 0, r.z));
   }
+  // Vista pintada: un telon lejano (detras de las nubes, que siguen pasando) con el horizonte
+  // a la altura de los ojos. El lago cercano, los pinos y el campamento siguen en 3D.
+  kit.plate(plate, (texture) => {
+    const h = 36;
+    const image = texture.image as { width: number; height: number } | undefined;
+    const w = h * (image?.width && image.height ? image.width / image.height : 2);
+    const backdrop = kit.mesh(new THREE.PlaneGeometry(w, h), kit.track(new THREE.MeshBasicMaterial({ map: texture, fog: false, depthWrite: false })), 0, focus.y + h * 0.02, -34);
+    backdrop.renderOrder = -0.5;
+    for (const o of farView) o.visible = false;
+  });
 
   // Lago que refleja el cielo, con un brillo que se mueve.
   const lake = kit.mesh(new THREE.CircleGeometry(12, 48), kit.matte(0x7f8fb5, 0.15, 0.3), 0.5, 0.01, -12);
@@ -1049,7 +1109,21 @@ function rioOutdoors(kit: Kit, focus: THREE.Vector3): void {
   });
 }
 
-const BUILDERS: Readonly<Record<SceneId, (kit: Kit, focus: THREE.Vector3) => void>> = {
+/** Recorta una imagen para cubrir un hueco de otra proporcion sin deformarla (como CSS cover). */
+function fitCover(texture: THREE.Texture, aspect: number): void {
+  const image = texture.image as { width: number; height: number } | undefined;
+  if (!image?.width || !image.height) return;
+  const imageAspect = image.width / image.height;
+  if (imageAspect > aspect) {
+    texture.repeat.set(aspect / imageAspect, 1);
+    texture.offset.set((1 - texture.repeat.x) / 2, 0);
+  } else {
+    texture.repeat.set(1, imageAspect / aspect);
+    texture.offset.set(0, (1 - texture.repeat.y) / 2);
+  }
+}
+
+const BUILDERS: Readonly<Record<SceneId, (kit: Kit, focus: THREE.Vector3, plate: string | null) => void>> = {
   'luna-office': lunaOffice,
   'nova-room': novaRoom,
   'rio-outdoors': rioOutdoors,

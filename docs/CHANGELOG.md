@@ -1231,3 +1231,25 @@ acabado añade de 0,1 a 1,2 ms por cuadro (Luna 2,4→2,7; Nova 1,5→1,6; Rio 0
 **Pendiente de mirar el dueño:** la ropa del modelo actual de Nova (camisa blanca con corbata
 y liga en el muslo) se lee como uniforme; la regla de los personajes lo excluye. Se corrige
 con el modelo nuevo (C) o retocando la ropa en VRoid.
+
+## 2026-09-28 (noche) — Realismo B: vistas pintadas (preparado)
+
+**Qué cambió**
+- `scene3d.ts`: `kit.plate(url, apply)` carga una vista pintada aparte. Cuando llega,
+  sustituye:
+  - la ciudad dibujada de Nova (y apaga las luces pegadas a ella);
+  - el parque y las nubes de Luna;
+  - el sol y las montañas de Rio (telón lejano detrás de las nubes).
+- Si falta la imagen o falla la carga, se queda la vista dibujada con código.
+- `fitCover` recorta sin deformar.
+- `scenes.ts`: `PLATES`, con las tres vistas en `null` (apagadas) hasta tener los archivos.
+- Tres vistas generadas con la IA de Canva. Origen, términos y prompts en
+  `docs/escenarios/VISTAS.md`.
+
+**Cómo se verificó**
+- Typecheck y 33 pruebas.
+- Capturas con las miniaturas de Canva como vistas de prueba (`docs/escenarios/vistas-prueba-miniaturas.png`).
+  Gracias al desenfoque del fondo, incluso a baja resolución se integran bien.
+
+**Pendiente:** los archivos en resolución completa. La red de este espacio de trabajo no
+llega a Canva; el dueño los descarga y los adjunta.
