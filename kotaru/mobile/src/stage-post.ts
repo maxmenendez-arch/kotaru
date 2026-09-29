@@ -72,6 +72,8 @@ uniform float warmth;
 uniform float vignette;
 uniform float time;
 uniform vec2 aspect;
+uniform vec2 texel;
+uniform float wrap;
 varying vec2 vUv;
 
 vec3 shoulder(vec3 c) {
@@ -94,6 +96,14 @@ void main() {
   vec4 ch = texture2D(character, vUv);
   // El personaje llega premultiplicado (se dibujo sobre transparente).
   vec3 c = ch.rgb + bg * (1.0 - ch.a);
+  // Luz envolvente: en el borde del personaje se cuela un poco la luz del fondo (como en
+  // una foto real), y deja de parecer recortado y pegado encima.
+  vec2 o = texel * 3.0;
+  float around = 0.25 * (
+    texture2D(character, vUv + vec2(o.x, 0.0)).a + texture2D(character, vUv - vec2(o.x, 0.0)).a +
+    texture2D(character, vUv + vec2(0.0, o.y)).a + texture2D(character, vUv - vec2(0.0, o.y)).a);
+  float edge = ch.a * (1.0 - around);
+  c += min(texture2D(blurBg, vUv).rgb, vec3(0.9)) * edge * wrap;
   // El halo del fondo apenas pasa por encima del personaje (lo dejaria lechoso).
   c += texture2D(bloom, vUv).rgb * bloomAmount * (1.0 - ch.a * 0.75);
   c = shoulder(c);
@@ -156,6 +166,8 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
     vignette: { value: grade.vignette },
     time: { value: 0 },
     aspect: { value: new THREE.Vector2(1, 1) },
+    texel: { value: new THREE.Vector2(1, 1) },
+    wrap: { value: 0.3 },
   });
   const materials = [blur, bright, composite];
 
@@ -185,6 +197,7 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
       character.setSize(w, h);
       const a = w / h;
       (composite.uniforms['aspect']!.value as THREE.Vector2).set(a >= 1 ? a : 1, a >= 1 ? 1 : 1 / a);
+      (composite.uniforms['texel']!.value as THREE.Vector2).set(1 / w, 1 / h);
     },
 
     render(scene, camera, t) {

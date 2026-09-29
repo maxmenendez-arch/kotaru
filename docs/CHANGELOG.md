@@ -1271,3 +1271,12 @@ llega a Canva; el dueño los descarga y los adjunta.
 - Los subtítulos ocupan como mucho el 24 % del alto (antes, el 30 %).
 - Verificado: typecheck, 34 pruebas (nueva: el panel alto deja la barbilla por encima) y
   captura con el panel al 55 % del alto (`docs/escenarios/inmersivo-panel-alto.png`).
+
+## 2026-09-28 (noche) — Realismo A: luz envolvente en el borde del personaje
+
+- Acabado de cámara (`stage-post.ts`): en el borde del personaje se cuela un poco de la luz
+  del fondo desenfocado. El pelo recoge el tono de la ventana, del neón o del atardecer, y
+  el personaje deja de parecer recortado y pegado. Son cuatro lecturas extra por píxel.
+- Primera prueba demasiado fuerte (0,45, con un borde de 5 px): con el fondo claro de Luna
+  hacía un contorno blanco. Queda en 0,3, con un borde de 3 px y la luz limitada.
+- Verificado: typecheck, 34 pruebas y capturas (`docs/escenarios/luz-envolvente.png`).
