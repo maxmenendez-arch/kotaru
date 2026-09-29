@@ -32,6 +32,8 @@ export interface BodyInput {
   readonly speaking: boolean;
   /** Volumen de la voz suavizado (0 a ~1,3). */
   readonly level: number;
+  /** Multiplica el caracter (ondulacion, inclinacion, hombro): 1 normal, >1 coqueteo, <1 amigo. */
+  readonly intensity?: number;
 }
 
 const FINGERS = ['Index', 'Middle', 'Ring', 'Little'] as const;
@@ -49,6 +51,7 @@ export class IdleBody {
 
   readonly #style: BodyStyle;
   #hipsY = 0;
+  #intensity = 1;
   #hipsBaseY: number | null = null;
   /** Desplazamiento de cabeza que suma este estilo (inclinacion, asentir, mirar alrededor). */
   readonly head = { x: 0, y: 0, z: 0 };
@@ -116,7 +119,11 @@ export class IdleBody {
 
   update(time: number, dt: number, input: BodyInput): void {
     const st = this.#style;
-    const t = time * st.tempo;
+    // El modo cambia el caracter poco a poco (no de golpe).
+    this.#intensity += ((input.intensity ?? 1) - this.#intensity) * Math.min(1, dt * 1.5);
+    const k = this.#intensity;
+    // En coqueteo, ademas, algo mas lento.
+    const t = time * st.tempo * (k > 1 ? 1 / (1 + (k - 1) * 0.3) : 1);
     const breath = Math.sin(time * 1.6 * Math.min(1, st.tempo + 0.1));
     if (input.still) {
       this.#set('spine', breath * 0.006, 0, 0);
@@ -137,8 +144,8 @@ export class IdleBody {
     const roll = Math.sin((time * Math.PI * 2) / st.swayPeriod * 2 + 0.8);
     const drift = Math.sin(t * 0.21 + 1.3);
     // Al hablar, la ondulacion sigue un poco mas viva (Nova) sin cambiar de ritmo.
-    const swayAmp = st.sway * (1 + g * 0.4);
-    this.#set('hips', 0, drift * 0.02 + roll * st.hipRoll * (0.6 + g * 0.6), shift * swayAmp);
+    const swayAmp = st.sway * (1 + g * 0.4) * k;
+    this.#set('hips', 0, drift * 0.02 + roll * st.hipRoll * k * (0.6 + g * 0.6), shift * swayAmp);
     const hips = this.#bones.get('hips');
     if (hips && this.#hipsBaseY !== null) {
       // Rebote de piernas al hablar (Rio): suave, al ritmo de los gestos.
@@ -150,7 +157,7 @@ export class IdleBody {
     this.#set('chest', breath * 0.018 * st.breath - g * 0.01, Math.sin(t * 0.33 + 0.4) * 0.012, -shift * swayAmp * 0.3);
     this.#set('upperChest', breath * 0.008 * st.breath, 0, 0);
     // Hombros: respiran y, en Nova, uno rueda despacio al hablar.
-    const shoulder = Math.sin(time * 1.1 + 0.5) * st.shoulderRoll * (0.3 + g);
+    const shoulder = Math.sin(time * 1.1 + 0.5) * st.shoulderRoll * k * (0.3 + g);
     this.#set('leftShoulder', 0, shoulder * 0.5, -breath * 0.008 * st.breath + Math.max(0, shoulder) * 0.4);
     this.#set('rightShoulder', 0, -shoulder * 0.5, breath * 0.008 * st.breath - Math.max(0, -shoulder) * 0.4);
 
@@ -179,7 +186,7 @@ export class IdleBody {
     }
 
     // Cabeza: inclinacion lenta (Nova), asentir al hablar (Luna, Rio) y mirar alrededor (Rio).
-    const tilt = Math.sin(t * 0.37 + 0.9) * st.headTilt * (0.6 + g * 0.8);
+    const tilt = Math.sin(t * 0.37 + 0.9) * st.headTilt * k * (0.6 + g * 0.8);
     const nod = Math.sin(time * st.gestureRate * Math.PI * 0.5) * st.nod * g;
     // Al hablar mira a la persona: la mirada al paisaje se apaga en cuanto empieza a hablar.
     const look = st.lookAround * Math.max(0, 1 - g * 1.6) * this.#lookAround(time);

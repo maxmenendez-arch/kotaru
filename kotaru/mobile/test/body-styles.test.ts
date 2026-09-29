@@ -74,3 +74,18 @@ test('ningun estilo pasa de rotaciones razonables (sin atravesar el cuerpo)', ()
     assert.ok(seen.headZ < 0.15);
   }
 });
+
+test('el modo Coqueteo intensifica la ondulacion de Nova y el modo Amigo la suaviza', () => {
+  const measure = (intensity: number) => {
+    const { bones, lookup } = rig();
+    const body = new IdleBody(lookup as never, BODY_STYLES['nova']);
+    let max = 0;
+    for (let t = 0; t < 12; t += 1 / 30) {
+      body.update(t, 1 / 30, { still: false, speaking: true, level: 0.8, intensity });
+      if (t > 4) max = Math.max(max, Math.abs(bones.get('hips')!.rotation.z));
+    }
+    return max;
+  };
+  assert.ok(measure(1.4) > measure(1) * 1.2);
+  assert.ok(measure(0.6) < measure(1) * 0.8);
+});

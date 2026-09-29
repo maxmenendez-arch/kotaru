@@ -374,6 +374,7 @@ export function Conversation({
       companion={companionId}
       size={size}
       {...(width !== undefined ? { width, background: true, immersive: true, freeBottom: panelTop } : {})}
+      {...(companion.flirts && mode !== 'ask' ? { mood: mode } : {})}
       state={shown}
       affect={affect}
       level={() => speaker.current.level?.() ?? 0}

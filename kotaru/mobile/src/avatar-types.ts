@@ -14,6 +14,11 @@ export interface AvatarProps {
   readonly immersive?: boolean;
   /** Inmersivo: donde empieza el panel de abajo (fraccion del alto, 0-1). */
   readonly freeBottom?: number;
+  /**
+   * Intensidad del caracter en el cuerpo: 'flirt' (modo Coqueteo elegido), 'friend'
+   * (modo Amigo) o sin valor (normal). Nova coqueta ondula mas y entorna los ojos.
+   */
+  readonly mood?: 'flirt' | 'friend';
   /** Estado de la conversacion (STATE de @kotaru/client): escucha, piensa, habla... */
   readonly state: string;
   /** Ultima emocion que mando el servidor, o null. */

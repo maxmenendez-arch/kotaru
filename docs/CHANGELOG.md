@@ -1448,3 +1448,14 @@ que inspiren tranquilidad; Rio, de emoción y actividad al aire libre.
 
 **Cómo se verificó:** 22 pruebas del adaptador (2 nuevas: etiquetas por personaje y
 validación), 460 del servidor, build y lint.
+
+## 2026-09-29 — Los movimientos siguen el modo (Coqueteo o Amigo)
+
+- La app pasa al visor el modo elegido para Nova y Rio (`mood`).
+  - **Coqueteo:** el carácter del cuerpo sube un 40 % (ondulación de cadera, inclinación de
+    cabeza, hombro) con un ritmo algo más lento, y la cara añade mirada entornada y una
+    sonrisa suave.
+  - **Amigo:** el carácter baja al 60 %.
+  - El cambio es gradual (sin saltos).
+- **Verificado:** 48 pruebas (nueva: Coqueteo ondula más y Amigo menos) y tira de
+  fotogramas (`docs/escenarios/movimientos-nova-coqueteo.png`).

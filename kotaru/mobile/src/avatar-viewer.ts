@@ -246,8 +246,11 @@ function animate(
 
     // Cara: emocion o reposo, con transiciones suaves.
     const target = targetFace(p.companion, p.affect, now);
+    // Coqueteo: mirada algo entornada y sonrisa suave (sobre la emocion del momento).
+    const flirtFace = p.mood === 'flirt' ? { relaxed: 0.22, happy: 0.1 } : null;
     for (const name of FACE_EXPRESSIONS) {
-      face[name] = approach(face[name] ?? 0, target[name], dt, 4);
+      const extra = flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0;
+      face[name] = approach(face[name] ?? 0, Math.min(1, target[name] + extra), dt, 4);
       expressions?.setValue(name, face[name]!);
     }
     expressions?.setValue('blink', blinker.weight(t) * (1 - (face['happy'] ?? 0) * 0.6));
@@ -271,7 +274,7 @@ function animate(
     if (head) head.rotation.set(headX * 0.6, headY * 0.6, headZ * 0.6);
 
     // Cuerpo: respiracion, cambio de peso, brazos y manos vivos; mas gesto al hablar.
-    body.update(t, dt, { still: reduce, speaking, level: mouth });
+    body.update(t, dt, { still: reduce, speaking, level: mouth, intensity: p.mood === 'flirt' ? 1.4 : p.mood === 'friend' ? 0.6 : 1 });
 
     // Mirada: a la camara con pequeños saltos naturales; al pensar, arriba y a un lado.
     const thinking = p.state === 'thinking';
