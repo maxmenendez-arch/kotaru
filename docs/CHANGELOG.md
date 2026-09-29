@@ -1280,3 +1280,15 @@ llega a Canva; el dueño los descarga y los adjunta.
 - Primera prueba demasiado fuerte (0,45, con un borde de 5 px): con el fondo claro de Luna
   hacía un contorno blanco. Queda en 0,3, con un borde de 3 px y la luz limitada.
 - Verificado: typecheck, 34 pruebas y capturas (`docs/escenarios/luz-envolvente.png`).
+
+## 2026-09-28 (noche) — Realismo B: vistas pintadas instaladas
+
+- El dueño autorizó la descarga a las 21:44. Las tres vistas de Canva se colocaron a tamaño
+  completo en el diseño «Kotaru vistas» (`DAHWiUlYhm8`, páginas 2 a 4) y se exportaron en JPG.
+  El servidor las descargó con `deploy/vistas.sh`, que guarda los bytes tal cual:
+  Nova 553 KB, Luna 868 KB y Rio 554 KB.
+- `PLATES` apunta a `/escenarios/vistas/*.jpg`. Si falta un archivo, se ve la vista dibujada.
+- Verificado en vivo: las tres imágenes se sirven (200, image/jpeg). En
+  `app.kotaru.app/escenarios/`, las ventanas de Luna (parque) y de Nova (ciudad) ya muestran
+  la vista pintada.
+- Pendiente: Rio no se pudo mirar en vivo (se cortó la conexión con el equipo del dueño).
