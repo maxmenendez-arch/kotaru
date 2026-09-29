@@ -1509,3 +1509,12 @@ proyecto **kotaru** `kotaru-509922` y facturación activa):
   viaja, nombres de voz, velocidad, cabecera WAV, errores y costos.
 - 2 de configuración y orden, y la suite completa (470).
 - La firma JWT de `chirp.sh` (openssl) se verificó en local.
+
+## 2026-09-29 — Escucha activa
+
+- Mientras la persona habla (estado «escuchando»), el personaje se inclina un poco hacia
+  ella (pecho hacia delante), ladea la cabeza y asiente despacio cada pocos segundos. Luna
+  asiente más: forma parte de su calma. Rio deja de mirar el paisaje. Al terminar, vuelve
+  poco a poco a su postura.
+- Verificado: 49 pruebas (nueva: se inclina y asiente al escuchar, Luna más que Rio, y
+  vuelve al terminar).

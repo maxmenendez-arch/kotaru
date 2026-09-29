@@ -274,7 +274,7 @@ function animate(
     if (head) head.rotation.set(headX * 0.6, headY * 0.6, headZ * 0.6);
 
     // Cuerpo: respiracion, cambio de peso, brazos y manos vivos; mas gesto al hablar.
-    body.update(t, dt, { still: reduce, speaking, level: mouth, intensity: p.mood === 'flirt' ? 1.4 : p.mood === 'friend' ? 0.6 : 1 });
+    body.update(t, dt, { still: reduce, speaking, level: mouth, intensity: p.mood === 'flirt' ? 1.4 : p.mood === 'friend' ? 0.6 : 1, listening: p.state === 'listening' });
 
     // Mirada: a la camara con pequeños saltos naturales; al pensar, arriba y a un lado.
     const thinking = p.state === 'thinking';

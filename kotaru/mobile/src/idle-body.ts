@@ -34,6 +34,8 @@ export interface BodyInput {
   readonly level: number;
   /** Multiplica el caracter (ondulacion, inclinacion, hombro): 1 normal, >1 coqueteo, <1 amigo. */
   readonly intensity?: number;
+  /** La persona esta hablando: escucha activa (se inclina un poco hacia ella y asiente). */
+  readonly listening?: boolean;
 }
 
 const FINGERS = ['Index', 'Middle', 'Ring', 'Little'] as const;
@@ -52,6 +54,7 @@ export class IdleBody {
   readonly #style: BodyStyle;
   #hipsY = 0;
   #intensity = 1;
+  #listen = 0;
   #hipsBaseY: number | null = null;
   /** Desplazamiento de cabeza que suma este estilo (inclinacion, asentir, mirar alrededor). */
   readonly head = { x: 0, y: 0, z: 0 };
@@ -154,7 +157,10 @@ export class IdleBody {
       hips.bone.position.y = this.#hipsBaseY + this.#hipsY;
     }
     this.#set('spine', breath * 0.012 * st.breath, Math.sin(t * 0.27) * 0.02 - roll * st.hipRoll * 0.5, -shift * swayAmp * 0.6);
-    this.#set('chest', breath * 0.018 * st.breath - g * 0.01, Math.sin(t * 0.33 + 0.4) * 0.012, -shift * swayAmp * 0.3);
+    // Escucha activa: se inclina hacia la persona poco a poco (y vuelve al dejar de oir).
+    this.#listen += ((input.listening ? 1 : 0) - this.#listen) * Math.min(1, dt * 2);
+    const L = this.#listen;
+    this.#set('chest', breath * 0.018 * st.breath - g * 0.01 + L * 0.05, Math.sin(t * 0.33 + 0.4) * 0.012, -shift * swayAmp * 0.3);
     this.#set('upperChest', breath * 0.008 * st.breath, 0, 0);
     // Hombros: respiran y, en Nova, uno rueda despacio al hablar.
     const shoulder = Math.sin(time * 1.1 + 0.5) * st.shoulderRoll * k * (0.3 + g);
@@ -190,9 +196,11 @@ export class IdleBody {
     const nod = Math.sin(time * st.gestureRate * Math.PI * 0.5) * st.nod * g;
     // Al hablar mira a la persona: la mirada al paisaje se apaga en cuanto empieza a hablar.
     const look = st.lookAround * Math.max(0, 1 - g * 1.6) * this.#lookAround(time);
-    this.head.x = nod;
-    this.head.y = look;
-    this.head.z = tilt;
+    // Al escuchar: la cabeza un poco ladeada y asentimientos lentos cada pocos segundos.
+    const listenNod = L * st.nod * 1.4 * Math.max(0, Math.sin(time * 1.3)) ** 6;
+    this.head.x = nod + listenNod + L * 0.03;
+    this.head.y = look * (1 - L);
+    this.head.z = tilt + L * 0.05;
   }
 
   #lookTarget = 0;

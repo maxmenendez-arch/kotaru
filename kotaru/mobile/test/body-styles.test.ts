@@ -89,3 +89,26 @@ test('el modo Coqueteo intensifica la ondulacion de Nova y el modo Amigo la suav
   assert.ok(measure(1.4) > measure(1) * 1.2);
   assert.ok(measure(0.6) < measure(1) * 0.8);
 });
+
+test('al escuchar se inclina hacia la persona y asiente (Luna mas que Rio); al dejar de oir vuelve', () => {
+  const measure = (style: string) => {
+    const { bones, lookup } = rig();
+    const body = new IdleBody(lookup as never, BODY_STYLES[style]);
+    let chestMax = 0;
+    let nodMax = 0;
+    for (let t = 0; t < 8; t += 1 / 30) {
+      body.update(t, 1 / 30, { still: false, speaking: false, level: 0, listening: true });
+      if (t > 2) {
+        chestMax = Math.max(chestMax, bones.get('chest')!.rotation.x);
+        nodMax = Math.max(nodMax, body.head.x);
+      }
+    }
+    for (let t = 8; t < 12; t += 1 / 30) body.update(t, 1 / 30, { still: false, speaking: false, level: 0, listening: false });
+    return { chestMax, nodMax, after: bones.get('chest')!.rotation.x };
+  };
+  const luna = measure('luna');
+  const rio = measure('rio');
+  assert.ok(luna.chestMax > 0.04);
+  assert.ok(luna.nodMax > rio.nodMax);
+  assert.ok(luna.after < 0.03);
+});
