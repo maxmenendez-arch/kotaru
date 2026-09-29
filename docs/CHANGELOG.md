@@ -1383,3 +1383,31 @@ general; no se copió nada de su interfaz.
   typecheck, build y lint de arquitectura.
 - Capturas de la app exportada en teléfono (390x844) y ordenador (1280x800): selección,
   inmersiva con iconos e historial (`docs/escenarios/seleccion-*`, `inmersivo-*`).
+
+## 2026-09-28 (noche) — Movimientos propios de cada personaje
+
+Pedido del dueño (23:10): Nova, movimientos suaves y sensuales al hablar; Luna, confiados y
+que inspiren tranquilidad; Rio, de emoción y actividad al aire libre.
+
+**Qué cambió**
+- `mobile/src/body-styles.ts`: un estilo por personaje (ritmo, respiración, cambio de peso,
+  ondulación de cadera, rebote, gestos, inclinación de cabeza, asentir, mirar alrededor y
+  postura de brazos). `idle-body.ts` lo aplica y devuelve el movimiento de cabeza, que el
+  visor suma al de siempre.
+  - **Nova:** ritmo lento; la cadera ondula en ocho y crece un poco al hablar; un hombro
+    rueda; la cabeza se inclina despacio; la mano derecha queda en la cadera con el codo
+    hacia fuera.
+  - **Luna:** erguida y quieta; respiración más profunda; las manos juntas delante, a la
+    altura de la cadera; al hablar asiente despacio.
+  - **Rio:** ritmo vivo; al hablar rebota un poco y levanta los antebrazos alternando manos,
+    como quien explica una aventura; en reposo mira de vez en cuando hacia el paisaje.
+- **Posturas:** las de Nova (mano en la cadera) y Luna (manos juntas) se buscaron
+  numéricamente sobre el propio modelo. La mano de Nova queda a ~1 cm de la cadera; las de
+  Luna, juntas y 15 cm por delante. Se descartaron las soluciones con el codo dentro del torso.
+- Con «reducir movimiento», solo respiran, como antes.
+
+**Cómo se verificó**
+- 47 pruebas de la app. Las 6 nuevas comparan estilos: Nova ondula más que Luna, Rio
+  gesticula y rebota, Rio no mira alrededor mientras habla, la mano de Nova se queda en la
+  cadera y ningún estilo pasa de rotaciones razonables.
+- Tiras de 4 fotogramas hablando por personaje (`docs/escenarios/movimientos-*.png`).

@@ -1,5 +1,6 @@
 import type { Object3D } from 'three';
 import type { VRMHumanBoneName } from '@pixiv/three-vrm';
+import { DEFAULT_STYLE, type BodyStyle } from './body-styles.ts';
 
 /**
  * Movimiento del cuerpo en reposo (A del plan de realismo): que el personaje no parezca
@@ -46,7 +47,14 @@ export class IdleBody {
   #glance = { x: 0, y: 0 };
   #seed = 0x2f6b1d;
 
-  constructor(bone: BoneLookup) {
+  readonly #style: BodyStyle;
+  #hipsY = 0;
+  #hipsBaseY: number | null = null;
+  /** Desplazamiento de cabeza que suma este estilo (inclinacion, asentir, mirar alrededor). */
+  readonly head = { x: 0, y: 0, z: 0 };
+
+  constructor(bone: BoneLookup, style: BodyStyle = DEFAULT_STYLE) {
+    this.#style = style;
     const names: VRMHumanBoneName[] = [
       'hips',
       'spine',
@@ -80,6 +88,20 @@ export class IdleBody {
         }
       }
     }
+    // Postura propia del personaje (manos juntas, mano en la cadera...).
+    for (const side of ['left', 'right'] as const) {
+      const pose = style.pose[side];
+      for (const [part, off] of [['UpperArm', pose.upper], ['LowerArm', pose.lower], ['Hand', pose.hand]] as const) {
+        const base = this.#bones.get(`${side}${part}`);
+        if (!base) continue;
+        base.x += off[0];
+        base.y += off[1];
+        base.z += off[2];
+        base.bone.rotation.set(base.x, base.y, base.z);
+      }
+    }
+    const hips = this.#bones.get('hips');
+    if (hips) this.#hipsBaseY = hips.bone.position.y;
   }
 
   /** Cuantos huesos encontro (para pruebas y diagnostico). */
@@ -92,11 +114,14 @@ export class IdleBody {
     if (b) b.bone.rotation.set(b.x + dx, b.y + dy, b.z + dz);
   }
 
-  update(t: number, dt: number, input: BodyInput): void {
-    const breath = Math.sin(t * 1.6);
+  update(time: number, dt: number, input: BodyInput): void {
+    const st = this.#style;
+    const t = time * st.tempo;
+    const breath = Math.sin(time * 1.6 * Math.min(1, st.tempo + 0.1));
     if (input.still) {
       this.#set('spine', breath * 0.006, 0, 0);
       this.#set('chest', breath * 0.009, 0, 0);
+      this.head.x = this.head.y = this.head.z = 0;
       return;
     }
 
@@ -105,26 +130,77 @@ export class IdleBody {
     const rate = target > this.#gesture ? 5 : 1.5;
     this.#gesture += (target - this.#gesture) * Math.min(1, dt * rate);
     const g = this.#gesture;
+    const G = g * st.gesture;
 
-    const shift = Math.sin((t * Math.PI * 2) / 9);
+    // Cambio de peso (y ondulacion de cadera: z e y desfasados dibujan un ocho).
+    const shift = Math.sin((time * Math.PI * 2) / st.swayPeriod);
+    const roll = Math.sin((time * Math.PI * 2) / st.swayPeriod * 2 + 0.8);
     const drift = Math.sin(t * 0.21 + 1.3);
-    this.#set('hips', 0, drift * 0.025, shift * 0.02);
-    this.#set('spine', breath * 0.012, Math.sin(t * 0.27) * 0.02, -shift * 0.012);
-    this.#set('chest', breath * 0.018 - g * 0.01, Math.sin(t * 0.33 + 0.4) * 0.012, -shift * 0.006);
-    this.#set('upperChest', breath * 0.008, 0, 0);
-    this.#set('leftShoulder', 0, 0, -breath * 0.008);
-    this.#set('rightShoulder', 0, 0, breath * 0.008);
+    // Al hablar, la ondulacion sigue un poco mas viva (Nova) sin cambiar de ritmo.
+    const swayAmp = st.sway * (1 + g * 0.4);
+    this.#set('hips', 0, drift * 0.02 + roll * st.hipRoll * (0.6 + g * 0.6), shift * swayAmp);
+    const hips = this.#bones.get('hips');
+    if (hips && this.#hipsBaseY !== null) {
+      // Rebote de piernas al hablar (Rio): suave, al ritmo de los gestos.
+      const bounceTarget = st.bounce * g * Math.abs(Math.sin(time * st.gestureRate * Math.PI));
+      this.#hipsY += (bounceTarget - this.#hipsY) * Math.min(1, dt * 8);
+      hips.bone.position.y = this.#hipsBaseY + this.#hipsY;
+    }
+    this.#set('spine', breath * 0.012 * st.breath, Math.sin(t * 0.27) * 0.02 - roll * st.hipRoll * 0.5, -shift * swayAmp * 0.6);
+    this.#set('chest', breath * 0.018 * st.breath - g * 0.01, Math.sin(t * 0.33 + 0.4) * 0.012, -shift * swayAmp * 0.3);
+    this.#set('upperChest', breath * 0.008 * st.breath, 0, 0);
+    // Hombros: respiran y, en Nova, uno rueda despacio al hablar.
+    const shoulder = Math.sin(time * 1.1 + 0.5) * st.shoulderRoll * (0.3 + g);
+    this.#set('leftShoulder', 0, shoulder * 0.5, -breath * 0.008 * st.breath + Math.max(0, shoulder) * 0.4);
+    this.#set('rightShoulder', 0, -shoulder * 0.5, breath * 0.008 * st.breath - Math.max(0, -shoulder) * 0.4);
 
-    // Brazos: balanceo desfasado; al hablar, codos algo mas doblados y un vaiven con la voz.
-    const beat = Math.sin(t * 3.1) * g * Math.min(1, input.level);
-    const armL = Math.sin(t * 0.5) * 0.015 + breath * 0.006;
-    const armR = Math.sin(t * 0.5 + 1.7) * 0.015 + breath * 0.006;
-    this.#set('leftUpperArm', -g * 0.06, 0, -armL + shift * 0.01 + g * 0.05);
-    this.#set('rightUpperArm', -g * 0.06, 0, armR + shift * 0.01 - g * 0.05);
-    this.#set('leftLowerArm', 0, -g * 0.35 - beat * 0.08 - Math.sin(t * 0.7) * 0.02, 0);
-    this.#set('rightLowerArm', 0, g * 0.3 + beat * 0.06 + Math.sin(t * 0.7 + 2) * 0.02, 0);
-    this.#set('leftHand', Math.sin(t * 0.9) * 0.03 + beat * 0.05, 0, -g * 0.08);
-    this.#set('rightHand', Math.sin(t * 0.9 + 1.1) * 0.03 - beat * 0.05, 0, g * 0.08);
+    // Brazos: balanceo en reposo; al hablar, gestos segun el caracter.
+    const beat = Math.sin(time * st.gestureRate * Math.PI * 2 * 0.5) * G * Math.min(1, input.level);
+    const alt = Math.sin(time * st.gestureRate * 0.9 + 1.2);
+    const armL = Math.sin(t * 0.5) * st.armSwing + breath * 0.006;
+    const armR = Math.sin(t * 0.5 + 1.7) * st.armSwing + breath * 0.006;
+    // Brazo izquierdo: acompaña siempre. El derecho de Nova se queda en la cadera.
+    const rightFree = st.handOnHip !== true;
+    this.#set('leftUpperArm', -G * 0.12 - Math.max(0, alt) * G * 0.12, 0, -armL + shift * 0.01 + G * 0.12 + Math.max(0, alt) * G * 0.1);
+    // Explicar: el antebrazo sube y baja, alternando manos, con el ritmo de la voz.
+    const liftL = st.lift * g * (0.5 + 0.5 * Math.max(0, alt)) * (0.6 + 0.4 * Math.min(1, input.level));
+    const liftR = st.lift * g * (0.5 + 0.5 * Math.max(0, -alt)) * (0.6 + 0.4 * Math.min(1, input.level));
+    this.#set('leftLowerArm', 0, -G * 0.55 - liftL - beat * 0.12 - Math.sin(t * 0.7) * 0.02, 0);
+    this.#set('leftHand', Math.sin(t * 0.9) * 0.03 + beat * 0.06, 0, -G * 0.12);
+    if (rightFree) {
+      this.#set('rightUpperArm', -G * 0.12 - Math.max(0, -alt) * G * 0.12, 0, armR + shift * 0.01 - G * 0.12 - Math.max(0, -alt) * G * 0.1);
+      this.#set('rightLowerArm', 0, G * 0.5 + liftR + beat * 0.1 + Math.sin(t * 0.7 + 2) * 0.02, 0);
+      this.#set('rightHand', Math.sin(t * 0.9 + 1.1) * 0.03 - beat * 0.06, 0, G * 0.12);
+    } else {
+      // Mano en la cadera: solo un leve acompañamiento de la respiracion y del vaiven.
+      this.#set('rightUpperArm', 0, 0, armR * 0.5 - shift * swayAmp * 0.5);
+      this.#set('rightLowerArm', 0, Math.sin(t * 0.4) * 0.02, 0);
+      this.#set('rightHand', 0, 0, 0);
+    }
+
+    // Cabeza: inclinacion lenta (Nova), asentir al hablar (Luna, Rio) y mirar alrededor (Rio).
+    const tilt = Math.sin(t * 0.37 + 0.9) * st.headTilt * (0.6 + g * 0.8);
+    const nod = Math.sin(time * st.gestureRate * Math.PI * 0.5) * st.nod * g;
+    // Al hablar mira a la persona: la mirada al paisaje se apaga en cuanto empieza a hablar.
+    const look = st.lookAround * Math.max(0, 1 - g * 1.6) * this.#lookAround(time);
+    this.head.x = nod;
+    this.head.y = look;
+    this.head.z = tilt;
+  }
+
+  #lookTarget = 0;
+  #lookAt = 0;
+  #look = 0;
+  /** Cada pocos segundos mira hacia un lado del paisaje y vuelve (-1 a 1, suave). */
+  #lookAround(time: number): number {
+    if (time >= this.#lookAt) {
+      this.#seed = (this.#seed * 1664525 + 1013904223) >>> 0;
+      const r = this.#seed / 4294967296;
+      this.#lookTarget = this.#lookTarget !== 0 ? 0 : r < 0.5 ? -1 : 1;
+      this.#lookAt = time + (this.#lookTarget !== 0 ? 1.6 : 3.5 + r * 3);
+    }
+    this.#look += (this.#lookTarget - this.#look) * 0.04;
+    return this.#look;
   }
 
   /**

@@ -15,6 +15,7 @@ import { buildStage, type Stage } from './scene3d';
 import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
 import { IdleBody } from './idle-body';
+import { styleFor } from './body-styles';
 import { frameCamera, pixelRatio, type Framing } from './framing';
 
 /**
@@ -206,7 +207,7 @@ function animate(
   let frame = 0;
   let running = true;
 
-  const body = new IdleBody((name) => vrm.humanoid.getNormalizedBoneNode(name));
+  const body = new IdleBody((name) => vrm.humanoid.getNormalizedBoneNode(name), styleFor(props().companion));
   const neck = vrm.humanoid.getNormalizedBoneNode('neck');
   const head = vrm.humanoid.getNormalizedBoneNode('head');
 
@@ -263,9 +264,9 @@ function animate(
     const pose = stateOffset(p.state);
     const gesture = reduce || !p.affect ? { x: 0, y: 0, z: 0 } : gestureOffset(p.affect.gesture, (now - p.affect.at) / 1000);
     const sway = reduce ? 0 : 1;
-    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway, dt, 6);
-    headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway, dt, 6);
-    headZ = approach(headZ, pose.z + gesture.z + Math.sin(t * 0.6) * 0.02 * sway, dt, 6);
+    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x, dt, 6);
+    headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway + body.head.y, dt, 6);
+    headZ = approach(headZ, pose.z + gesture.z + Math.sin(t * 0.6) * 0.02 * sway + body.head.z, dt, 6);
     if (neck) neck.rotation.set(headX * 0.4, headY * 0.4, headZ * 0.4);
     if (head) head.rotation.set(headX * 0.6, headY * 0.6, headZ * 0.6);
 
