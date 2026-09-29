@@ -35,6 +35,10 @@ El código ya las carga: basta con poner la ruta en `PLATES` (`mobile/src/scenes
 falta la imagen, se ve la vista dibujada con código. Probado el 2026-09-28 con las
 miniaturas de Canva (`vistas-prueba-miniaturas.png`).
 
-**Falta el archivo en resolución completa.** Desde el espacio de trabajo de Claude no se
-llega a los servidores de descarga de Canva (bloqueados por la política de red). El dueño las
-descarga desde los enlaces de arriba, en JPG a tamaño completo, y las adjunta al chat.
+**Cómo se instalan** (el dueño autorizó la descarga el 2026-09-28 a las 21:44):
+- En Canva, el diseño «Kotaru vistas» (`DAHWiUlYhm8`) tiene una página por vista: 2 Nova
+  (1600x2000), 3 Luna (1600x1600) y 4 Rio (2400x1200).
+- Se exportan en JPG y se descargan en el servidor con `deploy/vistas.sh`, que guarda los
+  bytes tal cual (sin tocar los metadatos). Después, `deploy/web.sh`.
+- Las imágenes no están en git: viven en el servidor, en `mobile/public/escenarios/vistas/`.
+  Si faltan, la app usa la vista dibujada.

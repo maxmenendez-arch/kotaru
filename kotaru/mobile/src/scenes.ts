@@ -101,13 +101,14 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
 /**
  * Vistas pintadas de cada lugar (B del plan de realismo): la ciudad de Nova, el parque de
  * Luna y las montañas de Rio. Se cargan aparte, despues de la escena; si no hay imagen (null)
- * o falla, se ve la vista dibujada con codigo. Van en mobile/public/escenarios/vistas/.
+ * o falla (p. ej. aun no se han descargado), se ve la vista dibujada con codigo. Van en
+ * mobile/public/escenarios/vistas/ (se descargan con deploy/vistas.sh).
  * Origen y licencia de cada imagen: docs/escenarios/VISTAS.md.
  */
 export const PLATES: Record<SceneId, string | null> = {
-  'luna-office': null,
-  'nova-room': null,
-  'rio-outdoors': null,
+  'luna-office': '/escenarios/vistas/luna-office.jpg',
+  'nova-room': '/escenarios/vistas/nova-room.jpg',
+  'rio-outdoors': '/escenarios/vistas/rio-outdoors.jpg',
 };
 
 /** Generador pseudoaleatorio con semilla (mulberry32): la escena sale igual cada vez. */
