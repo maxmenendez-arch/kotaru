@@ -58,6 +58,9 @@ KEY = key()
 def request(path: str, body: bytes | None = None, content_type: str = 'application/json', method: str | None = None):
     req = urllib.request.Request(BASE + path, data=body, method=method or ('POST' if body else 'GET'))
     req.add_header('Authorization', f'Bearer {KEY}')
+    # Sin esto, el Cloudflare de Together rechaza el User-Agent por defecto de Python (1010).
+    req.add_header('User-Agent', 'kotaru-deploy/1.0 (+https://app.kotaru.app)')
+    req.add_header('Accept', '*/*')
     if body:
         req.add_header('Content-Type', content_type)
     try:
