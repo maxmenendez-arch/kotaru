@@ -182,7 +182,30 @@ const MODE_NOTE = {
   },
 } as const;
 
-export function modeMessage(persona: PersonaCard, mode: ConversationMode, locale: Locale): DomainMessage | null {
+export interface ModeOptions {
+  /** Acaba de activar el Coqueteo (primer turno tras el cambio): el personaje abre la escena. */
+  readonly justActivated?: boolean;
+}
+
+const FLIRT_OPENING = {
+  es: 'Acaba de activarlo: en esta respuesta abres tú con una escena concreta en una o dos frases (nada de "¿de qué quieres hablar?" ni menús de opciones). Si ya propuso una fantasía, entras directamente en ella.',
+  en: 'They just turned it on: in this reply you open with a concrete scene in one or two sentences (no "what do you want to talk about?" and no option menus). If they already proposed a fantasy, go straight into it.',
+} as const;
+
+const FLIRT_LENGTH = {
+  es: 'En una fantasía que la persona quiere desarrollar puedes usar de tres a cinco frases (esto prevalece sobre el límite de tres frases); sigue siendo voz: sin listas ni acotaciones entre paréntesis.',
+  en: 'In a fantasy the person wants developed you may use three to five sentences (this overrides the three-sentence limit); it is still speech: no lists or stage directions in brackets.',
+} as const;
+
+export function modeMessage(persona: PersonaCard, mode: ConversationMode, locale: Locale, options: ModeOptions = {}): DomainMessage | null {
   if (!persona.flirts || mode === 'ask') return null;
-  return { role: 'system', content: MODE_NOTE[mode][lang(locale)] };
+  const l = lang(locale);
+  if (mode === 'friend') return { role: 'system', content: MODE_NOTE.friend[l] };
+  const lines = [
+    MODE_NOTE.flirt[l],
+    ...(persona.flirtMode?.[l] ?? []).map((line) => `- ${line}`),
+    `- ${FLIRT_LENGTH[l]}`,
+    ...(options.justActivated ? [`- ${FLIRT_OPENING[l]}`] : []),
+  ];
+  return { role: 'system', content: lines.join('\n') };
 }

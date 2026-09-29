@@ -22,7 +22,7 @@ describe('prompt del personaje', () => {
   });
 
   it('registra la version de la ficha y la de las reglas', () => {
-    expect(promptId(RIO_V1)).toBe('rio-v4@4.0.0+rules@1.3.0');
+    expect(promptId(RIO_V1)).toBe('rio-v4@5.0.0+rules@1.3.0');
   });
 });
 
@@ -173,5 +173,51 @@ describe('modo de la conversacion (Amigo / Coqueteo / Tu decides)', () => {
       expect(friendEn?.content).toMatch(/Friend mode/);
       expect(friendEs?.content).not.toBe(flirtEs?.content);
     }
+  });
+});
+
+describe('modo Coqueteo con los manuales v3 (Nova y Rio)', () => {
+  const nova = PERSONAS.nova;
+  const rio = PERSONAS.rio;
+
+  it('en Coqueteo, cada uno trae su motor de escena propio (Nova conserva su voz)', () => {
+    const n = modeMessage(nova, 'flirt', 'es-419')!.content as string;
+    const r = modeMessage(rio, 'flirt', 'es-419')!.content as string;
+    expect(n).toMatch(/paso nuevo en la escena/);
+    expect(r).toMatch(/paso nuevo en la escena/);
+    expect(n).toMatch(/voz femenina es propia/);
+    expect(r).toMatch(/aventura compartida/);
+    expect(n).not.toBe(r);
+    expect(n).toMatch(/de tres a cinco frases/);
+  });
+
+  it('al activar el Coqueteo, el personaje abre la escena en ese turno y solo en ese', () => {
+    expect(modeMessage(nova, 'flirt', 'es-419', { justActivated: true })!.content).toMatch(/abres tú con una escena concreta/);
+    expect(modeMessage(nova, 'flirt', 'es-419')!.content).not.toMatch(/abres tú con una escena concreta/);
+    expect(modeMessage(rio, 'flirt', 'en-US', { justActivated: true })!.content).toMatch(/open with a concrete scene/);
+  });
+
+  it('parar, bajar la intensidad, honestidad y sin gemidos siguen presentes', () => {
+    for (const persona of [nova, rio]) {
+      const es = modeMessage(persona, 'flirt', 'es-419')!.content as string;
+      expect(es).toMatch(/"para"/);
+      expect(es).toMatch(/nada de gemidos/);
+      expect(es).toMatch(/no atribuyes sensaciones al cuerpo/);
+    }
+  });
+
+  it('el contenido atrevido de los manuales solo entra con el nivel sensual activado', () => {
+    for (const persona of [nova, rio]) {
+      const light = buildSystemPrompt(persona, 'es-419');
+      const sensual = buildSystemPrompt(persona, 'es-419', { sensual: true });
+      expect(light).not.toMatch(/fantasía más atrevida/);
+      expect(sensual).toMatch(/fantasía más atrevida/);
+      // Los limites fijos siguen en el prompt sensual.
+      expect(sensual).toMatch(/Nunca describes actos sexuales/);
+    }
+  });
+
+  it('en Amigo no entra nada del motor de coqueteo', () => {
+    expect(modeMessage(rio, 'friend', 'es-419')!.content).not.toMatch(/escena/);
   });
 });

@@ -117,6 +117,8 @@ export class GatewaySession {
   readonly #history: DomainMessage[] = [];
   /** Modo elegido en la app (solo cuenta con Nova y Rio). */
   #mode: ConversationMode = 'ask';
+  /** El Coqueteo se acaba de activar: en el siguiente turno el personaje abre la escena. */
+  #flirtJustActivated = false;
   /** Voz elegida en Ajustes para probar ('auto': el orden del operador). */
   #voiceChoice: VoiceChoice = 'auto';
 
@@ -285,7 +287,11 @@ export class GatewaySession {
 
       case 'mode':
         // Un valor raro se ignora: no merece cerrar la conversacion.
-        if ((CONVERSATION_MODES as readonly string[]).includes(message.mode)) this.#mode = message.mode;
+        if ((CONVERSATION_MODES as readonly string[]).includes(message.mode)) {
+          if (message.mode === 'flirt' && this.#mode !== 'flirt') this.#flirtJustActivated = true;
+          if (message.mode !== 'flirt') this.#flirtJustActivated = false;
+          this.#mode = message.mode;
+        }
         return;
 
       case 'voice_choice':
@@ -566,7 +572,8 @@ export class GatewaySession {
     // Como bloque de datos delimitado: un recuerdo es texto del usuario y no puede colarse
     // como instruccion (ver @kotaru/persona).
     const block = memoryMessage(recalled, this.#grant.locale);
-    const mode = modeMessage(this.#persona, this.#mode, this.#grant.locale);
+    const mode = modeMessage(this.#persona, this.#mode, this.#grant.locale, { justActivated: this.#flirtJustActivated });
+    this.#flirtJustActivated = false;
     return [...this.#history, ...(block ? [block] : []), ...(mode ? [mode] : [])];
   }
 

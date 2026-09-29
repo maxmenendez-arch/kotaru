@@ -1292,3 +1292,36 @@ llega a Canva; el dueño los descarga y los adjunta.
   `app.kotaru.app/escenarios/`, las ventanas de Luna (parque) y de Nova (ciudad) ya muestran
   la vista pintada.
 - Pendiente: Rio no se pudo mirar en vivo (se cortó la conexión con el equipo del dueño).
+
+## 2026-09-28 (noche) — Manuales de coqueteo v3 de Nova y Rio cargados
+
+**Qué cambió**
+- Los manuales del dueño se guardaron en `docs/personajes/COQUETEO_NOVA_v3.md` y
+  `COQUETEO_RIO_v3.md`.
+- **Modo Coqueteo** (`flirtMode`, nuevo campo de la ficha): entra en la nota de modo de cada
+  turno, solo mientras la persona tiene elegido Coqueteo.
+  - Motor de cinco pasos por turno.
+  - Estado mínimo de escena: lugar, luz, música y distancia.
+  - Halago concreto y actuación en personaje, sin atribuir sensaciones al cuerpo de la persona.
+  - Nova, con voz femenina propia y sin sumisión automática; Rio, con aventura compartida y
+    sin estereotipos.
+  - Se para con «para» y se baja la intensidad en el mismo turno.
+- **Apertura:** al activar Coqueteo, en el siguiente turno el personaje abre con una escena
+  concreta, sin «¿de qué quieres hablar?» (`justActivated`, en el gateway).
+- **Longitud:** en fantasías desarrolladas, de 3 a 5 frases (antes, 1 a 3).
+  - **Costo:** esos turnos tienen más voz; el tope mensual de gasto no cambia.
+- **Nivel sensual** (solo adulto verificado con el ajuste activado): los ejemplos v3 («fantasía
+  más atrevida», «te acerco a mí», «¿bailamos desnudos?») y la regla de no desviar la intención
+  sexual a un tema neutro. Los límites fijos siguen iguales: nada gráfico, nada con menores,
+  coerción, intoxicación, violencia, parentesco ni incapacidad de consentir.
+- **Versiones:** Nova 4.0.0 y Rio 5.0.0.
+
+**Decisiones**
+- **Gemidos:** el manual los admite «si el producto lo admite». No se implementan: el
+  prompt pide «nada de gemidos ni sonidos repetidos». La voz usa pausas y una risa baja
+  ocasional.
+- **Clasificador:** no hay ninguno que desvíe las alusiones sexuales (`@kotaru/safety` solo
+  detecta crisis y manipulación), así que no hizo falta cambiarlo.
+
+**Cómo se verificó:** 5 pruebas nuevas en `@kotaru/persona`, 128 pruebas del paquete y del
+gateway, build y lint de arquitectura.
