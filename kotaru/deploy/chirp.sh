@@ -3,7 +3,13 @@
 # Vindemiatrix, Algieba) como respaldo de Gemini TTS SIN su tope de 100 peticiones diarias.
 # Orden de voces: Gemini -> Chirp -> Cartesia -> Kokoro.
 #
-#   bash deploy/chirp.sh
+#   bash deploy/chirp.sh              # pegar el JSON de una clave creada en la consola
+#   bash deploy/chirp.sh --generar    # (sin copiar claves) el servidor crea su par de claves
+#                                     # e imprime SOLO el certificado publico para subirlo a
+#                                     # Google Cloud: kotaru-voz -> Claves -> Agregar clave ->
+#                                     # Subir clave existente
+#   bash deploy/chirp.sh --activar    # tras subir el certificado: arma la credencial con la
+#                                     # clave privada que nunca salio del servidor, y sigue
 #
 # Antes (una vez, en la consola de Google Cloud, proyecto "kotaru"):
 #   - La API Cloud Text-to-Speech ya esta activada y la cuenta de servicio
@@ -23,6 +29,21 @@ KEY_FILE=/etc/kotaru/google-tts.json
 SERVICE=kotaru-gateway
 [ "$(id -u)" -eq 0 ] || { echo "Ejecuta como root." >&2; exit 1; }
 command -v openssl >/dev/null || { echo "Falta openssl." >&2; exit 1; }
+SA_EMAIL=kotaru-voz@kotaru-509922.iam.gserviceaccount.com
+PENDING_KEY=/etc/kotaru/google-tts-pendiente.pem
+
+if [ "${1:-}" = "--generar" ]; then
+  # La clave privada se crea aqui y nunca sale del servidor; solo se imprime el certificado
+  # publico (no es secreto) para subirlo a la cuenta de servicio.
+  install -d -m 750 -o root -g kotaru /etc/kotaru
+  umask 077
+  openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -subj "/CN=$SA_EMAIL" \
+    -keyout "$PENDING_KEY" -out /etc/kotaru/google-tts-pendiente.crt 2>/dev/null
+  chmod 600 "$PENDING_KEY"
+  echo "Certificado publico para subir a $SA_EMAIL (Claves -> Agregar clave -> Subir clave existente):"
+  cat /etc/kotaru/google-tts-pendiente.crt
+  exit 0
+fi
 
 echo "Términos de Google Cloud: Google no usa los datos del cliente para entrenar modelos y el"
 echo "audio generado es tuyo para uso comercial (Service Specific Terms de Google Cloud)."
@@ -31,13 +52,26 @@ read -r -p "¿Los revisaste y los aceptas para Kotaru? (si/no) " answer
 
 work="$(mktemp -d /run/kotaru-chirp.XXXX)"; chmod 700 "$work"
 trap 'rm -rf "$work"' EXIT
-echo
-echo "Pega ahora el contenido completo del archivo .json de la clave. Al terminar pulsa"
-echo "Enter y después Ctrl-D (no se verá mientras pegas):"
-stty -echo 2>/dev/null || true
-cat > "$work/key.json"
-stty echo 2>/dev/null || true
-echo
+if [ "${1:-}" = "--activar" ]; then
+  [ -s "$PENDING_KEY" ] || { echo "Primero: bash deploy/chirp.sh --generar" >&2; exit 1; }
+  python3 - "$PENDING_KEY" "$SA_EMAIL" "$work/key.json" <<'PY2'
+import json, os, sys
+pem, email, out = sys.argv[1:4]
+data = {'type': 'service_account', 'client_email': email, 'private_key': open(pem).read(),
+        'token_uri': 'https://oauth2.googleapis.com/token'}
+fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, 'w') as f:
+    json.dump(data, f)
+PY2
+else
+  echo
+  echo "Pega ahora el contenido completo del archivo .json de la clave. Al terminar pulsa"
+  echo "Enter y después Ctrl-D (no se verá mientras pegas):"
+  stty -echo 2>/dev/null || true
+  cat > "$work/key.json"
+  stty echo 2>/dev/null || true
+  echo
+fi
 
 # Validar sin imprimir la clave: solo el correo de la cuenta.
 email="$(python3 - "$work" <<'PY'
@@ -104,4 +138,5 @@ if [ "$ok" != 1 ]; then
   exit 1
 fi
 echo "Listo: la voz de Gemini va primero; si se agota su cuota diaria, Chirp 3 HD (las mismas voces); luego Cartesia."
-echo "Puedes borrar el archivo .json de tu ordenador: la clave ya está en el servidor."
+rm -f "$PENDING_KEY" /etc/kotaru/google-tts-pendiente.crt
+echo "Puedes borrar el archivo .json de tu ordenador si lo descargaste: la clave ya está en el servidor."
