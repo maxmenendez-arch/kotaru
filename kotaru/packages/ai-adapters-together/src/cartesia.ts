@@ -29,9 +29,10 @@ export const DEFAULT_CARTESIA_VOICES: Readonly<Record<string, string>> = {
  * Cartesia (queja del dueño, 2026-09-28). Sonic-3 acepta etiquetas en linea de emocion y
  * velocidad (https://docs.cartesia.ai/build-with-cartesia/sonic-3/volume-speed-emotion,
  * consultado el 2026-09-28). Probado por Together el 2026-09-28 con
- * deploy/prueba-cartesia-emocion.py: las etiquetas no se leen en voz alta (Whisper) y la
- * velocidad si cambia (0,9: de 8,0 a 9,3 s). La emocion es beta y Cartesia la documenta
- * para ingles: su efecto en español es ASSUMPTION hasta que el dueño lo oiga.
+ * deploy/prueba-cartesia-emocion.py: Together acepta `generation_config` y las etiquetas en
+ * linea (no se leen en voz alta). El dueño lo escucho y eligio `generation_config` con la
+ * voz Lucia para Nova ("la que mejor queda", 2026-09-28 23:49). Va por `generation_config`
+ * (no por etiquetas): suena mejor y no añade caracteres que cobrar.
  */
 export interface CartesiaStyle {
   /** Una emocion de la lista de Sonic-3 (flirtatious, calm, enthusiastic, ...). */
@@ -41,10 +42,23 @@ export interface CartesiaStyle {
 }
 
 export const DEFAULT_CARTESIA_STYLES: Readonly<Record<string, CartesiaStyle>> = {
-  nova: { emotion: 'flirtatious', speed: 0.92 },
-  luna: { emotion: 'calm', speed: 0.95 },
+  /** Elegida de oido por el dueño: Lucia + coqueta a 0,9. */
+  nova: { emotion: 'flirtatious', speed: 0.9 },
+  luna: { emotion: 'calm', speed: 0.9 },
   rio: { emotion: 'enthusiastic', speed: 1.05 },
 };
+
+/** `generation_config` de Sonic-3 para un estilo (undefined si no hay nada que controlar). */
+export function cartesiaConfig(style: CartesiaStyle | undefined): Record<string, unknown> | undefined {
+  if (!style) return undefined;
+  const out: Record<string, unknown> = {};
+  if (style.emotion && /^[a-z]+$/.test(style.emotion)) out['emotion'] = style.emotion;
+  if (style.speed !== undefined && Number.isFinite(style.speed)) {
+    const speed = Math.min(1.5, Math.max(0.6, style.speed));
+    if (speed !== 1) out['speed'] = speed;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
 
 /** Etiquetas de control de Sonic-3 para un estilo ('' si no hay nada que controlar). */
 export function cartesiaPrefix(style: CartesiaStyle | undefined): string {
@@ -80,12 +94,13 @@ export class CartesiaTtsProvider extends TogetherSpeechProvider {
         rate: CARTESIA_RATE,
         // ASSUMPTION: por encima de Kokoro y por debajo de Gemini TTS hasta la prueba de oido.
         quality: 0.85,
-        // Unos 45 caracteres de etiquetas por frase de ~100 (ASSUMPTION: se cobran).
-        overheadPer100Chars: 45,
         voiceFor: (voiceId: string, locale: Locale, male: boolean) => ({
           voice: voices[voiceId] ?? (male ? voices['rio']! : voices['luna']!),
           language: locale.startsWith('es') ? 'es' : 'en',
-          prefix: cartesiaPrefix(styles[voiceId]),
+          ...(() => {
+            const config = cartesiaConfig(styles[voiceId]);
+            return config ? { generationConfig: config } : {};
+          })(),
         }),
       },
       options,

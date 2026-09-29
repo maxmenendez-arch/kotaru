@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ProviderError, type AudioChunk, type ProviderContext, type TextChunk, type VoiceConfig } from '@kotaru/ai-contracts';
-import { CARTESIA_RATE, CartesiaTtsProvider, cartesiaPrefix, DEFAULT_CARTESIA_VOICES } from '../src/index.js';
+import { CARTESIA_RATE, cartesiaConfig, CartesiaTtsProvider, cartesiaPrefix, DEFAULT_CARTESIA_VOICES } from '../src/index.js';
 
 interface Call {
   readonly url: string;
@@ -55,8 +55,9 @@ describe('Cartesia Sonic-3 en Together AI', () => {
     await collect(p.synthesizeStream(sentences('Hola.'), voice({ voiceId: 'rio' }), ctx()));
     await collect(p.synthesizeStream(sentences('Hi.'), voice({ voiceId: 'nova', locale: 'en-US' }), ctx()));
     expect(calls[0]!.body).toEqual({
-      model: 'cartesia/sonic-3', input: '<emotion value="calm"/><speed ratio="0.95"/>Hola.', voice: DEFAULT_CARTESIA_VOICES['luna'], language: 'es',
+      model: 'cartesia/sonic-3', input: 'Hola.', voice: DEFAULT_CARTESIA_VOICES['luna'], language: 'es',
       response_format: 'raw', response_encoding: 'pcm_s16le', sample_rate: 24000, stream: false,
+      generation_config: { emotion: 'calm', speed: 0.9 },
     });
     expect(calls[1]!.body.voice).toBe(DEFAULT_CARTESIA_VOICES['rio']);
     expect(calls[2]!.body).toMatchObject({ voice: DEFAULT_CARTESIA_VOICES['nova'], language: 'en' });
@@ -68,15 +69,21 @@ describe('Cartesia Sonic-3 en Together AI', () => {
     await collect(make(impl).synthesizeStream(sentences('Hola.'), voice({ voiceId: 'rio' }), ctx()));
     await collect(make(impl, { styles: { nova: { speed: 1 } } }).synthesizeStream(sentences('Hola.'), voice({ voiceId: 'nova' }), ctx()));
     await collect(make(impl).synthesizeStream(sentences('Hola.'), voice({ voiceId: 'desconocida' }), ctx()));
-    expect(calls[0]!.body.input).toBe('<emotion value="flirtatious"/><speed ratio="0.92"/>Hola.');
-    expect(calls[1]!.body.input).toBe('<emotion value="enthusiastic"/><speed ratio="1.05"/>Hola.');
-    expect(calls[2]!.body.input).toBe('Hola.');
-    expect(calls[3]!.body.input).toBe('Hola.');
+    // Nova: la variante elegida de oido por el dueño (Lucia, coqueta a 0,9).
+    expect(calls[0]!.body.generation_config).toEqual({ emotion: 'flirtatious', speed: 0.9 });
+    expect(calls[0]!.body.voice).toBe(DEFAULT_CARTESIA_VOICES['nova']);
+    expect(calls[1]!.body.generation_config).toEqual({ emotion: 'enthusiastic', speed: 1.05 });
+    // Cambiado a velocidad 1 sin emocion: nada que controlar, no se envia.
+    expect(calls[2]!.body.generation_config).toBeUndefined();
+    expect(calls[3]!.body.generation_config).toBeUndefined();
+    // El texto va tal cual (sin etiquetas).
+    expect(calls.every((c) => c.body.input === 'Hola.')).toBe(true);
   });
 
-  it('las etiquetas solo admiten valores seguros (una emocion rara no se cuela en el texto)', () => {
-    expect(cartesiaPrefix({ emotion: 'calm"/><x', speed: 9 })).toBe('<speed ratio="1.5"/>');
-    expect(cartesiaPrefix(undefined)).toBe('');
+  it('solo se envian valores seguros (emocion de letras, velocidad entre 0,6 y 1,5)', () => {
+    expect(cartesiaConfig({ emotion: 'calm"/><x', speed: 9 })).toEqual({ speed: 1.5 });
+    expect(cartesiaConfig(undefined)).toBeUndefined();
+    expect(cartesiaPrefix({ emotion: 'calm', speed: 0.9 })).toBe('<emotion value="calm"/><speed ratio="0.9"/>');
   });
 
   it('las voces se pueden cambiar por personaje; un personaje desconocido usa la voz de su genero', async () => {
@@ -93,8 +100,7 @@ describe('Cartesia Sonic-3 en Together AI', () => {
     const chunks = await collect(make(impl).synthesizeStream(sentences('Una frase.'), voice({ voiceId: 'luna' }), ctx()));
     expect(chunks.every((c) => c.sampleRate === 24000 && c.pcm.byteLength % 2 === 0)).toBe(true);
     expect(chunks.slice(0, -1).every((c) => c.pcm.byteLength === 4800)).toBe(true);
-    // 200 caracteres + 45 % de etiquetas de emocion y velocidad (ASSUMPTION: se cobran).
-    expect(make(impl).estimate({ characters: 200 }, ctx())).toMatchObject({ amountUsd: 0.01885, basis: 'assumption', rateCardVersion: CARTESIA_RATE.version });
+    expect(make(impl).estimate({ characters: 200 }, ctx())).toMatchObject({ amountUsd: 0.013, basis: 'verified', rateCardVersion: CARTESIA_RATE.version });
     expect(make(impl).descriptor).toMatchObject({ id: 'together-cartesia-sonic-3', capability: 'tts', trainingOptOut: true });
   });
 

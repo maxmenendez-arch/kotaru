@@ -1459,3 +1459,14 @@ validación), 460 del servidor, build y lint.
   - El cambio es gradual (sin saltos).
 - **Verificado:** 48 pruebas (nueva: Coqueteo ondula más y Amigo menos) y tira de
   fotogramas (`docs/escenarios/movimientos-nova-coqueteo.png`).
+
+## 2026-09-29 — Voz de Nova en Cartesia: la elegida por el dueño
+
+- El dueño escuchó `/voces/emocion/` y eligió «Lucia + generation_config (coqueta, 0,9)»
+  («la que mejor queda», 23:49).
+- El adaptador de Cartesia envía ahora `generation_config` y no etiquetas en el texto.
+  Nova: `flirtatious` a 0,9, con la voz Lucia. Mismo método para Luna (`calm`, 0,9) y Rio
+  (`enthusiastic`, 1,05).
+- Se quita el sobrecosto del 45 % de la estimación: `generation_config` no añade caracteres.
+  La tarifa vuelve a ser la verificada.
+- Verificado: 22 pruebas del adaptador, suite completa y lint.

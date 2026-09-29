@@ -37,7 +37,11 @@ export interface TogetherVoiceModel {
    * Voz, idioma y, si el modelo lo admite, un prefijo de control que se antepone a cada
    * trozo de texto (Cartesia: etiquetas de emocion y velocidad; no se leen en voz alta).
    */
-  voiceFor(voiceId: string, locale: Locale, male: boolean): { readonly voice: string; readonly language: string; readonly prefix?: string };
+  voiceFor(
+    voiceId: string,
+    locale: Locale,
+    male: boolean,
+  ): { readonly voice: string; readonly language: string; readonly prefix?: string; readonly generationConfig?: Readonly<Record<string, unknown>> };
 }
 
 const DEFAULT_BASE = 'https://api.together.ai';
@@ -125,6 +129,7 @@ export class TogetherSpeechProvider implements TextToSpeechProvider {
               sample_rate: SAMPLE_RATE,
               // La velocidad (voice.speed) no se envia: Together no documenta ese parametro.
               stream: false,
+              ...(chosen.generationConfig ? { generation_config: chosen.generationConfig } : {}),
             }),
             signal,
           });
