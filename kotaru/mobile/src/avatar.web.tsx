@@ -68,7 +68,7 @@ export function Avatar(props: AvatarProps) {
   useEffect(() => {
     // El tamano cambia al achicarse el retrato: se ajusta sin recargar el modelo.
     canvas.current?.dispatchEvent(new Event('kotaru-resize'));
-  }, [size, width]);
+  }, [size, width, props.freeBottom]);
 
   return (
     <View style={{ width, height: size, alignItems: 'center', justifyContent: 'center' }}>

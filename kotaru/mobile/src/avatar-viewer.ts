@@ -43,6 +43,30 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   let post: StagePost | null = null;
   let headY = 1.4;
   const drawingSize = new THREE.Vector2();
+  let shot: { fov: number; y: number; z: number; targetY: number } | null = null;
+  let goal: { fov: number; y: number; z: number; targetY: number } | null = null;
+  const applyShot = () => {
+    if (!shot) return;
+    camera.fov = shot.fov;
+    camera.position.set(0, shot.y, shot.z);
+    camera.lookAt(0, shot.targetY, 0);
+    camera.updateProjectionMatrix();
+  };
+  /** Acerca la camara al encuadre pedido (suave, ~0,4 s). Devuelve si se movio. */
+  const easeShot = (dt: number): boolean => {
+    if (!shot || !goal) return false;
+    const k = Math.min(1, dt * 6);
+    let moved = false;
+    for (const key of ['fov', 'y', 'z', 'targetY'] as const) {
+      const d = goal[key] - shot[key];
+      if (Math.abs(d) > 1e-4) {
+        shot[key] += d * k;
+        moved = true;
+      } else shot[key] = goal[key];
+    }
+    if (moved) applyShot();
+    return moved;
+  };
   const resize = () => {
     const p = props();
     const w = p.width ?? p.size;
@@ -50,11 +74,14 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
     renderer.setPixelRatio(pixelRatio(framing, w, p.size, window.devicePixelRatio || 1));
     renderer.setSize(w, p.size, false);
     camera.aspect = w / p.size;
-    const setup = frameCamera(framing, camera.aspect, headY);
-    camera.fov = setup.fov;
-    camera.position.set(0, setup.y, setup.z);
-    camera.lookAt(0, setup.targetY, 0);
     camera.updateProjectionMatrix();
+    const setup = frameCamera(framing, camera.aspect, headY, p.freeBottom);
+    // La primera vez, directo; despues la camara se desliza hasta el nuevo encuadre.
+    if (!shot) {
+      shot = { ...setup };
+      applyShot();
+    }
+    goal = setup;
     renderer.getDrawingBufferSize(drawingSize);
     post?.setSize(drawingSize.x, drawingSize.y);
   };
@@ -97,6 +124,7 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   (head ?? vrm.scene).getWorldPosition(headPos);
   headY = headPos.y;
   const focus = headPos.clone().add(new THREE.Vector3(0, -0.03, 0));
+  shot = null;
   resize();
 
   // El lugar del personaje, con sus propias luces (sustituyen a las del retrato).
@@ -122,7 +150,7 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   scene.add(gaze);
   if (vrm.lookAt) vrm.lookAt.target = gaze;
 
-  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, () => {
+  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, easeShot, () => {
     canvas.removeEventListener('kotaru-resize', resize);
     post?.dispose();
     stage?.dispose();
@@ -162,6 +190,7 @@ function animate(
   props: () => AvatarProps,
   stage: Stage | null,
   post: StagePost | null,
+  easeShot: (dt: number) => boolean,
   cleanup: () => void,
 ): () => void {
   const timer = new THREE.Timer();
@@ -245,6 +274,7 @@ function animate(
       camera.position.z,
     );
 
+    easeShot(reduce ? 1 : dt);
     stage?.update(t, reduce);
     vrm.update(dt);
     if (post) post.render(scene, camera, t);

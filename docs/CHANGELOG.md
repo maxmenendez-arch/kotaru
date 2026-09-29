@@ -1260,3 +1260,14 @@ llega a Canva; el dueño los descarga y los adjunta.
 - Luna: luz principal algo más suave y más contraste (la cara se veía lavada).
 - Nova: luz principal más neutra y el contorno rosa algo más bajo (la cara quedaba toda rosa).
 - Verificado: typecheck, 33 pruebas y capturas de cara a pantalla completa (390x760).
+
+## 2026-09-28 (noche) — Realismo A: la cara nunca queda bajo el panel
+
+- Pantalla completa: la app mide dónde empieza el panel de abajo y se lo pasa al visor
+  (`freeBottom`). Si el panel crece con los subtítulos, la cámara se aleja lo justo para que
+  la cara entera quede por encima, con un 5 % de margen. Nunca se aleja más de medio cuerpo.
+- La cámara se desliza al nuevo encuadre en unos 0,4 s, sin saltos. Con «reducir movimiento»
+  cambia de golpe.
+- Los subtítulos ocupan como mucho el 24 % del alto (antes, el 30 %).
+- Verificado: typecheck, 34 pruebas (nueva: el panel alto deja la barbilla por encima) y
+  captura con el panel al 55 % del alto (`docs/escenarios/inmersivo-panel-alto.png`).

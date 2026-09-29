@@ -299,12 +299,14 @@ export function Conversation({
   const ringColor = shown === 'idle' || shown === 'closed' ? companion.accent : RING[shown];
   const immersive = backgrounds && Platform.OS === 'web';
   const [area, setArea] = useState<{ width: number; height: number } | null>(null);
+  // Donde empieza el panel de abajo (fraccion del alto): la camara deja la cara por encima.
+  const [panelTop, setPanelTop] = useState(1);
 
   const avatar = (size: number, width?: number) => (
     <Avatar
       companion={companionId}
       size={size}
-      {...(width !== undefined ? { width, background: true, immersive: true } : {})}
+      {...(width !== undefined ? { width, background: true, immersive: true, freeBottom: panelTop } : {})}
       state={shown}
       affect={affect}
       level={() => speaker.current.level?.() ?? 0}
@@ -370,7 +372,7 @@ export function Conversation({
     !immersive || hasCaptions ? (
       <ScrollView
         ref={scroll}
-        style={immersive ? [styles.captionsFloating, { maxHeight: Math.round((area?.height ?? 600) * 0.3) }] : styles.captions}
+        style={immersive ? [styles.captionsFloating, { maxHeight: Math.round((area?.height ?? 600) * 0.24) }] : styles.captions}
         contentContainerStyle={immersive ? styles.captionsFloatingContent : styles.captionsContent}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
       >
@@ -480,7 +482,15 @@ export function Conversation({
           {picker}
           {identity}
           <View style={styles.spacer} pointerEvents="none" />
-          <View style={styles.panel}>
+          <View
+            style={styles.panel}
+            onLayout={(e) => {
+              if (!area) return;
+              // y es relativo a la columna, que empieza arriba del todo del area.
+              const top = Math.round(((e.nativeEvent.layout.y) / area.height) * 50) / 50;
+              if (Math.abs(top - panelTop) >= 0.02) setPanelTop(top);
+            }}
+          >
             <View style={styles.extrasFloating}>{extras}</View>
             {notices}
             {captions}

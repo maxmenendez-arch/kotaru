@@ -12,6 +12,8 @@ export interface AvatarProps {
   readonly background?: boolean;
   /** Con fondo: 'immersive' es pantalla completa, de tres cuartos (framing.ts). */
   readonly immersive?: boolean;
+  /** Inmersivo: donde empieza el panel de abajo (fraccion del alto, 0-1). */
+  readonly freeBottom?: number;
   /** Estado de la conversacion (STATE de @kotaru/client): escucha, piensa, habla... */
   readonly state: string;
   /** Ultima emocion que mando el servidor, o null. */

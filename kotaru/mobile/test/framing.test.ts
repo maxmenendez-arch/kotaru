@@ -37,3 +37,16 @@ test('la densidad de pixeles se limita a pantalla completa', () => {
   assert.ok(1440 * 900 * r * r <= 1_600_000 * 1.01);
   assert.equal(pixelRatio('immersive', 2560, 1440, 1), 1);
 });
+
+test('si el panel de abajo crece, la camara se aleja para que la cara quede por encima', () => {
+  const setup = frameCamera('immersive', 390 / 760, HEAD, 0.45);
+  const v = visible(setup);
+  const chin = HEAD + 0.11 - 0.23;
+  const chinFromTop = (v.top - chin) / (v.top - v.bottom);
+  assert.ok(chinFromTop <= 0.45 - 0.049, `barbilla a ${chinFromTop}`);
+  // Con el panel pequeño, el encuadre normal (no se aleja de mas).
+  assert.deepEqual(frameCamera('immersive', 0.5, HEAD, 0.9), frameCamera('immersive', 0.5, HEAD));
+  // Nunca mas lejos que medio cuerpo, aunque el panel ocupe casi todo.
+  const far = visible(frameCamera('immersive', 0.5, HEAD, 0.1));
+  assert.ok(far.top - far.bottom <= 1.6 + 1e-9);
+});
