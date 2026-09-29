@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Object3D } from 'three';
-import { IdleBody } from '../src/idle-body.ts';
+import { IdleBody, bodyGestureOffset, emotionEnergy } from '../src/idle-body.ts';
 
 function rig() {
   const bones = new Map<string, Object3D>();
@@ -65,3 +65,17 @@ test('la mirada vuelve casi siempre al centro y cambia cada pocos segundos', () 
     }
     assert.ok(seen.size > 3);
   });
+
+test('gestos de cuerpo: encoger hombros sube los hombros y termina a tiempo', () => {
+  assert.ok(bodyGestureOffset('shrug', 0.6).shoulders > 0.1);
+  assert.deepEqual(bodyGestureOffset('shrug', 2), { shoulders: 0, chest: 0, bounce: 0 });
+  assert.ok(bodyGestureOffset('lean_in', 0.8).chest > 0.05);
+  assert.deepEqual(bodyGestureOffset('small_wave', 0.5), { shoulders: 0, chest: 0, bounce: 0 });
+});
+
+test('energia por emocion: alegre amplia, preocupada recoge, desconocida neutra', () => {
+  assert.ok(emotionEnergy('happy', 1) > 1.2);
+  assert.ok(emotionEnergy('concerned', 1) < 0.8);
+  assert.equal(emotionEnergy('neutral', 1), 1);
+  assert.ok(Math.abs(emotionEnergy('happy', 0) - 1) < 1e-9);
+});

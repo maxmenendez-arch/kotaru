@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils, type VRM, type VRMHumanBoneName } from '@pixiv/three-vrm';
 import type { AvatarProps } from './avatar-types';
 import {
+  AFFECT_HOLD_MS,
   approach,
   Blinker,
   FACE_EXPRESSIONS,
@@ -14,7 +15,7 @@ import {
 import { buildStage, type Stage } from './scene3d';
 import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
-import { IdleBody } from './idle-body';
+import { IdleBody, emotionEnergy } from './idle-body';
 import { styleFor } from './body-styles';
 import { frameCamera, pixelRatio, type Framing } from './framing';
 
@@ -274,7 +275,9 @@ function animate(
     if (head) head.rotation.set(headX * 0.6, headY * 0.6, headZ * 0.6);
 
     // Cuerpo: respiracion, cambio de peso, brazos y manos vivos; mas gesto al hablar.
-    body.update(t, dt, { still: reduce, speaking, level: mouth, intensity: p.mood === 'flirt' ? 1.4 : p.mood === 'friend' ? 0.6 : 1, listening: p.state === 'listening' });
+    body.update(t, dt, { still: reduce, speaking, level: mouth, intensity: p.mood === 'flirt' ? 1.4 : p.mood === 'friend' ? 0.6 : 1, listening: p.state === 'listening',
+      ...(p.affect?.gesture ? { gesture: { name: p.affect.gesture, age: (now - p.affect.at) / 1000 } } : {}),
+      energy: p.affect && now - p.affect.at < AFFECT_HOLD_MS ? emotionEnergy(p.affect.emotion, p.affect.intensity) : 1 });
 
     // Mirada: a la camara con pequeños saltos naturales; al pensar, arriba y a un lado.
     const thinking = p.state === 'thinking';

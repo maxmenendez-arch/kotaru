@@ -2,6 +2,12 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-29 — Avatar: el cuerpo acompaña la emoción y los gestos
+
+- La emoción del turno cambia la amplitud del cuerpo: alegre o juguetona, gestos y brazos más amplios (Rio lo nota más); preocupada o pensativa, más recogidos. Cambia poco a poco y vuelve a neutro cuando la emoción se desvanece.
+- Los gestos que marca el modelo ya no mueven solo la cabeza: encoger hombros sube los hombros, reír da pequeños saltos del torso, acercarse inclina el pecho.
+- Verificación: `mobile` 51 pruebas (2 nuevas: `bodyGestureOffset`, `emotionEnergy`), `vitest` 470, `tsc --build`, `lint:arch`.
+
 ## 2026-09-17 — Fase 0: Blueprint
 
 **Qué cambió**

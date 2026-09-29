@@ -36,6 +36,50 @@ export interface BodyInput {
   readonly intensity?: number;
   /** La persona esta hablando: escucha activa (se inclina un poco hacia ella y asiente). */
   readonly listening?: boolean;
+  /** Gesto que marco el modelo (nod, shrug, laugh_soft, lean_in…) y hace cuanto llego (s). */
+  readonly gesture?: { readonly name: string; readonly age: number };
+  /** Energia de la emocion actual: >1 alegre o entusiasta (gestos mas amplios), <1 triste o tranquila. */
+  readonly energy?: number;
+}
+
+/** Duraciones de los gestos de cuerpo (s): las mismas que los de cabeza. */
+const BODY_GESTURE_LENGTH: Readonly<Record<string, number>> = { shrug: 1.2, laugh_soft: 1.2, lean_in: 1.6, nod: 0.9 };
+
+export interface BodyGestureOffset {
+  /** Hombros hacia arriba (rad, positivo = sube). */
+  readonly shoulders: number;
+  /** Pecho hacia delante (rad). */
+  readonly chest: number;
+  /** Pequeño salto del torso (rad en x de la columna, al reir). */
+  readonly bounce: number;
+}
+
+/** Lo que el cuerpo acompaña a un gesto: encoger hombros, reir, acercarse. Nada si ya acabo. */
+export function bodyGestureOffset(name: string | undefined, age: number): BodyGestureOffset {
+  const length = name ? BODY_GESTURE_LENGTH[name] : undefined;
+  if (!name || length === undefined || age < 0 || age > length) return { shoulders: 0, chest: 0, bounce: 0 };
+  const x = age / length;
+  const env = Math.sin(x * Math.PI);
+  switch (name) {
+    case 'shrug':
+      return { shoulders: 0.16 * env, chest: 0, bounce: 0 };
+    case 'laugh_soft':
+      return { shoulders: 0.03 * env, chest: -0.02 * env, bounce: Math.sin(x * Math.PI * 6) * 0.018 * env };
+    case 'lean_in':
+      return { shoulders: 0, chest: 0.07 * env, bounce: 0 };
+    case 'nod':
+      return { shoulders: 0, chest: 0.015 * env, bounce: 0 };
+    default:
+      return { shoulders: 0, chest: 0, bounce: 0 };
+  }
+}
+
+/** Energia del cuerpo segun la emocion (1 = neutra). */
+export function emotionEnergy(emotion: string | undefined, intensity = 1): number {
+  const base: Record<string, number> = { happy: 1.3, playful: 1.2, surprised: 1.2, curious: 1.05, warm: 0.95, thoughtful: 0.8, concerned: 0.75 };
+  const e = emotion ? base[emotion] : undefined;
+  if (e === undefined) return 1;
+  return 1 + (e - 1) * Math.min(1, Math.max(0, intensity));
 }
 
 const FINGERS = ['Index', 'Middle', 'Ring', 'Little'] as const;
@@ -55,6 +99,7 @@ export class IdleBody {
   #hipsY = 0;
   #intensity = 1;
   #listen = 0;
+  #energy = 1;
   #hipsBaseY: number | null = null;
   /** Desplazamiento de cabeza que suma este estilo (inclinacion, asentir, mirar alrededor). */
   readonly head = { x: 0, y: 0, z: 0 };
@@ -140,7 +185,11 @@ export class IdleBody {
     const rate = target > this.#gesture ? 5 : 1.5;
     this.#gesture += (target - this.#gesture) * Math.min(1, dt * rate);
     const g = this.#gesture;
-    const G = g * st.gesture;
+    // La emocion cambia la amplitud poco a poco: alegre, gestos mas grandes; triste, mas recogidos.
+    this.#energy += ((input.energy ?? 1) - this.#energy) * Math.min(1, dt * 1.2);
+    const E = this.#energy;
+    const G = g * st.gesture * E;
+    const bg = bodyGestureOffset(input.gesture?.name, input.gesture?.age ?? -1);
 
     // Cambio de peso (y ondulacion de cadera: z e y desfasados dibujan un ocho).
     const shift = Math.sin((time * Math.PI * 2) / st.swayPeriod);
@@ -156,16 +205,16 @@ export class IdleBody {
       this.#hipsY += (bounceTarget - this.#hipsY) * Math.min(1, dt * 8);
       hips.bone.position.y = this.#hipsBaseY + this.#hipsY;
     }
-    this.#set('spine', breath * 0.012 * st.breath, Math.sin(t * 0.27) * 0.02 - roll * st.hipRoll * 0.5, -shift * swayAmp * 0.6);
+    this.#set('spine', breath * 0.012 * st.breath + bg.bounce, Math.sin(t * 0.27) * 0.02 - roll * st.hipRoll * 0.5, -shift * swayAmp * 0.6);
     // Escucha activa: se inclina hacia la persona poco a poco (y vuelve al dejar de oir).
     this.#listen += ((input.listening ? 1 : 0) - this.#listen) * Math.min(1, dt * 2);
     const L = this.#listen;
-    this.#set('chest', breath * 0.018 * st.breath - g * 0.01 + L * 0.05, Math.sin(t * 0.33 + 0.4) * 0.012, -shift * swayAmp * 0.3);
+    this.#set('chest', breath * 0.018 * st.breath - g * 0.01 + L * 0.05 + bg.chest, Math.sin(t * 0.33 + 0.4) * 0.012, -shift * swayAmp * 0.3);
     this.#set('upperChest', breath * 0.008 * st.breath, 0, 0);
     // Hombros: respiran y, en Nova, uno rueda despacio al hablar.
     const shoulder = Math.sin(time * 1.1 + 0.5) * st.shoulderRoll * k * (0.3 + g);
-    this.#set('leftShoulder', 0, shoulder * 0.5, -breath * 0.008 * st.breath + Math.max(0, shoulder) * 0.4);
-    this.#set('rightShoulder', 0, -shoulder * 0.5, breath * 0.008 * st.breath - Math.max(0, -shoulder) * 0.4);
+    this.#set('leftShoulder', 0, shoulder * 0.5, -breath * 0.008 * st.breath + Math.max(0, shoulder) * 0.4 + bg.shoulders);
+    this.#set('rightShoulder', 0, -shoulder * 0.5, breath * 0.008 * st.breath - Math.max(0, -shoulder) * 0.4 - bg.shoulders);
 
     // Brazos: balanceo en reposo; al hablar, gestos segun el caracter.
     const beat = Math.sin(time * st.gestureRate * Math.PI * 2 * 0.5) * G * Math.min(1, input.level);
@@ -176,8 +225,8 @@ export class IdleBody {
     const rightFree = st.handOnHip !== true;
     this.#set('leftUpperArm', -G * 0.12 - Math.max(0, alt) * G * 0.12, 0, -armL + shift * 0.01 + G * 0.12 + Math.max(0, alt) * G * 0.1);
     // Explicar: el antebrazo sube y baja, alternando manos, con el ritmo de la voz.
-    const liftL = st.lift * g * (0.5 + 0.5 * Math.max(0, alt)) * (0.6 + 0.4 * Math.min(1, input.level));
-    const liftR = st.lift * g * (0.5 + 0.5 * Math.max(0, -alt)) * (0.6 + 0.4 * Math.min(1, input.level));
+    const liftL = st.lift * E * g * (0.5 + 0.5 * Math.max(0, alt)) * (0.6 + 0.4 * Math.min(1, input.level));
+    const liftR = st.lift * E * g * (0.5 + 0.5 * Math.max(0, -alt)) * (0.6 + 0.4 * Math.min(1, input.level));
     this.#set('leftLowerArm', 0, -G * 0.55 - liftL - beat * 0.12 - Math.sin(t * 0.7) * 0.02, 0);
     this.#set('leftHand', Math.sin(t * 0.9) * 0.03 + beat * 0.06, 0, -G * 0.12);
     if (rightFree) {
