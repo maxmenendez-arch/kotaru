@@ -1411,3 +1411,40 @@ que inspiren tranquilidad; Rio, de emoción y actividad al aire libre.
   gesticula y rebota, Rio no mira alrededor mientras habla, la mano de Nova se queda en la
   cadera y ningún estilo pasa de rotaciones razonables.
 - Tiras de 4 fotogramas hablando por personaje (`docs/escenarios/movimientos-*.png`).
+
+## 2026-09-28 (noche) — Por qué Nova sonaba menos coqueta con Cartesia, y arreglo
+
+**Diagnóstico** (el dueño notó que Nova era coqueta con Gemini y dejaba de serlo al pasar a Cartesia):
+- **Gemini TTS** recibe instrucciones de actuación en texto por personaje (`persona.delivery`:
+  «sonrisa en la voz, ritmo que baja en las frases con intención, pausas»).
+- **Cartesia** solo recibía el texto: sin emoción ni ritmo, y con la voz «Lucia - Radiant Host»,
+  una presentadora luminosa que elegí por la descripción y que el dueño no había oído.
+- El cambio de Gemini a Cartesia suele ser automático: Gemini tiene un tope de unas 100
+  peticiones al día; al agotarse habla Cartesia. También puede venir de Ajustes → «Voz del
+  personaje (prueba)».
+
+**Prueba** (`deploy/prueba-cartesia-emocion.py`, en el servidor, menos de 3 centavos):
+- Together deja pasar las etiquetas en línea de Sonic-3 (`<emotion value="flirtatious"/>`,
+  `<speed ratio="0.9"/>`). Whisper transcribe la frase sin las etiquetas, así que no se leen
+  en voz alta.
+- La velocidad sí cambia: a 0,9, de 8,0 a 9,3 s.
+- `generation_config` no dio señal de funcionar (salió más rápido), así que no se usa.
+- Para Python hubo que poner un User-Agent propio: el Cloudflare de Together devolvía el
+  error 1010.
+
+**Arreglo**
+- El adaptador de Cartesia antepone a cada frase la emoción y la velocidad del personaje
+  (`DEFAULT_CARTESIA_STYLES`):
+  - Nova: coqueta (`flirtatious`), 0,92.
+  - Luna: calma (`calm`), 0,95.
+  - Rio: entusiasmo (`enthusiastic`), 1,05.
+- Los valores se validan: una emoción rara no se cuela en el texto y la velocidad queda entre
+  0,6 y 1,5.
+- **Costo:** la estimación de Cartesia suma un 45 % por las etiquetas (ASSUMPTION: Together
+  las cobra como texto; marcada como supuesto en el costo del turno).
+- **Pendiente del dueño:** escuchar `app.kotaru.app/voces/emocion/` y elegir la voz de Nova
+  en Cartesia entre Lucia (la actual), Maya, Tessa, Dana y Marian. Cartesia documenta la
+  emoción como beta y para inglés: su efecto en español hay que oírlo.
+
+**Cómo se verificó:** 22 pruebas del adaptador (2 nuevas: etiquetas por personaje y
+validación), 460 del servidor, build y lint.

@@ -27,8 +27,17 @@ export interface TogetherVoiceModel {
   readonly rate: TogetherVoiceRate;
   /** Calidad relativa para el router (0-1). */
   readonly quality: number;
+  /**
+   * Caracteres de control que se añaden por cada ~100 de texto (Cartesia: etiquetas de
+   * emocion y velocidad). ASSUMPTION: Together los cobra como texto; mejor sobrestimar.
+   */
+  readonly overheadPer100Chars?: number;
   /** Voz e idioma para un personaje (voiceId de Kotaru) en un locale. */
-  voiceFor(voiceId: string, locale: Locale, male: boolean): { readonly voice: string; readonly language: string };
+  /**
+   * Voz, idioma y, si el modelo lo admite, un prefijo de control que se antepone a cada
+   * trozo de texto (Cartesia: etiquetas de emocion y velocidad; no se leen en voz alta).
+   */
+  voiceFor(voiceId: string, locale: Locale, male: boolean): { readonly voice: string; readonly language: string; readonly prefix?: string };
 }
 
 const DEFAULT_BASE = 'https://api.together.ai';
@@ -108,7 +117,7 @@ export class TogetherSpeechProvider implements TextToSpeechProvider {
             headers: { 'content-type': 'application/json', authorization: `Bearer ${this.#options.apiKey}` },
             body: JSON.stringify({
               model: this.#spec.model,
-              input: piece,
+              input: (chosen.prefix ?? '') + piece,
               voice: chosen.voice,
               language: chosen.language,
               response_format: 'raw',
@@ -154,8 +163,9 @@ export class TogetherSpeechProvider implements TextToSpeechProvider {
 
   estimate(input: { readonly characters: number }, _ctx: ProviderContext): CostEstimate {
     return {
-      amountUsd: Math.round(((input.characters * this.#spec.rate.perMillionCharsUsd) / 1e6) * 1e6) / 1e6,
-      basis: 'verified',
+      amountUsd:
+        Math.round(((input.characters * (1 + (this.#spec.overheadPer100Chars ?? 0) / 100) * this.#spec.rate.perMillionCharsUsd) / 1e6) * 1e6) / 1e6,
+      basis: this.#spec.overheadPer100Chars ? 'assumption' : 'verified',
       rateCardVersion: this.#spec.rate.version,
       verifiedAt: this.#spec.rate.verifiedAt,
     };

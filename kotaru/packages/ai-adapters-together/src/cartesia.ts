@@ -23,9 +23,46 @@ export const DEFAULT_CARTESIA_VOICES: Readonly<Record<string, string>> = {
   rio: '2fc4f1ec-bfd0-46f1-8e6d-d4279eaaf838',
 };
 
+/**
+ * Como actua cada personaje con Cartesia. Gemini recibe instrucciones de actuacion en texto
+ * (persona.delivery); Cartesia no las entiende, y por eso Nova sonaba menos coqueta con
+ * Cartesia (queja del dueño, 2026-09-28). Sonic-3 acepta etiquetas en linea de emocion y
+ * velocidad (https://docs.cartesia.ai/build-with-cartesia/sonic-3/volume-speed-emotion,
+ * consultado el 2026-09-28). Probado por Together el 2026-09-28 con
+ * deploy/prueba-cartesia-emocion.py: las etiquetas no se leen en voz alta (Whisper) y la
+ * velocidad si cambia (0,9: de 8,0 a 9,3 s). La emocion es beta y Cartesia la documenta
+ * para ingles: su efecto en español es ASSUMPTION hasta que el dueño lo oiga.
+ */
+export interface CartesiaStyle {
+  /** Una emocion de la lista de Sonic-3 (flirtatious, calm, enthusiastic, ...). */
+  readonly emotion?: string;
+  /** 0,6 a 1,5. */
+  readonly speed?: number;
+}
+
+export const DEFAULT_CARTESIA_STYLES: Readonly<Record<string, CartesiaStyle>> = {
+  nova: { emotion: 'flirtatious', speed: 0.92 },
+  luna: { emotion: 'calm', speed: 0.95 },
+  rio: { emotion: 'enthusiastic', speed: 1.05 },
+};
+
+/** Etiquetas de control de Sonic-3 para un estilo ('' si no hay nada que controlar). */
+export function cartesiaPrefix(style: CartesiaStyle | undefined): string {
+  if (!style) return '';
+  const tags: string[] = [];
+  if (style.emotion && /^[a-z]+$/.test(style.emotion)) tags.push(`<emotion value="${style.emotion}"/>`);
+  if (style.speed !== undefined && Number.isFinite(style.speed)) {
+    const ratio = Math.min(1.5, Math.max(0.6, style.speed));
+    if (ratio !== 1) tags.push(`<speed ratio="${ratio}"/>`);
+  }
+  return tags.join('');
+}
+
 export interface CartesiaOptions extends TogetherSpeechOptions {
   /** Voz por personaje (voiceId de Kotaru -> id de voz de Cartesia). */
   readonly voices?: Readonly<Record<string, string>>;
+  /** Emocion y velocidad por personaje (por defecto, DEFAULT_CARTESIA_STYLES). */
+  readonly styles?: Readonly<Record<string, CartesiaStyle>>;
 }
 
 /**
@@ -35,6 +72,7 @@ export interface CartesiaOptions extends TogetherSpeechOptions {
 export class CartesiaTtsProvider extends TogetherSpeechProvider {
   constructor(options: CartesiaOptions) {
     const voices = { ...DEFAULT_CARTESIA_VOICES, ...options.voices };
+    const styles = { ...DEFAULT_CARTESIA_STYLES, ...options.styles };
     super(
       {
         id: 'together-cartesia-sonic-3',
@@ -42,9 +80,12 @@ export class CartesiaTtsProvider extends TogetherSpeechProvider {
         rate: CARTESIA_RATE,
         // ASSUMPTION: por encima de Kokoro y por debajo de Gemini TTS hasta la prueba de oido.
         quality: 0.85,
+        // Unos 45 caracteres de etiquetas por frase de ~100 (ASSUMPTION: se cobran).
+        overheadPer100Chars: 45,
         voiceFor: (voiceId: string, locale: Locale, male: boolean) => ({
           voice: voices[voiceId] ?? (male ? voices['rio']! : voices['luna']!),
           language: locale.startsWith('es') ? 'es' : 'en',
+          prefix: cartesiaPrefix(styles[voiceId]),
         }),
       },
       options,
