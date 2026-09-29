@@ -224,11 +224,18 @@ function animate(
       : null;
   observer?.observe(renderer.domElement);
 
+  // El lienzo puede mudarse a la ventana flotante (pip.web.ts): entonces se anima con la
+  // ventana donde esta (la de la app queda en segundo plano y el navegador la frena) y se
+  // dibuja aunque el observador de la app diga que no se ve.
+  const hostWindow = (): Window => renderer.domElement.ownerDocument.defaultView ?? window;
+  let frameWindow: Window = window;
   const tick = () => {
     if (!running) return;
-    frame = requestAnimationFrame(tick);
+    frameWindow = hostWindow();
+    frame = frameWindow.requestAnimationFrame(tick);
     const nowMs = performance.now();
-    if (!visible || nowMs - lastDraw < minFrameMs) return;
+    const away = renderer.domElement.ownerDocument !== document;
+    if ((!visible && !away) || nowMs - lastDraw < minFrameMs) return;
     lastDraw = nowMs;
     timer.update();
     const dt = Math.min(timer.getDelta(), 0.1);
@@ -284,7 +291,7 @@ function animate(
 
   return () => {
     running = false;
-    cancelAnimationFrame(frame);
+    frameWindow.cancelAnimationFrame(frame);
     observer?.disconnect();
     timer.dispose();
     cleanup();

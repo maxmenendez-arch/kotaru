@@ -22,7 +22,13 @@ export function CalmBar({
   onStop,
   onVolume,
   onBreathe,
+  soundsOnly,
+  startOpen,
 }: {
+  /** Solo la lista de sonidos, sin "Respira conmigo" (pantalla inmersiva: tiene su icono). */
+  soundsOnly?: boolean;
+  /** La lista de sonidos ya abierta. */
+  startOpen?: boolean;
   lang: Lang;
   soundsAvailable: boolean;
   playing: AmbientKind | null;
@@ -33,10 +39,10 @@ export function CalmBar({
   onBreathe: () => void;
 }) {
   const s = t(lang);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen === true);
   return (
     <View style={styles.bar}>
-      <View style={styles.row}>
+      <View style={[styles.row, soundsOnly && { display: 'none' }]}>
         <Pill label={s.breatheWithMe} onPress={onBreathe} />
         {soundsAvailable ? (
           <Pill

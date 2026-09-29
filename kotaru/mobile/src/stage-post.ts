@@ -176,9 +176,13 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
     renderer.setRenderTarget(into);
     renderer.render(quadScene, quadCamera);
   };
+  // En lienzos pequeños (tarjetas) el halo y el desenfoque se acortan: medidos en pixeles de
+  // una imagen chica, cubririan media pantalla y la dejarian lechosa.
+  let spread = 1;
+  let bloomAmountBase = grade.bloom;
   const blurPass = (from: THREE.WebGLRenderTarget, into: THREE.WebGLRenderTarget, dx: number, dy: number) => {
     blur.uniforms['src']!.value = from.texture;
-    (blur.uniforms['dir']!.value as THREE.Vector2).set(dx / from.width, dy / from.height);
+    (blur.uniforms['dir']!.value as THREE.Vector2).set((dx * spread) / from.width, (dy * spread) / from.height);
     pass(blur, into);
   };
 
@@ -195,6 +199,9 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
       bloomA.setSize(Math.max(1, w >> 3), Math.max(1, h >> 3));
       bloomB.setSize(Math.max(1, w >> 3), Math.max(1, h >> 3));
       character.setSize(w, h);
+      spread = Math.min(1, Math.max(0.35, Math.max(w, h) / 1280));
+      bloomAmountBase = grade.bloom * Math.min(1, Math.max(0.4, Math.max(w, h) / 1100));
+      composite.uniforms['bloomAmount']!.value = bloomAmountBase;
       const a = w / h;
       (composite.uniforms['aspect']!.value as THREE.Vector2).set(a >= 1 ? a : 1, a >= 1 ? 1 : 1 / a);
       (composite.uniforms['texel']!.value as THREE.Vector2).set(1 / w, 1 / h);

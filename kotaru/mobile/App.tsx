@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import type { AuthApi } from '@kotaru/client';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { openAccount, SERVER_URL } from './src/auth';
 import type { Connection } from './src/connection';
 import type { Lang } from './src/i18n';
@@ -9,11 +9,13 @@ import { t } from './src/i18n';
 import { Conversation, type VoiceChoice } from './src/screens/Conversation';
 import { Memories } from './src/screens/Memories';
 import { Settings } from './src/screens/Settings';
+import { Characters } from './src/screens/Characters';
+import type { CompanionId } from './src/companions';
 import { SignIn } from './src/screens/SignIn';
 import { Welcome } from './src/screens/Welcome';
 import { color, space, type } from './src/theme';
 
-type Tab = 'talk' | 'memory' | 'settings';
+type Tab = 'talk' | 'memory' | 'settings' | 'characters';
 
 /**
  * Esqueleto de la app. Navegacion minima por pestañas en estado local: cuando haya mas
@@ -23,7 +25,9 @@ type Tab = 'talk' | 'memory' | 'settings';
 export default function App() {
   const [lang, setLang] = useState<Lang>('es');
   const [welcomed, setWelcomed] = useState(false);
-  const [tab, setTab] = useState<Tab>('talk');
+  // La primera vez (en este navegador) se elige personaje antes de hablar.
+  const [tab, setTab] = useState<Tab>(() => (readFlag(CHOSEN_KEY, false) ? 'talk' : 'characters'));
+  const [requested, setRequested] = useState<CompanionId | undefined>(undefined);
   const [connection, setConnection] = useState<Connection | null>(null);
   // Voz elegida en Ajustes para probar. En la web se recuerda en este navegador (no es un
   // dato personal: solo "auto", "gemini" o "cartesia").
@@ -108,7 +112,29 @@ export default function App() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <View style={styles.body}>
-        {tab === 'talk' ? <Conversation lang={lang} connection={connection} voiceChoice={voiceChoice} backgrounds={backgrounds} /> : null}
+        {/* La conversacion no se desmonta al ir a otra pantalla: sigue viva (y su voz
+            sonando) como en una llamada; solo se oculta. */}
+        <View style={[styles.body, tab !== 'talk' && styles.hidden]}>
+          <Conversation
+            lang={lang}
+            connection={connection}
+            voiceChoice={voiceChoice}
+            backgrounds={backgrounds}
+            requestedCompanion={requested}
+            onNavigate={(to) => setTab(to === 'memory' ? 'memory' : to === 'settings' ? 'settings' : 'characters')}
+          />
+        </View>
+        {tab === 'characters' ? (
+          <Characters
+            lang={lang}
+            current={requested}
+            onChoose={(id) => {
+              setRequested(id);
+              writeFlag(CHOSEN_KEY, true);
+              setTab('talk');
+            }}
+          />
+        ) : null}
         {tab === 'memory' ? <Memories lang={lang} connection={connection} /> : null}
         {tab === 'settings' ? (
           <Settings
@@ -126,10 +152,12 @@ export default function App() {
           />
         ) : null}
       </View>
-      <View style={styles.tabs} accessibilityRole="tablist">
+      {/* En la pantalla inmersiva de la web, las opciones estan en iconos: sin barra abajo. */}
+      <View style={[styles.tabs, (tab === 'characters' || (tab === 'talk' && backgrounds && Platform.OS === 'web')) && styles.hidden]} accessibilityRole="tablist">
         {(
           [
             ['talk', s.tabTalk],
+            ['characters', s.tabCharacters],
             ['memory', s.tabMemory],
             ['settings', s.tabSettings],
           ] as const
@@ -156,7 +184,10 @@ const styles = StyleSheet.create({
   tab: { flex: 1, alignItems: 'center', paddingVertical: space.m },
   tabText: { ...type.support, color: color.mist },
   tabOn: { color: color.cloud, fontWeight: '600' },
+  hidden: { display: 'none' },
 });
+
+const CHOSEN_KEY = 'kotaru.characterChosen';
 
 const VOICE_KEY = 'kotaru.voiceChoice';
 

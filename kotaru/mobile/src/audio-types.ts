@@ -8,6 +8,8 @@ export interface AudioInput {
    */
   start(onChunk: (pcm: Uint8Array) => void): Promise<boolean>;
   stop(): void;
+  /** Volumen de lo que entra ahora (0 a 1), solo para efectos visuales; no se guarda. */
+  level?(): number;
 }
 
 export interface AudioOutput {

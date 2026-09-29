@@ -30,6 +30,12 @@ class WebMicrophone implements AudioInput {
   #stream: MediaStream | null = null;
   #nodes: AudioNode[] = [];
   #generation = 0;
+  #level = 0;
+
+  /** Volumen de la voz que entra ahora (0-1), para el borde luminoso. No se guarda nada. */
+  level(): number {
+    return this.#level;
+  }
 
   async start(onChunk: (pcm: Uint8Array) => void): Promise<boolean> {
     this.stop();
@@ -58,7 +64,13 @@ class WebMicrophone implements AudioInput {
 
     const assembler = new ChunkAssembler(INPUT_SAMPLE_RATE, 20, onChunk);
     const deliver = (samples: Float32Array) => {
-      if (generation === this.#generation) assembler.push(samples, context.sampleRate);
+      if (generation !== this.#generation) return;
+      let sum = 0;
+      for (let i = 0; i < samples.length; i++) sum += samples[i]! * samples[i]!;
+      const rms = Math.sqrt(sum / Math.max(1, samples.length));
+      // Sube rapido y baja despacio, como un vumetro.
+      this.#level = Math.max(Math.min(1, rms * 6), this.#level * 0.85);
+      assembler.push(samples, context.sampleRate);
     };
 
     const source = context.createMediaStreamSource(stream);
@@ -99,6 +111,7 @@ class WebMicrophone implements AudioInput {
 
   stop(): void {
     this.#generation += 1;
+    this.#level = 0;
     for (const node of this.#nodes) node.disconnect();
     this.#nodes = [];
     this.#stream?.getTracks().forEach((t) => t.stop());

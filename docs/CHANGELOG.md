@@ -1325,3 +1325,61 @@ llega a Canva; el dueño los descarga y los adjunta.
 
 **Cómo se verificó:** 5 pruebas nuevas en `@kotaru/persona`, 128 pruebas del paquete y del
 gateway, build y lint de arquitectura.
+
+## 2026-09-28 (noche) — Pantalla inmersiva nueva, borde luminoso, selección de personaje y ventana flotante
+
+Pedido del dueño (22:02): subtítulos en una línea, menús como iconos arriba, borde que se
+enciende con la voz, pantalla de selección con el personaje animado y seguir como
+videollamada al salir. Diseño propio: la captura de referencia sirvió solo para la idea
+general; no se copió nada de su interfaz.
+
+**Qué cambió**
+- **Subtítulos:** una sola línea superpuesta sobre el personaje, con sombra. Mientras hablas
+  sale lo que se oye de ti y luego lo último que dice el personaje. Si no cabe, se corta por
+  delante en palabra entera (`captions.ts`). La conversación completa está en el icono
+  «Conversación».
+- **Iconos:**
+  - Arriba a la izquierda: el nombre con «Inteligencia artificial» (siempre visible) y el
+    estado. Al pulsarlo se abre la selección de personaje.
+  - Arriba a la derecha: Ajustes, Memoria, Conversación, Sonidos (ahora para los tres
+    personajes), Respira conmigo, Modo (corazón, solo Nova y Rio) y Ventana flotante.
+  - Iconos dibujados para Kotaru (`ui/icons.web.tsx`).
+  - Abajo: el botón de hablar y un icono de teclado para escribir.
+  - En pantalla completa no hay barra de pestañas.
+- **Borde luminoso** (`ui/edge-glow.web.tsx`, lógica en `edge-glow-model.ts`): un halo que
+  gira por el marco.
+  - Escuchando: tonos cálidos (naranja y rosa) que crecen con tu voz.
+  - Hablando: el color del personaje, siguiendo su voz.
+  - Pensando: un pulso suave.
+  - Con «reducir movimiento» no gira ni late.
+  - Para eso el micrófono web expone su volumen instantáneo; no se guarda nada.
+- **Selección de personaje** (`screens/Characters.tsx`, `character-profiles.ts`): una vista
+  animada en 3D de cada uno en su lugar (saluda moviendo la boca, sonríe y respira), más sus
+  cualidades, para qué es, qué ofrece, su lugar, su voz y lo importante.
+  - Aparece la primera vez en cada navegador y al pulsar el nombre en la conversación.
+  - No es un video grabado: se dibuja en el momento con el mismo visor.
+- **Ventana flotante** (`pip.web.ts`):
+  - Chrome y Edge de escritorio (Document Picture-in-Picture): el lienzo del personaje se muda
+    a una ventana encima de todo, con nombre, «Inteligencia artificial», estado, «Mantén para
+    hablar» y «Volver». La voz sigue sonando. Si el navegador lo permite, se abre sola al
+    cambiar de pestaña (mediaSession).
+  - Safari y otros: el personaje se ve en la ventanita de video del sistema, y para hablar
+    hay que volver.
+  - El visor anima con la ventana donde está el lienzo.
+- **Otros cambios:**
+  - La conversación ya no se cierra al ir a Ajustes o Memoria: solo se oculta.
+  - El acabado de cámara escala el halo y el desenfoque al tamaño del lienzo (en tarjetas
+    pequeñas quedaba lechoso).
+
+**Límites conocidos**
+- La ventana flotante con botones solo existe en Chrome y Edge de escritorio. En iPhone y
+  Android nativos hace falta el modo imagen en imagen del sistema (pendiente con el 3D
+  nativo).
+- La ventana flotante no se pudo probar sin pantalla (el navegador exige un gesto real):
+  queda para la prueba del dueño.
+
+**Cómo se verificó**
+- 41 pruebas de la app (nuevas: subtítulo de una línea y borde luminoso), 458 del servidor,
+  typecheck, build y lint de arquitectura.
+- Capturas de la app exportada en teléfono (390x844) y ordenador (1280x800): selección,
+  inmersiva con iconos e historial (`docs/escenarios/seleccion-*`, `inmersivo-*`).

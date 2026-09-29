@@ -13,6 +13,10 @@ import type { Lang } from '../i18n';
 import { t } from '../i18n';
 import { color, radius, space, type } from '../theme';
 import { Body, Button, Card, Screen } from '../ui/kit';
+import { Icon, type IconName } from '../ui/icons';
+import { EdgeGlow } from '../ui/edge-glow';
+import { captionLine, charsForWidth } from '../captions';
+import { autoPip, openPip as openPipWindow, pipSupport, type PipHandle } from '../pip';
 
 /**
  * Conversacion por voz (pulsar para hablar).
@@ -63,12 +67,18 @@ export function Conversation({
   connection,
   voiceChoice = 'auto',
   backgrounds = true,
+  onNavigate,
+  requestedCompanion,
 }: {
   lang: Lang;
   connection: Connection | null;
   voiceChoice?: VoiceChoice;
   /** false: retrato redondo sin fondo (Ajustes). */
   backgrounds?: boolean;
+  /** Pantalla inmersiva: los iconos llevan a Ajustes, Memoria o la seleccion de personaje. */
+  onNavigate?: (to: 'settings' | 'memory' | 'characters') => void;
+  /** Personaje elegido en la pantalla de seleccion. */
+  requestedCompanion?: CompanionId;
 }) {
   const s = t(lang);
   const [state, setState] = useState<ConversationState>('closed');
@@ -99,6 +109,12 @@ export function Conversation({
   const [ambientKind, setAmbientKind] = useState<AmbientKind | null>(null);
   const [ambientVolume, setAmbientVolume] = useState(ambient.volume);
   const [breathing, setBreathing] = useState(false);
+  // Pantalla inmersiva: panel abierto desde un icono y si se esta escribiendo.
+  const [sheet, setSheet] = useState<null | 'history' | 'sounds' | 'mode'>(null);
+  const [typing, setTyping] = useState(false);
+  // Ventana flotante tipo videollamada (pip.web.ts).
+  const pipAvailable = backgrounds && pipSupport() !== null;
+  const pip = useRef<PipHandle | null>(null);
   // Emocion de la ultima respuesta, para la cara del avatar.
   const [affect, setAffect] = useState<AffectState | null>(null);
   const mic = useRef(audio.input);
@@ -219,6 +235,8 @@ export function Conversation({
    */
   const choose = (next: CompanionId) => {
     if (next === companionId) return;
+    // El lienzo del personaje vuelve de la ventana flotante antes de cambiarlo.
+    pip.current?.close();
     const current = [...history, ...(heard || reply ? [{ id: nextId.current++, heard, reply }] : [])].slice(-HISTORY_MAX);
     screens.current[companionId] = current;
     mic.current.stop();
@@ -234,6 +252,13 @@ export function Conversation({
     setAffect(null);
     setCompanionId(next);
   };
+
+  // Personaje elegido en la pantalla de seleccion.
+  useEffect(() => {
+    if (requestedCompanion) choose(requestedCompanion);
+    // Solo cuando cambia la eleccion.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedCompanion]);
 
   /** Escribirle al personaje. Si la conversacion se cerro (inactividad), se reabre sola. */
   const sendText = async () => {
@@ -276,6 +301,48 @@ export function Conversation({
     client.current?.stopTalking();
   };
 
+  // La ventana flotante llama a lo ultimo (no a la version de cuando se abrio).
+  const pressInRef = useRef(pressIn);
+  const pressOutRef = useRef(pressOut);
+  pressInRef.current = pressIn;
+  pressOutRef.current = pressOut;
+
+  const openPip = async () => {
+    if (pip.current) return;
+    const canvas = typeof document !== 'undefined' ? document.querySelector<HTMLCanvasElement>('#kotaru-stage canvas') : null;
+    if (!canvas) return;
+    const handle = await openPipWindow({
+      canvas,
+      name: companion.name,
+      aiBadge: s.aiBadge,
+      accent: companion.accent,
+      talkLabel: s.holdToTalk,
+      releaseLabel: s.releaseToSend,
+      backLabel: s.pipBack,
+      onTalkStart: () => pressInRef.current(),
+      onTalkEnd: () => pressOutRef.current(),
+      onClosed: () => {
+        pip.current = null;
+      },
+    }).catch(() => null);
+    pip.current = handle;
+  };
+  const openPipRef = useRef(openPip);
+  openPipRef.current = openPip;
+
+  // Estado en la ventana flotante.
+  useEffect(() => {
+    pip.current?.update(STATE_LABELS[lang][state === 'idle' && voiceTail ? 'speaking' : state], state === 'listening', !!client.current && state !== 'closed' && voiceOn);
+  });
+
+  // Con la conversacion abierta, el navegador puede abrir la ventana flotante solo al
+  // cambiar de pestaña (Chrome, si la persona lo permite). Al irse de la pantalla, se cierra.
+  useEffect(() => {
+    if (!pipAvailable || state === 'closed') return;
+    return autoPip(() => void openPipRef.current());
+  }, [pipAvailable, state === 'closed']);
+  useEffect(() => () => pip.current?.close(), []);
+
   useEffect(() => {
     client.current?.setVoiceChoice(voiceChoice);
     if (voiceChoice === 'auto') setVoiceUsed(null);
@@ -317,18 +384,7 @@ export function Conversation({
   const picker = <CompanionPicker selected={companionId} onChoose={choose} label={s.chooseCompanion} lang={lang} floating={immersive} />;
 
   // Nombre, aviso de IA (siempre visible: leyes de NY y California) y estado en texto.
-  const identity = immersive ? (
-    <View style={styles.identityFloating}>
-      <Text accessibilityRole="header" style={styles.nameFloating}>
-        {companion.name}
-      </Text>
-      <Text style={styles.aiBadgeFloating}>{s.aiBadge}</Text>
-      <View style={[styles.stateDot, { backgroundColor: ringColor }]} />
-      <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.stateFloating}>
-        {label}
-      </Text>
-    </View>
-  ) : (
+  const identity = (
     <>
       <Text accessibilityRole="header" style={styles.name}>
         {companion.name}
@@ -464,6 +520,18 @@ export function Conversation({
   const breathe = breathing ? <BreatheOverlay lang={lang} accent={companion.accent} onClose={() => setBreathing(false)} /> : null;
 
   if (immersive) {
+    const lineChars = charsForWidth(Math.min(area?.width ?? 400, 600) - 2 * space.l);
+    // Una sola linea superpuesta: lo que se oye de ti mientras hablas y, despues, lo ultimo
+    // que dice el personaje. Todo lo anterior esta en el icono de conversacion.
+    const line =
+      listening || (heard && !reply)
+        ? { who: s.you, text: captionLine(heard, lineChars - s.you.length - 2), muted: true }
+        : reply
+          ? { who: null, text: captionLine(reply, lineChars), muted: false }
+          : state === 'closed' && history.length === 0
+            ? { who: null, text: companion.tagline[lang], muted: true }
+            : null;
+    const iconColor = color.cloud;
     return (
       <View
         style={[styles.immersive, { backgroundColor: companion.tint }]}
@@ -474,27 +542,165 @@ export function Conversation({
       >
         {/* El escenario detras de todo, a pantalla completa. */}
         {area ? (
-          <View style={styles.immersiveStage} accessibilityLabel={companion.name} accessibilityRole="image">
+          <View nativeID="kotaru-stage" style={styles.immersiveStage} accessibilityLabel={companion.name} accessibilityRole="image">
             {avatar(Math.round(area.height), Math.round(area.width))}
           </View>
         ) : null}
-        <View style={styles.immersiveColumn} pointerEvents="box-none">
-          {picker}
-          {identity}
-          <View style={styles.spacer} pointerEvents="none" />
-          <View
-            style={styles.panel}
-            onLayout={(e) => {
-              if (!area) return;
-              // y es relativo a la columna, que empieza arriba del todo del area.
-              const top = Math.round(((e.nativeEvent.layout.y) / area.height) * 50) / 50;
-              if (Math.abs(top - panelTop) >= 0.02) setPanelTop(top);
-            }}
+        <EdgeGlow state={shown} level={() => (shown === 'listening' ? mic.current.level?.() ?? 0.3 : speaker.current.level?.() ?? 0)} accent={companion.accent} />
+
+        {/* Arriba a la izquierda: quien es (siempre dice que es una IA) y en que estado esta. */}
+        <View style={styles.topLeft} pointerEvents="box-none">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${companion.name}. ${s.iconCharacters}`}
+            onPress={() => onNavigate?.('characters')}
+            style={styles.identityFloating}
           >
-            <View style={styles.extrasFloating}>{extras}</View>
-            {notices}
-            {captions}
-            {controls}
+            <View style={[styles.chipDot, { backgroundColor: companion.tint, borderColor: companion.accent }]}>
+              <Text style={[styles.chipInitial, { color: companion.accent }]}>{companion.name[0]}</Text>
+            </View>
+            <View>
+              <View style={styles.nameRow}>
+                <Text accessibilityRole="header" style={styles.nameFloating}>
+                  {companion.name}
+                </Text>
+                <View style={[styles.stateDot, { backgroundColor: ringColor }]} />
+              </View>
+              <Text style={styles.aiBadgeFloating}>{s.aiBadge}</Text>
+            </View>
+          </Pressable>
+          <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.stateFloating}>
+            {label}
+          </Text>
+          {minutes !== null && voiceOn ? <Text style={styles.minutesFloating}>{s.minutesLeft(minutes)}</Text> : null}
+          {voiceChoice !== 'auto' && voiceUsed ? <Text style={styles.minutesFloating}>{s.voiceUsed(voiceUsed)}</Text> : null}
+        </View>
+
+        {/* Arriba a la derecha: las opciones como iconos. */}
+        <View style={styles.topRight} pointerEvents="box-none">
+          <IconButton icon="settings" label={s.iconSettings} onPress={() => onNavigate?.('settings')} color={iconColor} />
+          <IconButton icon="memory" label={s.iconMemory} onPress={() => onNavigate?.('memory')} color={iconColor} />
+          <IconButton icon="history" label={s.iconHistory} onPress={() => setSheet(sheet === 'history' ? null : 'history')} on={sheet === 'history'} color={iconColor} />
+          {ambient.available ? (
+            <IconButton icon="sounds" label={s.sounds} onPress={() => setSheet(sheet === 'sounds' ? null : 'sounds')} on={sheet === 'sounds' || ambientKind !== null} color={iconColor} />
+          ) : null}
+          <IconButton icon="breathe" label={s.iconBreathe} onPress={() => setBreathing(true)} color={iconColor} />
+          {companion.flirts ? (
+            <IconButton icon="heart" label={s.iconMode} onPress={() => setSheet(sheet === 'mode' ? null : 'mode')} on={sheet === 'mode' || mode === 'flirt'} color={mode === 'flirt' ? companion.accent : iconColor} />
+          ) : null}
+          {pipAvailable ? <IconButton icon="pip" label={s.iconPip} onPress={() => void openPip()} color={iconColor} /> : null}
+        </View>
+
+        {/* Paneles pequeños que abren los iconos. */}
+        {sheet === 'sounds' ? (
+          <View style={styles.popover}>
+            <CalmBar
+              lang={lang}
+              soundsAvailable={ambient.available}
+              playing={ambientKind}
+              volume={ambientVolume}
+              soundsOnly
+              startOpen
+              onPlay={(kind) => {
+                ambient.play(kind);
+                setAmbientKind(kind);
+              }}
+              onStop={() => {
+                ambient.stop();
+                setAmbientKind(null);
+              }}
+              onVolume={(v) => {
+                ambient.setVolume(v);
+                setAmbientVolume(v);
+              }}
+              onBreathe={() => setBreathing(true)}
+            />
+          </View>
+        ) : null}
+        {sheet === 'mode' && companion.flirts ? (
+          <View style={styles.popover}>
+            <ModePicker mode={mode} onChoose={(m) => { chooseMode(m); setSheet(null); }} lang={lang} accent={companion.accent} />
+          </View>
+        ) : null}
+        {sheet === 'history' ? (
+          <View style={styles.historySheet}>
+            <View style={styles.sheetHeader}>
+              <Text accessibilityRole="header" style={styles.sheetTitle}>{s.historyTitle}</Text>
+              <IconButton icon="close" label={s.close} onPress={() => setSheet(null)} color={iconColor} />
+            </View>
+            <ScrollView ref={scroll} contentContainerStyle={styles.captionsFloatingContent} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
+              {hasCaptions ? null : <Text style={styles.tagline}>{s.historyEmpty}</Text>}
+              {history.map((x) => (
+                <ExchangeView key={x.id} heard={x.heard} reply={x.reply} you={s.you} them={companion.name} past />
+              ))}
+              <ExchangeView heard={heard} reply={reply} you={s.you} them={companion.name} />
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {/* Abajo: avisos, el subtitulo de una linea y los controles. */}
+        <View
+          style={styles.bottom}
+          pointerEvents="box-none"
+          onLayout={(e) => {
+            if (!area) return;
+            const top = Math.round((e.nativeEvent.layout.y / area.height) * 50) / 50;
+            if (Math.abs(top - panelTop) >= 0.02) setPanelTop(top);
+          }}
+        >
+          <View style={styles.bottomInner} pointerEvents="box-none">
+          {notices}
+          {line ? (
+            <Text numberOfLines={1} accessibilityLiveRegion="polite" style={[styles.subtitle, line.muted && styles.subtitleMuted]}>
+              {line.who ? <Text style={styles.speaker}>{line.who}: </Text> : null}
+              {line.text}
+            </Text>
+          ) : null}
+          {error ? <Text style={styles.errorFloating}>{error}</Text> : null}
+          {typing && connection ? (
+            <View style={styles.compose}>
+              <TextInput
+                accessibilityLabel={s.writePlaceholder(companion.name)}
+                placeholder={s.writePlaceholder(companion.name)}
+                placeholderTextColor={color.mist}
+                value={draft}
+                onChangeText={setDraft}
+                onSubmitEditing={() => void sendText()}
+                returnKeyType="send"
+                maxLength={1000}
+                autoFocus
+                style={[styles.input, styles.inputFloating]}
+              />
+              <IconButton icon="send" label={s.send} onPress={() => void sendText()} disabled={!draft.trim()} color={iconColor} />
+            </View>
+          ) : null}
+          <View style={styles.controlRow}>
+            {connection ? (
+              <IconButton icon="keyboard" label={s.iconKeyboard} onPress={() => setTyping((v) => !v)} on={typing} color={iconColor} />
+            ) : null}
+            <View style={styles.controlMain}>
+              {!connection ? (
+                <Text style={styles.noteFloating}>{s.notConnected}</Text>
+              ) : state === 'closed' ? (
+                <Button label={s.connect} onPress={() => void connect()} />
+              ) : !voiceOn ? (
+                <Text style={styles.noteFloating}>{s.voiceNotYet(companion.name)}</Text>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={listening ? s.releaseToSend : s.holdToTalk}
+                  {...({ dataSet: { [NO_SELECT_ATTR]: 'true' } } as object)}
+                  onPressIn={pressIn}
+                  onPressOut={pressOut}
+                  style={[styles.talk, styles.talkFloating, listening && styles.talkOn]}
+                >
+                  <Icon name="mic" size={20} color={listening ? color.ink : '#FFFFFF'} />
+                  <Text selectable={false} style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.releaseToSend : s.holdToTalk}</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+          {audio.simulated && connection && state !== 'closed' ? <Text style={styles.noteFloating}>{s.simulatedMic}</Text> : null}
           </View>
         </View>
         {breathe}
@@ -526,6 +732,23 @@ export function Conversation({
  * Los tres personajes, arriba. Monograma con su color MAS el nombre escrito: el color nunca
  * es la unica señal (09_BRAND). Se puede cambiar en cualquier momento.
  */
+/** Boton redondo de vidrio con un icono (pantalla inmersiva). El nombre va al lector de pantalla. */
+function IconButton({ icon, label, onPress, on, disabled, color: tint }: { icon: IconName; label: string; onPress: () => void; on?: boolean; disabled?: boolean; color: string }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: on === true, disabled: disabled === true }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.iconButton, on && styles.iconButtonOn, (pressed || disabled) && styles.iconButtonPressed]}
+      {...({ title: label } as object)}
+    >
+      <Icon name={icon} color={tint} />
+    </Pressable>
+  );
+}
+
 function CompanionPicker({
   selected,
   onChoose,
@@ -672,19 +895,18 @@ const styles = StyleSheet.create({
   immersiveColumn: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center', paddingHorizontal: space.l, paddingTop: space.l },
   // Arriba, en una sola linea compacta para no tapar la cara.
   identityFloating: {
-    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
     gap: space.s,
     paddingVertical: space.xs,
-    paddingHorizontal: space.m,
+    paddingLeft: space.xs,
+    paddingRight: space.m,
     borderRadius: radius.pill,
     backgroundColor: GLASS,
   },
   nameFloating: { ...type.support, fontWeight: '600', color: color.cloud },
   aiBadgeFloating: { ...type.micro, color: color.mist, letterSpacing: 0.5 },
-  stateFloating: { ...type.micro, color: color.cloud },
+  stateFloating: { ...type.micro, color: color.cloud, paddingHorizontal: space.s, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: GLASS, overflow: 'hidden' },
   extrasFloating: { alignItems: 'center' },
   taglineFloating: { marginTop: 0, marginBottom: space.s },
   spacer: { flex: 1 },
@@ -695,6 +917,34 @@ const styles = StyleSheet.create({
   inputFloating: { backgroundColor: 'rgba(11,16,32,0.6)' },
   chipFloating: { backgroundColor: GLASS, borderColor: 'rgba(255,255,255,0.18)' },
   stateDot: { width: 8, height: 8, borderRadius: radius.pill },
+  topLeft: { position: 'absolute', top: space.l, left: space.l, zIndex: 6, alignItems: 'flex-start', gap: space.xs, maxWidth: '60%' },
+  topRight: { position: 'absolute', top: space.l, right: space.l, zIndex: 6, gap: space.s, alignItems: 'center' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  minutesFloating: { ...type.micro, color: color.cloud, paddingHorizontal: space.s, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: GLASS, overflow: 'hidden' },
+  iconButton: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: GLASS, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
+  iconButtonOn: { borderColor: 'rgba(255,255,255,0.6)' },
+  iconButtonPressed: { opacity: 0.6 },
+  popover: { position: 'absolute', top: space.l, right: 44 + 2 * space.l, zIndex: 7, maxWidth: 320, padding: space.m, borderRadius: radius.card, backgroundColor: GLASS },
+  historySheet: { position: 'absolute', top: space.l, left: space.l, right: 44 + 2 * space.l, bottom: 140, zIndex: 8, maxWidth: 560, padding: space.l, borderRadius: radius.sheet, backgroundColor: 'rgba(11,16,32,0.9)' },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.m },
+  sheetTitle: { ...type.title, color: color.cloud, flex: 1 },
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 6, alignItems: 'center', paddingHorizontal: space.l, paddingBottom: space.m },
+  bottomInner: { width: '100%', maxWidth: 600, gap: space.s },
+  subtitle: {
+    ...type.body,
+    fontSize: 17,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  subtitleMuted: { color: '#E6E9F2', fontStyle: 'italic' },
+  errorFloating: { ...type.support, color: color.danger, textAlign: 'center', backgroundColor: GLASS, borderRadius: radius.control, padding: space.xs, overflow: 'hidden' },
+  noteFloating: { ...type.support, color: color.cloud, textAlign: 'center', backgroundColor: GLASS, borderRadius: radius.control, padding: space.s, overflow: 'hidden' },
+  controlRow: { flexDirection: 'row', alignItems: 'center', gap: space.s },
+  controlMain: { flex: 1 },
+  talkFloating: { flexDirection: 'row', gap: space.s, marginBottom: 0, height: 56 },
   ringCompact: { width: PORTRAIT_COMPACT + 16, height: PORTRAIT_COMPACT + 16 },
   portraitCompact: { width: PORTRAIT_COMPACT, height: PORTRAIT_COMPACT },
   initialCompact: { ...type.title },
