@@ -1253,3 +1253,10 @@ con el modelo nuevo (C) o retocando la ropa en VRoid.
 
 **Pendiente:** los archivos en resolución completa. La red de este espacio de trabajo no
 llega a Canva; el dueño los descarga y los adjunta.
+
+## 2026-09-28 (noche) — Realismo A: tonos de piel por escena
+
+- Rio: la luz del suelo ya no es verde (tiñó la cara de verde amarillento): marrón cálido, algo más baja.
+- Luna: luz principal algo más suave y más contraste (la cara se veía lavada).
+- Nova: luz principal más neutra y el contorno rosa algo más bajo (la cara quedaba toda rosa).
+- Verificado: typecheck, 33 pruebas y capturas de cara a pantalla completa (390x760).
