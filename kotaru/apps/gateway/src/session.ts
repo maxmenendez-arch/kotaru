@@ -91,7 +91,7 @@ export interface SessionDeps {
   /** Sin oido real: no se aceptan turnos de voz (ver `ready.voiceAvailable`). */
   readonly voiceUnavailable?: boolean;
   /** Proveedor de cada voz elegible en Ajustes; sin entrada, esa eleccion no hace nada. */
-  readonly voiceChoices?: Readonly<Partial<Record<'gemini' | 'cartesia', string>>>;
+  readonly voiceChoices?: Readonly<Partial<Record<'gemini' | 'chirp' | 'cartesia', string>>>;
 }
 
 export interface SessionTransport {

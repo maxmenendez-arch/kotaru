@@ -1470,3 +1470,42 @@ validación), 460 del servidor, build y lint.
 - Se quita el sobrecosto del 45 % de la estimación: `generation_config` no añade caracteres.
   La tarifa vuelve a ser la verificada.
 - Verificado: 22 pruebas del adaptador, suite completa y lint.
+
+## 2026-09-29 — Chirp 3 HD: las voces de Gemini sin tope diario
+
+Pedido del dueño (00:04): «haz tú» lo de Chirp 3 HD.
+
+**En Google Cloud** (la consola estaba abierta en el navegador del dueño; cuenta con el
+proyecto **kotaru** `kotaru-509922` y facturación activa):
+- Activada la API Cloud Text-to-Speech en el proyecto kotaru.
+- Creada la cuenta de servicio `kotaru-voz@kotaru-509922.iam.gserviceaccount.com`, sin
+  permisos extra y **sin clave**. La clave es un secreto y no pasa por Claude: la crea el
+  dueño y la pega en el servidor con `deploy/chirp.sh`.
+
+**En el código**
+- Adaptador `ChirpTtsProvider` (`packages/ai-adapters-gemini/src/chirp.ts`), sin SDK:
+  - Autenticación: JWT RS256 firmado con la cuenta de servicio, cambiado por un token OAuth
+    y guardado en caché.
+  - Síntesis: `text:synthesize` en PCM 24 kHz, quitando la cabecera WAV.
+  - Voces `es-US-Chirp3-HD-<voz>` (`es-ES` o `en-US` según el idioma).
+  - Velocidad por personaje (Nova 0,95, Luna 0,95, Rio 1,03), porque Chirp no acepta
+    instrucciones de actuación.
+  - Errores: las credenciales malas no se reintentan; los 429 y 5xx pasan al respaldo.
+  - Costo: 30 USD/M, verificado.
+- Gateway:
+  - Proveedor `chirp`, que lee `GOOGLE_TTS_CREDENTIALS_FILE`. Los errores de lectura no
+    muestran nada de la clave.
+  - Confirmación del operador: `KOTARU_GOOGLE_TTS_TERMS_REVIEWED`.
+  - Orden: Gemini → **Chirp** → Cartesia → Kokoro.
+- App: «Chirp» en Ajustes → Voz del personaje (prueba).
+- `deploy/chirp.sh`:
+  - Pide confirmar los términos y pegar la clave (oculta).
+  - Valida el JSON sin imprimirlo y hace una prueba real (token + una frase con Leda).
+  - Guarda la clave con permisos 640 root:kotaru y activa `chirp`.
+  - Si el gateway no arranca, vuelve atrás y borra la clave.
+
+**Verificado**
+- 8 pruebas del adaptador: firma verificada con la clave pública, la clave privada nunca
+  viaja, nombres de voz, velocidad, cabecera WAV, errores y costos.
+- 2 de configuración y orden, y la suite completa (470).
+- La firma JWT de `chirp.sh` (openssl) se verificó en local.

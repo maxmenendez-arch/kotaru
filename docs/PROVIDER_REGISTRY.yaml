@@ -416,3 +416,17 @@ providers:
   capability: tts
   model: kokoro-82m
   role_update_2026-09-28: "ultimo respaldo; el dueno lo descarto como voz principal por sonar plano (D-011 sustituida por D-014)"
+
+- id: google-chirp3-hd
+  capability: tts
+  vendor: Google Cloud Text-to-Speech (voces Chirp 3 HD)
+  verified_at: 2026-09-29
+  price: 30 USD por millón de caracteres; primer millón al mes gratis
+  source_price: https://cloud.google.com/text-to-speech/pricing
+  voices: es-US / es-ES / en-US -Chirp3-HD- Leda (Nova), Vindemiatrix (Luna), Algieba (Rio)
+  source_voices: https://docs.cloud.google.com/text-to-speech/docs/chirp3-hd
+  controls: velocidad 0,25x-2x; pausas; sin instrucciones de actuación (solo Gemini TTS)
+  daily_cap: ninguno documentado (a diferencia de Gemini TTS nivel 1, 100 peticiones/día)
+  auth: cuenta de servicio kotaru-voz@kotaru-509922 (proyecto kotaru), clave en /etc/kotaru/google-tts.json
+  training_opt_out: ASSUMPTION (términos de Google Cloud; el operador lo confirma con deploy/chirp.sh)
+  commercial_audio_rights: ASSUMPTION (ídem)

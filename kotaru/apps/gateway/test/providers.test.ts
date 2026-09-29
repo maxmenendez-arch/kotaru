@@ -1,4 +1,7 @@
-import { randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { NoViableRouteError, type ProviderContext } from '@kotaru/ai-contracts';
 import { loadConfig } from '../src/config.js';
@@ -156,5 +159,33 @@ describe('proveedores del gateway', () => {
     const env = { ...base, KOTARU_PROVIDERS: 'gemini,gemini-tts', GEMINI_API_KEY: 'k', KOTARU_GEMINI_PAID_TIER_CONFIRMED: 'true' };
     expect(() => loadConfig({ ...env, KOTARU_GEMINI_VOICES: 'nova:Inventada' })).toThrow(/no es una voz de Gemini/);
     expect(() => loadConfig({ ...env, KOTARU_GEMINI_VOICES: 'yuki:Leda' })).toThrow(/personaje:Voz/);
+  });
+
+  it('Chirp 3 HD va entre Gemini TTS y Cartesia, y se puede elegir en Ajustes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kotaru-chirp-'));
+    const file = join(dir, 'google-tts.json');
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    writeFileSync(file, JSON.stringify({ type: 'service_account', client_email: 'kotaru-voz@p.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString() }));
+    const config = loadConfig({
+      ...base,
+      KOTARU_PROVIDERS: 'gemini,gemini-tts,chirp,cartesia,whisper',
+      GEMINI_API_KEY: 'g',
+      KOTARU_GEMINI_PAID_TIER_CONFIRMED: 'true',
+      TOGETHER_API_KEY: 't',
+      KOTARU_TOGETHER_ZERO_RETENTION_CONFIRMED: 'true',
+      KOTARU_TOGETHER_COMMERCIAL_TERMS_REVIEWED: 'true',
+      GOOGLE_TTS_CREDENTIALS_FILE: file,
+      KOTARU_GOOGLE_TTS_TERMS_REVIEWED: 'true',
+    });
+    const set = buildProviders(config.providers, config.providerSettings, Date.now);
+    expect(set.registered).toContain('google-chirp3-hd');
+    expect(set.voiceChoices).toMatchObject({ chirp: 'google-chirp3-hd', cartesia: 'together-cartesia-sonic-3' });
+    const route = select(set, 'tts');
+    expect(route.providerId).toBe('gemini-3.8-flash-lite-tts');
+    expect(route.fallbacks[0]).toBe('google-chirp3-hd');
+    expect(route.fallbacks.indexOf('google-chirp3-hd')).toBeLessThan(route.fallbacks.indexOf('together-cartesia-sonic-3'));
+    // Sin terminos revisados: registrado pero bloqueado.
+    const unreviewed = loadConfig({ ...base, KOTARU_PROVIDERS: 'gemini,chirp', GEMINI_API_KEY: 'g', GOOGLE_TTS_CREDENTIALS_FILE: file });
+    expect(buildProviders(unreviewed.providers, unreviewed.providerSettings, Date.now).blocked.map((b) => b.id)).toContain('google-chirp3-hd');
   });
 });

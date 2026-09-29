@@ -117,7 +117,7 @@ export class ConversationClient {
   #closedByUser = false;
   #counter = 0;
   #mode: 'friend' | 'flirt' | 'ask' = 'ask';
-  #voiceChoice: 'auto' | 'gemini' | 'cartesia' = 'auto';
+  #voiceChoice: 'auto' | 'gemini' | 'chirp' | 'cartesia' = 'auto';
 
   constructor(options: ConversationClientOptions) {
     this.#o = options;
@@ -228,7 +228,7 @@ export class ConversationClient {
    * Voz elegida en Ajustes para probar (Gemini o Cartesia; 'auto' deja el orden del
    * servidor). Se recuerda y se reenvia al reconectar; vale desde la siguiente respuesta.
    */
-  setVoiceChoice(choice: 'auto' | 'gemini' | 'cartesia'): void {
+  setVoiceChoice(choice: 'auto' | 'gemini' | 'chirp' | 'cartesia'): void {
     this.#voiceChoice = choice;
     if (this.#socket?.readyState === OPEN) this.#send({ type: 'voice_choice', choice });
   }

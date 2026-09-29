@@ -1,4 +1,4 @@
-import type { GeminiVoice } from '@kotaru/ai-adapters-gemini';
+import type { ChirpVoice, GeminiVoice } from '@kotaru/ai-adapters-gemini';
 import { COMPANIONS, PERSONAS, type CompanionSlug } from '@kotaru/persona';
 
 /**
@@ -29,6 +29,19 @@ export function geminiVoices(overrides: Readonly<Partial<Record<CompanionSlug, s
   for (const slug of COMPANIONS) {
     out[slug] = { voice: overrides[slug] ?? DEFAULT_GEMINI_VOICES[slug], style: PERSONAS[slug].delivery };
   }
+  return out;
+}
+
+/**
+ * Voz Chirp 3 HD de cada personaje: la misma que en Gemini (con los cambios de
+ * KOTARU_GEMINI_VOICES) y una velocidad que da algo de su caracter, porque Chirp no acepta
+ * instrucciones de actuacion: Nova algo mas lenta, Rio algo mas vivo.
+ */
+export const CHIRP_RATES: Readonly<Record<CompanionSlug, number>> = { nova: 0.95, luna: 0.95, rio: 1.03 };
+
+export function chirpVoices(overrides: Readonly<Partial<Record<CompanionSlug, string>>> = {}): Record<CompanionSlug, ChirpVoice> {
+  const out = {} as Record<CompanionSlug, ChirpVoice>;
+  for (const slug of COMPANIONS) out[slug] = { voice: overrides[slug] ?? DEFAULT_GEMINI_VOICES[slug], speakingRate: CHIRP_RATES[slug] };
   return out;
 }
 

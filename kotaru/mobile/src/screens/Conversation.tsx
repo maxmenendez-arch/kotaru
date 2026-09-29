@@ -59,8 +59,8 @@ const RING: Record<ConversationState, string> = {
   closed: color.inkLine,
 };
 
-export type VoiceChoice = 'auto' | 'gemini' | 'cartesia';
-const VOICE_NAMES: Readonly<Record<string, string>> = { gemini: 'Gemini', cartesia: 'Cartesia', kokoro: 'Kokoro' };
+export type VoiceChoice = 'auto' | 'gemini' | 'chirp' | 'cartesia';
+const VOICE_NAMES: Readonly<Record<string, string>> = { gemini: 'Gemini', chirp: 'Chirp', cartesia: 'Cartesia', kokoro: 'Kokoro' };
 
 export function Conversation({
   lang,

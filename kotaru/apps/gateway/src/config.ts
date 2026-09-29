@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { SigningKey } from '@kotaru/gateway';
 import { parseCartesiaVoices, parseVoiceOverrides } from './voices.js';
 
@@ -68,11 +69,19 @@ export interface ProviderSettings {
     readonly commercialTermsReviewed: boolean;
     readonly voices: Readonly<Partial<Record<'nova' | 'luna' | 'rio', string>>>;
   };
+  /**
+   * Google Cloud TTS con voces Chirp 3 HD: las voces de Gemini sin su tope diario. La cuenta
+   * de servicio se lee de GOOGLE_TTS_CREDENTIALS_FILE (por defecto /etc/kotaru/google-tts.json).
+   */
+  readonly chirp?: {
+    readonly credentials: { readonly client_email: string; readonly private_key: string; readonly token_uri?: string };
+    readonly termsReviewed: boolean;
+  };
   /** Whisper Large v3 servido por Together AI (voz a texto; misma clave que Kokoro). */
   readonly whisper?: { readonly apiKey: string; readonly zeroRetentionConfirmed: boolean };
 }
 
-const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly', 'kokoro', 'cartesia', 'whisper', 'gemini-tts']);
+const KNOWN_PROVIDERS = new Set(['mock', 'mock-voice', 'assemblyai', 'gemini', 'polly', 'kokoro', 'cartesia', 'chirp', 'whisper', 'gemini-tts']);
 
 export class ConfigError extends Error {
   constructor(readonly problems: readonly string[]) {
@@ -200,6 +209,27 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
       commercialTermsReviewed: flag('KOTARU_TOGETHER_COMMERCIAL_TERMS_REVIEWED'),
       voices: parseCartesiaVoices(env.KOTARU_CARTESIA_VOICES, problems),
     };
+  }
+  if (providers.includes('chirp')) {
+    const file = env.GOOGLE_TTS_CREDENTIALS_FILE?.trim() || '/etc/kotaru/google-tts.json';
+    try {
+      const parsed = JSON.parse(readFileSync(file, 'utf8')) as { client_email?: unknown; private_key?: unknown; token_uri?: unknown; type?: unknown };
+      if (parsed.type !== 'service_account' || typeof parsed.client_email !== 'string' || typeof parsed.private_key !== 'string') {
+        problems.push(`chirp: ${file} no es la clave de una cuenta de servicio de Google (JSON)`);
+      } else {
+        (providerSettings as { chirp?: ProviderSettings['chirp'] }).chirp = {
+          credentials: {
+            client_email: parsed.client_email,
+            private_key: parsed.private_key,
+            ...(typeof parsed.token_uri === 'string' ? { token_uri: parsed.token_uri } : {}),
+          },
+          termsReviewed: flag('KOTARU_GOOGLE_TTS_TERMS_REVIEWED'),
+        };
+      }
+    } catch {
+      // Sin detalles: el mensaje de error de JSON.parse podria incluir parte de la clave.
+      problems.push(`chirp: no se pudo leer ${file} (falta o no es JSON)`);
+    }
   }
   if (providers.includes('whisper')) {
     (providerSettings as { whisper?: ProviderSettings['whisper'] }).whisper = {

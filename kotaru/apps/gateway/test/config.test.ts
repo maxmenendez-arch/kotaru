@@ -1,4 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig } from '../src/config.js';
 
@@ -92,5 +95,25 @@ describe('configuracion', () => {
       'KOTARU_CARTESIA_VOICES: "Lucia" no es un id de voz de Cartesia',
       'KOTARU_CARTESIA_VOICES: "pepe:c0925108-d541-4dc4-bbae-39f4e57ba10c" debe ser personaje:id (personajes: nova, luna, rio)',
     ]);
+  });
+
+  it('chirp: lee la cuenta de servicio del archivo; los errores no muestran la clave', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kotaru-chirp-'));
+    const good = join(dir, 'google-tts.json');
+    writeFileSync(good, JSON.stringify({ type: 'service_account', client_email: 'kotaru-voz@p.iam.gserviceaccount.com', private_key: '-----BEGIN PRIVATE KEY-----\nSECRETO\n-----END PRIVATE KEY-----\n', token_uri: 'https://oauth2.googleapis.com/token' }));
+    const env = { ...valid(), KOTARU_PROVIDERS: 'gemini,chirp', GEMINI_API_KEY: 'g', GOOGLE_TTS_CREDENTIALS_FILE: good, KOTARU_GOOGLE_TTS_TERMS_REVIEWED: 'true' };
+    const ok = loadConfig(env);
+    expect(ok.providerSettings.chirp).toMatchObject({ termsReviewed: true, credentials: { client_email: 'kotaru-voz@p.iam.gserviceaccount.com' } });
+
+    const broken = join(dir, 'roto.json');
+    writeFileSync(broken, '{"type":"service_account","private_key":"SECRETO"');
+    const p1 = problems({ ...env, GOOGLE_TTS_CREDENTIALS_FILE: broken });
+    expect(p1).toEqual([`chirp: no se pudo leer ${broken} (falta o no es JSON)`]);
+    expect(p1.join(' ')).not.toContain('SECRETO');
+
+    const notSa = join(dir, 'otro.json');
+    writeFileSync(notSa, JSON.stringify({ type: 'authorized_user', client_id: 'x' }));
+    expect(problems({ ...env, GOOGLE_TTS_CREDENTIALS_FILE: notSa })).toEqual([`chirp: ${notSa} no es la clave de una cuenta de servicio de Google (JSON)`]);
+    expect(problems({ ...env, GOOGLE_TTS_CREDENTIALS_FILE: join(dir, 'no-existe.json') })).toHaveLength(1);
   });
 });

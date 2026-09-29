@@ -3,14 +3,15 @@ import type { GrantRejection } from './grants.js';
 
 export const PROTOCOL_VERSION = 1;
 
-export type VoiceChoice = 'auto' | 'gemini' | 'cartesia';
-export const VOICE_CHOICES: readonly VoiceChoice[] = ['auto', 'gemini', 'cartesia'];
+export type VoiceChoice = 'auto' | 'gemini' | 'chirp' | 'cartesia';
+export const VOICE_CHOICES: readonly VoiceChoice[] = ['auto', 'gemini', 'chirp', 'cartesia'];
 /** Familia de la voz que sono; 'other' para cualquier otra (Polly, simulada). */
-export type VoiceFamily = 'gemini' | 'cartesia' | 'kokoro' | 'other';
+export type VoiceFamily = 'gemini' | 'chirp' | 'cartesia' | 'kokoro' | 'other';
 
 export function voiceFamily(providerId: string | undefined): VoiceFamily {
   if (!providerId) return 'other';
   if (providerId.startsWith('gemini')) return 'gemini';
+  if (providerId.includes('chirp')) return 'chirp';
   if (providerId.includes('cartesia')) return 'cartesia';
   if (providerId.includes('kokoro')) return 'kokoro';
   return 'other';

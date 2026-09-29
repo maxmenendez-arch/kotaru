@@ -9,8 +9,8 @@ import { DefaultAiRouter } from '@kotaru/ai-router';
 import { MockLlmProvider, MockSttProvider, MockTtsProvider } from '@kotaru/ai-adapters-mock';
 import { CrisisLexiconModeration } from '@kotaru/safety';
 import { AssemblyAiSttProvider } from '@kotaru/ai-adapters-assemblyai';
-import { GeminiLlmProvider, GEMINI_RATES, GeminiTtsProvider } from '@kotaru/ai-adapters-gemini';
-import { geminiVoices, maleVoiceIds } from './voices.js';
+import { ChirpTtsProvider, GeminiLlmProvider, GEMINI_RATES, GeminiTtsProvider } from '@kotaru/ai-adapters-gemini';
+import { chirpVoices, geminiVoices, maleVoiceIds } from './voices.js';
 import { PollyTtsProvider } from '@kotaru/ai-adapters-polly';
 import { CartesiaTtsProvider, KokoroTtsProvider, WhisperSttProvider } from '@kotaru/ai-adapters-together';
 import type { ProviderResolver, RouterPort } from '@kotaru/orchestrator';
@@ -30,7 +30,7 @@ export interface ProviderSet {
    */
   readonly voiceUnavailable: boolean;
   /** Proveedor de cada voz que se puede elegir en Ajustes (solo las que estan activas). */
-  readonly voiceChoices: Readonly<Partial<Record<'gemini' | 'cartesia', string>>>;
+  readonly voiceChoices: Readonly<Partial<Record<'gemini' | 'chirp' | 'cartesia', string>>>;
 }
 
 /**
@@ -136,11 +136,17 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     );
   }
 
-  // La voz es el producto: Gemini TTS primero; si falla o se agota su cuota diaria, Cartesia
-  // (natural en español); Kokoro y Polly quedan al final. Sin esto, en el nivel "balanced"
-  // ganaria siempre la mas barata.
+  if (settings.chirp) {
+    const voices = chirpVoices(settings.geminiTts?.voices ?? {});
+    add(tts, new ChirpTtsProvider({ credentials: settings.chirp.credentials, termsReviewed: settings.chirp.termsReviewed, voices, fallback: voices.rio }));
+  }
+
+  // La voz es el producto: Gemini TTS primero (actua cada personaje); si falla o se agota su
+  // cuota diaria, Chirp 3 HD (las mismas voces, sin tope diario); despues Cartesia; Kokoro y
+  // Polly quedan al final. Sin esto, en el nivel "balanced" ganaria siempre la mas barata.
   const ttsOrder = [
     ...(settings.geminiTts ? [settings.geminiTts.model] : []),
+    ...(settings.chirp ? ['google-chirp3-hd'] : []),
     ...(settings.cartesia ? ['together-cartesia-sonic-3'] : []),
   ];
   const router = new DefaultAiRouter({ now, preferred: ttsOrder.length > 0 ? { tts: ttsOrder } : {} });
@@ -164,6 +170,7 @@ export function buildProviders(enabled: readonly string[], settings: ProviderSet
     voiceUnavailable: realLlm && !realStt,
     voiceChoices: {
       ...(settings.geminiTts && tts.has(settings.geminiTts.model) ? { gemini: settings.geminiTts.model } : {}),
+      ...(tts.has('google-chirp3-hd') ? { chirp: 'google-chirp3-hd' } : {}),
       ...(tts.has('together-cartesia-sonic-3') ? { cartesia: 'together-cartesia-sonic-3' } : {}),
     },
     blocked: all.flatMap((p) => {

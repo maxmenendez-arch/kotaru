@@ -7,7 +7,7 @@ import { color, radius, space, type } from '../theme';
 import { Body, Button, Card, Screen, Title } from '../ui/kit';
 import type { VoiceChoice } from './Conversation';
 
-const VOICE_CHOICES: readonly VoiceChoice[] = ['auto', 'gemini', 'cartesia'];
+const VOICE_CHOICES: readonly VoiceChoice[] = ['auto', 'gemini', 'chirp', 'cartesia'];
 const RETENTION_CHOICES = [7, 30, 90, 365] as const;
 
 export function Settings({

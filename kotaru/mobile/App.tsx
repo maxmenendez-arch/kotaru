@@ -194,7 +194,7 @@ const VOICE_KEY = 'kotaru.voiceChoice';
 function readVoiceChoice(): VoiceChoice {
   try {
     const v = (globalThis as { localStorage?: Storage }).localStorage?.getItem(VOICE_KEY);
-    return v === 'gemini' || v === 'cartesia' ? v : 'auto';
+    return v === 'gemini' || v === 'chirp' || v === 'cartesia' ? v : 'auto';
   } catch {
     return 'auto';
   }
