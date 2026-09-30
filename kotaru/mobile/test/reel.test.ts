@@ -93,7 +93,9 @@ test('gestos de brazo del short: cada personaje el suyo, con un brazo libre', ()
   const arms = (id: 'luna' | 'nova' | 'rio') => REELS[id].map((s) => s.arm).filter(Boolean);
   assert.ok(arms('luna').includes('chest'));
   assert.ok(arms('nova').includes('chin'));
-  assert.ok(arms('rio').includes('point'));
+  // Rio: plano medio mirando el paisaje y un solo plano entero (el saludo): no se le muestra de mas.
+  assert.equal(REELS.rio.filter((s) => s.from.focus === 'full').length, 1);
+  assert.ok(REELS.rio.some((s) => s.wave));
   // Nova tiene la mano derecha en la cadera: sus gestos van con la izquierda.
   assert.equal(styleFor('nova').handOnHip, true);
   for (const a of arms('nova')) assert.equal(ARM_POSES[a!].side, 'left');

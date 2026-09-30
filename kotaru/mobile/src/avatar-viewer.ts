@@ -15,6 +15,7 @@ import {
 import { buildStage, type Stage } from './scene3d';
 import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
+import { CharacterMotion, rigRest } from './character-motion';
 import { IdleBody, armEnvelope, armForEmotion, armForGesture, emotionEnergy } from './idle-body';
 import { applyLook, type LookHandle } from './avatar-look';
 import { createHairWind } from './hair-wind';
@@ -120,6 +121,8 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   scene.add(vrm.scene);
 
   const bone = (name: VRMHumanBoneName) => vrm.humanoid.getNormalizedBoneNode(name);
+  // Esqueleto de reposo para la captura de movimiento (antes de cambiar la pose).
+  const motion = flagOn('mocap') ? new CharacterMotion(vrm, rigRest(vrm), props().companion) : null;
   relaxPose(bone);
   vrm.update(0);
   // Acabado por personaje: luz de borde de su escenario, pelo con sombra, brillo en los ojos.
@@ -161,7 +164,7 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   scene.add(gaze);
   if (vrm.lookAt) vrm.lookAt.target = gaze;
 
-  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, easeShot, anchors, look, () => {
+  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, easeShot, anchors, look, motion, () => {
     look.dispose();
     canvas.removeEventListener('kotaru-resize', resize);
     post?.dispose();
@@ -210,6 +213,7 @@ function animate(
   easeShot: (dt: number) => boolean,
   anchors: Anchors,
   look: LookHandle,
+  motion: CharacterMotion | null,
   cleanup: () => void,
 ): () => void {
   const timer = new THREE.Timer();
@@ -354,6 +358,8 @@ function animate(
     const closeness = Math.min(1, Math.max(0, (2.2 - camera.position.distanceTo(focusPoint.set(0, anchors.headY, anchors.z))) / 1.6));
     focusNow = cut ? closeness : focusNow + (closeness - focusNow) * Math.min(1, dt * 3);
     post?.setFocus(focusNow);
+    // Captura de movimiento real encima del de codigo (postura, peso, gestos al hablar).
+    motion?.update(dt, { speaking, still: reduce, arm: body.arm });
     stage?.update(t, reduce);
     vrm.update(dt);
     if (post) post.render(scene, camera, t);

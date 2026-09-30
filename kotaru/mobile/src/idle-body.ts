@@ -181,6 +181,11 @@ export class IdleBody {
   /** Desplazamiento de cabeza que suma este estilo (inclinacion, asentir, mirar alrededor). */
   readonly head = { x: 0, y: 0, z: 0 };
 
+  /** Gesto de brazo en curso: que lado y cuanto (la captura de movimiento no pisa ese brazo). */
+  get arm(): { readonly side: 'left' | 'right' | null; readonly weight: number } {
+    return { side: this.#armAction ? ARM_POSES[this.#armAction].side : null, weight: this.#armAction ? this.#armWeight : 0 };
+  }
+
   constructor(bone: BoneLookup, style: BodyStyle = DEFAULT_STYLE) {
     this.#style = style;
     const names: VRMHumanBoneName[] = [

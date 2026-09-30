@@ -210,9 +210,11 @@ export const REELS: Readonly<Record<CompanionId, readonly Shot[]>> = {
     { dur: 3.0, from: { focus: 'waist', yaw: 0.26, pitch: -0.06 }, to: { focus: 'bust', yaw: 0.06 }, talk: true, emotion: 'playful', gesture: 'lean_in' },
   ],
   rio: [
-    { dur: 2.8, from: { focus: 'full', yaw: 0.46 }, to: { focus: 'full', yaw: 0.3 }, emotion: 'curious', look: 'away', arm: 'point' },
+    // Plano medio mirando el paisaje (antes cuerpo entero señalando: lo mostraba demasiado).
+    { dur: 2.8, from: { focus: 'waist', yaw: 0.42 }, to: { focus: 'waist', yaw: 0.28 }, emotion: 'curious', look: 'away' },
     { dur: 2.4, from: { focus: 'face', yaw: -0.26 }, to: { focus: 'face', yaw: -0.1 }, talk: true, emotion: 'happy', gesture: 'laugh_soft' },
-    { dur: 2.8, from: { focus: 'full', yaw: -0.16 }, to: { focus: 'full', yaw: -0.3 }, emotion: 'happy', wave: true },
+    // El unico plano entero: el saludo (con la postura capturada ya no parece un muñeco).
+    { dur: 2.4, from: { focus: 'full', yaw: -0.16 }, to: { focus: 'full', yaw: -0.28 }, emotion: 'happy', wave: true },
     { dur: 2.8, from: { focus: 'bust', yaw: 0.32, pitch: -0.1 }, to: { focus: 'bust', yaw: 0.18 }, talk: true, emotion: 'playful', gesture: 'nod' },
     { dur: 2.2, from: { focus: 'eyes', yaw: 0.08 }, to: { focus: 'eyes', yaw: 0 }, emotion: 'happy' },
   ],
