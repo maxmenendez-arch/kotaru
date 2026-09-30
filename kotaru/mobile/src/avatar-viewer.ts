@@ -15,7 +15,7 @@ import {
 import { buildStage, type Stage } from './scene3d';
 import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
-import { IdleBody, emotionEnergy } from './idle-body';
+import { IdleBody, armEnvelope, armForGesture, emotionEnergy } from './idle-body';
 import { applyLook, type LookHandle } from './avatar-look';
 import { REELS, reelCamera, reelCue, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
@@ -270,7 +270,10 @@ function animate(
           level: () => reelVoice(cue.age),
         }
       : live;
-    const waveOn = cue?.shot.wave ? Math.min(1, cue.age / 0.3, Math.max(0, (cue.shot.dur - cue.age - 0.2) / 0.4)) : 0;
+    // Gesto de brazo: el del plano del short, o en la conversacion el que pide el servidor
+    // (saludar, pose de pensar, señalar).
+    const armAction = cue ? (cue.shot.arm ?? (cue.shot.wave ? 'wave' : null)) : armForGesture(p.affect?.gesture);
+    const armOn = !armAction || reduce ? 0 : cue ? armEnvelope(cue.age, cue.shot.dur - 0.65) : armEnvelope(p.affect ? (now - p.affect.at) / 1000 : -1);
     const lookAway = cue?.shot.look === 'away' ? Math.min(1, cue.age / 0.6) * Math.min(1, Math.max(0, (cue.shot.dur - cue.age) / 0.8)) : 0;
 
     // Cara: emocion o reposo, con transiciones suaves.
@@ -309,7 +312,7 @@ function animate(
     body.update(t, dt, { still: reduce, speaking, level: mouth, intensity: p.mood === 'flirt' ? 1.4 : p.mood === 'friend' ? 0.6 : 1, listening: p.state === 'listening',
       ...(p.affect?.gesture ? { gesture: { name: p.affect.gesture, age: (now - p.affect.at) / 1000 } } : {}),
       energy: p.affect && now - p.affect.at < AFFECT_HOLD_MS ? emotionEnergy(p.affect.emotion, p.affect.intensity) : 1,
-      wave: waveOn });
+      ...(armAction ? { arm: { action: armAction, weight: armOn } } : {}) });
 
     // Mirada: a la camara con pequeños saltos naturales; al pensar, arriba y a un lado.
     const thinking = p.state === 'thinking';

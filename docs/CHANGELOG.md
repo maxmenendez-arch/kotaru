@@ -2,6 +2,17 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — Gestos de brazo: mano al pecho (Luna), mano en la barbilla (Nova), señalar el horizonte (Rio)
+
+- `idle-body.ts`: el saludo pasa a ser un caso de `ARM_POSES` (`wave`, `point`, `chin`, `chest`), rotaciones absolutas del brazo derecho, en espejo para el izquierdo. Se mezclan con suavidad sobre el movimiento normal.
+- Poses buscadas con capturas (`arm.cjs`, varias rondas):
+  - Rio señala con la izquierda, hacia donde mira, en diagonal hacia arriba;
+  - Nova se lleva la izquierda a la barbilla (la derecha sigue en la cadera);
+  - Luna se lleva la derecha al pecho.
+- **Short:** Luna, mano al pecho mientras habla; Nova, mano en la barbilla mirando hacia otro lado; Rio, señala el paisaje en el primer plano.
+- **Conversación:** los gestos del servidor ya mueven el brazo. `small_wave` saluda, `think_pose` lleva la mano a la barbilla y `point_up` señala; duran unos 2 s (`armForGesture`, `armEnvelope`).
+- **Verificación:** `mobile`, 66 pruebas (2 nuevas); `vitest`, 470; `tsc --build`; `lint:arch`.
+
 ## 2026-09-30 — Sonido: música en los shorts y ambiente de cada lugar en la conversación
 
 - **`mobile/src/scene-sounds.ts`:** todo sintetizado con Web Audio, sin archivos ni licencias.

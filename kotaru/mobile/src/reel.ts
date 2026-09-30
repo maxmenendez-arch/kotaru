@@ -9,6 +9,7 @@
  * three.js) para poder probarlo.
  */
 import type { CompanionId } from './companions';
+import type { ArmAction } from './idle-body.ts';
 
 export type Focus = 'eyes' | 'face' | 'bust' | 'waist' | 'full';
 
@@ -34,8 +35,10 @@ export interface Shot {
   /** Gesto de cabeza y cuerpo al empezar el plano (GESTURES). */
   readonly gesture?: string;
   readonly look?: Look;
-  /** Accion de brazo: saludar con la mano. */
+  /** Accion de brazo: saludar con la mano (atajo de `arm: 'wave'`). */
   readonly wave?: boolean;
+  /** Gesto de brazo durante el plano: saludar, señalar, mano en la barbilla o al pecho. */
+  readonly arm?: ArmAction;
 }
 
 /** Puntos del modelo que sirven de referencia (alturas en metros, en el mundo). */
@@ -182,18 +185,18 @@ export const REELS: Readonly<Record<CompanionId, readonly Shot[]>> = {
     { dur: 2.4, from: { focus: 'eyes', yaw: 0.12 }, to: { focus: 'eyes', yaw: 0.03 }, emotion: 'warm' },
     { dur: 3.0, from: { focus: 'face', yaw: -0.34 }, to: { focus: 'face', yaw: -0.2 }, talk: true, emotion: 'warm', gesture: 'nod' },
     { dur: 3.2, from: { focus: 'full', yaw: 0.3 }, to: { focus: 'full', yaw: 0.16 }, emotion: 'thoughtful', look: 'away' },
-    { dur: 3.0, from: { focus: 'bust', yaw: 0.02 }, to: { focus: 'face', yaw: -0.02 }, talk: true, emotion: 'happy', gesture: 'tilt_head' },
+    { dur: 3.0, from: { focus: 'bust', yaw: 0.02 }, to: { focus: 'bust', yaw: -0.06 }, talk: true, emotion: 'warm', gesture: 'tilt_head', arm: 'chest' },
     { dur: 2.8, from: { focus: 'full', yaw: -0.22 }, to: { focus: 'full', yaw: -0.06 }, emotion: 'happy', wave: true },
   ],
   nova: [
     { dur: 2.2, from: { focus: 'eyes', yaw: -0.18 }, to: { focus: 'eyes', yaw: -0.08 }, emotion: 'playful' },
     { dur: 2.8, from: { focus: 'bust', yaw: 0.42, pitch: -0.12 }, to: { focus: 'bust', yaw: 0.26, pitch: -0.08 }, talk: true, emotion: 'playful', gesture: 'tilt_head' },
-    { dur: 3.2, from: { focus: 'full', yaw: -0.32 }, to: { focus: 'full', yaw: -0.16 }, emotion: 'warm', look: 'away' },
+    { dur: 3.2, from: { focus: 'full', yaw: -0.32 }, to: { focus: 'full', yaw: -0.16 }, emotion: 'playful', look: 'away', arm: 'chin' },
     { dur: 2.6, from: { focus: 'face', yaw: 0.12 }, to: { focus: 'face', yaw: 0.02 }, emotion: 'happy', gesture: 'laugh_soft' },
     { dur: 3.0, from: { focus: 'waist', yaw: 0.26, pitch: -0.06 }, to: { focus: 'bust', yaw: 0.06 }, talk: true, emotion: 'playful', gesture: 'lean_in' },
   ],
   rio: [
-    { dur: 2.8, from: { focus: 'full', yaw: 0.46 }, to: { focus: 'full', yaw: 0.3 }, emotion: 'curious', look: 'away' },
+    { dur: 2.8, from: { focus: 'full', yaw: 0.46 }, to: { focus: 'full', yaw: 0.3 }, emotion: 'curious', look: 'away', arm: 'point' },
     { dur: 2.4, from: { focus: 'face', yaw: -0.26 }, to: { focus: 'face', yaw: -0.1 }, talk: true, emotion: 'happy', gesture: 'laugh_soft' },
     { dur: 2.8, from: { focus: 'full', yaw: -0.16 }, to: { focus: 'full', yaw: -0.3 }, emotion: 'happy', wave: true },
     { dur: 2.8, from: { focus: 'bust', yaw: 0.32, pitch: -0.1 }, to: { focus: 'bust', yaw: 0.18 }, talk: true, emotion: 'playful', gesture: 'nod' },

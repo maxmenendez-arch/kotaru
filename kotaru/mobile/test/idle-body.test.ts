@@ -79,3 +79,16 @@ test('energia por emocion: alegre amplia, preocupada recoge, desconocida neutra'
   assert.equal(emotionEnergy('neutral', 1), 1);
   assert.ok(Math.abs(emotionEnergy('happy', 0) - 1) < 1e-9);
 });
+
+import { armEnvelope, armForGesture } from '../src/idle-body.ts';
+
+test('gestos del servidor en la conversacion: saludar, pensar y señalar mueven el brazo', () => {
+  assert.equal(armForGesture('small_wave'), 'wave');
+  assert.equal(armForGesture('think_pose'), 'chin');
+  assert.equal(armForGesture('point_up'), 'point');
+  assert.equal(armForGesture('nod'), null);
+  assert.equal(armEnvelope(-1), 0);
+  assert.ok(armEnvelope(0.1) > 0 && armEnvelope(0.1) < 1);
+  assert.equal(armEnvelope(1), 1);
+  assert.equal(armEnvelope(3), 0);
+});
