@@ -223,6 +223,7 @@ function animate(
   let headZ = 0;
   let frame = 0;
   let running = true;
+  let lastShot = -1;
 
   const body = new IdleBody((name) => vrm.humanoid.getNormalizedBoneNode(name), styleFor(props().companion));
   const neck = vrm.humanoid.getNormalizedBoneNode('neck');
@@ -262,12 +263,18 @@ function animate(
     const live = props();
     // Short de presentacion: el guion manda sobre cara, boca, gestos y camara (reel.ts).
     const cue = live.reel && !reduce ? reelCue(REELS[live.companion], t) : null;
+    if (cue && cue.index !== lastShot) {
+      lastShot = cue.index;
+      live.onReelShot?.(cue.index);
+    }
+    // Si suena la voz de presentacion, la boca sigue esa voz; si no, la voz simulada del guion.
+    const voice = cue ? (live.reelLevel?.() ?? 0) : 0;
     const p: AvatarProps = cue
       ? {
           ...live,
-          state: cue.shot.talk ? 'speaking' : 'idle',
+          state: cue.shot.talk || voice > 0.02 ? 'speaking' : 'idle',
           affect: { emotion: cue.shot.emotion, intensity: 0.85, ...(cue.shot.gesture ? { gesture: cue.shot.gesture } : {}), at: now - cue.age * 1000 },
-          level: () => reelVoice(cue.age),
+          level: () => (voice > 0.02 ? voice : cue.shot.talk ? reelVoice(cue.age) : 0),
         }
       : live;
     // Gesto de brazo: el del plano del short, o en la conversacion el que pide el servidor

@@ -2,6 +2,19 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — Voces: Nova Sulafat, Luna Despina (siempre femenina); saludo con risa en los shorts
+
+- **Voces elegidas por el dueño:** Nova «Sulafat» y Luna «Despina», en Gemini y en Chirp (`apps/gateway/src/voices.ts`). En el servidor hay que cambiar también `KOTARU_GEMINI_VOICES`, que manda sobre el código.
+- **Luna nunca grave:**
+  - `deploy/voz-tono.py` genera 8 frases distintas con la voz y el estilo del personaje (Gemini y Chirp) y mide el tono (F0 por autocorrelación, validado con tonos sintéticos).
+  - Primera medición de Despina: medianas de 160 a 216 Hz, con 3 tomas de 16 que bajaban (dos de Gemini a 160–167 Hz).
+  - Cambio: la instrucción de lectura de Luna pide «tono medio-agudo y luminoso, nunca grave ni ronco, sin bajar la voz al final de las frases» (persona luna 2.0.3).
+- **Saludo en los shorts** (pantalla de elegir): un saludo corto con risa natural en la voz de cada personaje, en español e inglés.
+  - Se genera una vez en el servidor con Gemini (`deploy/intro-voces.py`) y se guarda en `/var/lib/kotaru/intro`; `deploy/web.sh` lo publica en `/intro/`.
+  - En la app suena una vez por personaje, en el primer plano en que habla. La boca sigue la voz real y la música baja mientras habla (`intro-voice.web.ts`; en nativo, nada).
+  - Sin gemidos ni nada sexual: es la primera impresión de la app.
+- **Verificación:** `mobile`, 66 pruebas; gateway y persona, 131; `tsc --build`; `lint:arch`.
+
 ## 2026-09-30 — Gestos de brazo: mano al pecho (Luna), mano en la barbilla (Nova), señalar el horizonte (Rio)
 
 - `idle-body.ts`: el saludo pasa a ser un caso de `ARM_POSES` (`wave`, `point`, `chin`, `chest`), rotaciones absolutas del brazo derecho, en espejo para el izquierdo. Se mezclan con suavidad sobre el movimiento normal.

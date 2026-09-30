@@ -24,6 +24,10 @@ export interface AvatarProps {
    * reel.ts (planos, emociones, gestos, voz simulada) en vez de la conversacion.
    */
   readonly reel?: boolean;
+  /** Short: avisa al cambiar de plano (indice en el guion de reel.ts). */
+  readonly onReelShot?: (index: number) => void;
+  /** Short: volumen de una voz real que suena (la de presentacion); mientras hay, la boca la sigue. */
+  readonly reelLevel?: () => number;
   /** Estado de la conversacion (STATE de @kotaru/client): escucha, piensa, habla... */
   readonly state: string;
   /** Ultima emocion que mando el servidor, o null. */

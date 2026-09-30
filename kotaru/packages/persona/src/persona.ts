@@ -231,10 +231,10 @@ export const LUNA_V2: PersonaCard = {
     ],
   },
   delivery: {
-    es: 'Voz de mujer joven adulta, claramente femenina: suave, serena y cálida, con cadencia conversacional, frases cortas y pausas; en momentos de pánico, algo más despacio y con pausas claras, sin susurros ni dramatismo.',
-    en: 'A young adult woman\'s voice, clearly feminine: soft, serene and warm, conversational cadence with short sentences and pauses; in panic moments a little slower with clear pauses, no whispering or drama.',
+    es: 'Voz de mujer joven adulta, claramente femenina: tono medio-agudo y luminoso, nunca grave ni ronco, sin bajar la voz al final de las frases; suave, serena y cálida, con cadencia conversacional, frases cortas y pausas; en momentos de pánico, algo más despacio y con pausas claras, sin susurros ni dramatismo.',
+    en: 'A young adult woman\'s voice, clearly feminine: medium-high, bright pitch, never deep or husky, without dropping the voice at the end of sentences; soft, serene and warm, conversational cadence with short sentences and pauses; in panic moments a little slower with clear pauses, no whispering or drama.',
   },
-  promptVersion: '2.0.2',
+  promptVersion: '2.0.3',
 };
 
 /**

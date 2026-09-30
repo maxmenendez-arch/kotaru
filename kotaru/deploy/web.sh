@@ -127,6 +127,11 @@ if [[ "${KOTARU_ANDROID_CERT_SHA256:-}" =~ ^([0-9A-F]{2}:){31}[0-9A-F]{2}$ ]]; t
   printf '[{"relation":["delegate_permission/common.get_login_creds"],"target":{"namespace":"android_app","package_name":"app.kotaru.mobile","sha256_cert_fingerprints":["%s"]}}]\n' "$KOTARU_ANDROID_CERT_SHA256" > "$TARGET.new/.well-known/assetlinks.json"
   echo "Android: dominio asociado para app.kotaru.mobile"
 fi
+# Voz de los shorts de presentacion (deploy/intro-voces.py la genera una vez y la guarda fuera de la web).
+if [ -d /var/lib/kotaru/intro ]; then
+  cp -r /var/lib/kotaru/intro "$TARGET.new/intro"
+  echo "Voz de presentación: $(ls /var/lib/kotaru/intro | wc -l) archivos"
+fi
 chmod -R a+rX "$TARGET.new"
 if [ -d "$TARGET" ]; then mv "$TARGET" "$TARGET.old"; fi
 mv "$TARGET.new" "$TARGET"

@@ -54,8 +54,7 @@ PHRASES = {
 }
 
 STYLES = {
-    'luna': ('Voz de mujer joven adulta, claramente femenina: suave, serena y cálida, con cadencia '
-             'conversacional, frases cortas y pausas.'),
+    'luna': ('Voz de mujer joven adulta, claramente femenina: tono medio-agudo y luminoso, nunca grave ni ronco, sin bajar la voz al final de las frases; suave, serena y cálida, con cadencia conversacional, frases cortas y pausas.'),
     'nova': 'Voz de mujer adulta, femenina, coqueta y segura, con sonrisa en la voz y pausas con intención.',
 }
 

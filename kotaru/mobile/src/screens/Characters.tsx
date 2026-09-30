@@ -15,7 +15,9 @@ import {
 } from 'react-native';
 import { createSoundscape } from '../ambient';
 import { Avatar } from '../avatar';
+import { createIntroVoice } from '../intro-voice';
 import { PROFILES } from '../character-profiles';
+import { REELS } from '../reel';
 import { COMPANIONS, companionById, type CompanionId } from '../companions';
 import type { Lang } from '../i18n';
 import { t } from '../i18n';
@@ -68,6 +70,24 @@ export function Characters({
   // Sonido del short: musica propia de cada personaje y, debajo, el sonido de su lugar.
   const music = useRef(createSoundscape(MUSIC_BUILDERS, 0.65)).current;
   const place = useRef(createSoundscape(SCENE_BUILDERS, 0.18)).current;
+  // Saludo con risa en su voz, una vez por personaje mostrado, en el primer plano en que habla.
+  const intro = useRef(createIntroVoice()).current;
+  const greeted = useRef<CompanionId | null>(null);
+  const onReelShot = (index: number) => {
+    const firstTalk = REELS[selected].findIndex((shot) => shot.talk);
+    if (index !== firstTalk || greeted.current === selected || !soundOn || connecting) return;
+    greeted.current = selected;
+    intro.play(selected, lang);
+  };
+  // La musica baja mientras saluda.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const talking = intro.playing();
+      music.duck(talking);
+      place.duck(talking);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [intro, music, place]);
   const [soundOn, setSoundOnState] = useState(() => readFlag(SOUND_KEY, true));
   const playSound = (id: CompanionId, on = soundOn) => {
     if (!on || connecting) return;
@@ -79,6 +99,7 @@ export function Characters({
     writeFlag(SOUND_KEY, on);
     if (on) playSound(selected, true);
     else {
+      intro.stop();
       music.stop();
       place.stop();
     }
@@ -93,6 +114,7 @@ export function Characters({
     () => () => {
       music.dispose();
       place.dispose();
+      intro.dispose();
     },
     [music, place],
   );
@@ -110,11 +132,14 @@ export function Characters({
     if (connecting) return;
     setConnecting(id);
     // La musica se va; el lugar lo retoma la conversacion.
+    intro.stop();
     music.stop();
     place.stop();
     setTimeout(() => onChoose(id), CONNECT_MS);
   };
   const switchTo = (id: CompanionId) => {
+    intro.stop();
+    greeted.current = null;
     setSelected(id);
     scroll.current?.scrollTo({ y: 0, animated: false });
     setScrolled(0);
@@ -155,7 +180,7 @@ export function Characters({
           key={selected}
           companion={selected}
           size={height}
-          {...(Platform.OS === 'web' ? { width: stageWidth, background: true, immersive: true, reel: true } : {})}
+          {...(Platform.OS === 'web' ? { width: stageWidth, background: true, immersive: true, reel: true, onReelShot, reelLevel: intro.level } : {})}
           state="idle"
           affect={null}
           level={() => 0}
