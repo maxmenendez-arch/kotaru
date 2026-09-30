@@ -19,6 +19,11 @@ export interface AvatarProps {
    * (modo Amigo) o sin valor (normal). Nova coqueta ondula mas y entorna los ojos.
    */
   readonly mood?: 'flirt' | 'friend';
+  /**
+   * Short de presentacion (pantalla de elegir): la camara y el personaje siguen el guion de
+   * reel.ts (planos, emociones, gestos, voz simulada) en vez de la conversacion.
+   */
+  readonly reel?: boolean;
   /** Estado de la conversacion (STATE de @kotaru/client): escucha, piensa, habla... */
   readonly state: string;
   /** Ultima emocion que mando el servidor, o null. */

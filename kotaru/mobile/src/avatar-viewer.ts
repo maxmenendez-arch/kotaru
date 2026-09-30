@@ -16,6 +16,7 @@ import { buildStage, type Stage } from './scene3d';
 import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
 import { IdleBody, emotionEnergy } from './idle-body';
+import { REELS, reelCamera, reelCue, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
 import { frameCamera, pixelRatio, type Framing } from './framing';
 
@@ -126,6 +127,10 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   (head ?? vrm.scene).getWorldPosition(headPos);
   headY = headPos.y;
   const focus = headPos.clone().add(new THREE.Vector3(0, -0.03, 0));
+  const eye = bone('leftEye');
+  const eyePos = new THREE.Vector3();
+  if (eye) eye.getWorldPosition(eyePos);
+  const anchors: Anchors = { headY, eyeY: eye ? eyePos.y : headY + 0.06, x: headPos.x, z: headPos.z, eyeZ: eye ? eyePos.z : headPos.z + 0.08 };
   shot = null;
   resize();
 
@@ -152,7 +157,7 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   scene.add(gaze);
   if (vrm.lookAt) vrm.lookAt.target = gaze;
 
-  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, easeShot, () => {
+  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, easeShot, anchors, () => {
     canvas.removeEventListener('kotaru-resize', resize);
     post?.dispose();
     stage?.dispose();
@@ -193,6 +198,7 @@ function animate(
   stage: Stage | null,
   post: StagePost | null,
   easeShot: (dt: number) => boolean,
+  anchors: Anchors,
   cleanup: () => void,
 ): () => void {
   const timer = new THREE.Timer();
@@ -243,7 +249,19 @@ function animate(
     const dt = Math.min(timer.getDelta(), 0.1);
     const t = timer.getElapsed();
     const now = performance.now();
-    const p = props();
+    const live = props();
+    // Short de presentacion: el guion manda sobre cara, boca, gestos y camara (reel.ts).
+    const cue = live.reel && !reduce ? reelCue(REELS[live.companion], t) : null;
+    const p: AvatarProps = cue
+      ? {
+          ...live,
+          state: cue.shot.talk ? 'speaking' : 'idle',
+          affect: { emotion: cue.shot.emotion, intensity: 0.85, ...(cue.shot.gesture ? { gesture: cue.shot.gesture } : {}), at: now - cue.age * 1000 },
+          level: () => reelVoice(cue.age),
+        }
+      : live;
+    const waveOn = cue?.shot.wave ? Math.min(1, cue.age / 0.3, Math.max(0, (cue.shot.dur - cue.age - 0.2) / 0.4)) : 0;
+    const lookAway = cue?.shot.look === 'away' ? Math.min(1, cue.age / 0.6) * Math.min(1, Math.max(0, (cue.shot.dur - cue.age) / 0.8)) : 0;
 
     // Cara: emocion o reposo, con transiciones suaves.
     const target = targetFace(p.companion, p.affect, now);
@@ -269,7 +287,7 @@ function animate(
     const gesture = reduce || !p.affect ? { x: 0, y: 0, z: 0 } : gestureOffset(p.affect.gesture, (now - p.affect.at) / 1000);
     const sway = reduce ? 0 : 1;
     headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x, dt, 6);
-    headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway + body.head.y, dt, 6);
+    headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway + body.head.y + lookAway * 0.45, dt, 6);
     headZ = approach(headZ, pose.z + gesture.z + Math.sin(t * 0.6) * 0.02 * sway + body.head.z, dt, 6);
     if (neck) neck.rotation.set(headX * 0.4, headY * 0.4, headZ * 0.4);
     if (head) head.rotation.set(headX * 0.6, headY * 0.6, headZ * 0.6);
@@ -277,18 +295,26 @@ function animate(
     // Cuerpo: respiracion, cambio de peso, brazos y manos vivos; mas gesto al hablar.
     body.update(t, dt, { still: reduce, speaking, level: mouth, intensity: p.mood === 'flirt' ? 1.4 : p.mood === 'friend' ? 0.6 : 1, listening: p.state === 'listening',
       ...(p.affect?.gesture ? { gesture: { name: p.affect.gesture, age: (now - p.affect.at) / 1000 } } : {}),
-      energy: p.affect && now - p.affect.at < AFFECT_HOLD_MS ? emotionEnergy(p.affect.emotion, p.affect.intensity) : 1 });
+      energy: p.affect && now - p.affect.at < AFFECT_HOLD_MS ? emotionEnergy(p.affect.emotion, p.affect.intensity) : 1,
+      wave: waveOn });
 
     // Mirada: a la camara con pequeños saltos naturales; al pensar, arriba y a un lado.
     const thinking = p.state === 'thinking';
     const glance = reduce ? { x: 0, y: 0 } : body.glance(t);
     gaze.position.set(
-      camera.position.x + (thinking ? 0.25 : glance.x),
+      camera.position.x + (thinking ? 0.25 : glance.x) + lookAway * 1.4,
       camera.position.y + (thinking ? 0.2 : glance.y),
       camera.position.z,
     );
 
     easeShot(reduce ? 1 : dt);
+    if (cue) {
+      const cam = reelCamera(REELS[live.companion], t, anchors, camera.aspect);
+      camera.fov = cam.fov;
+      camera.position.set(...cam.position);
+      camera.lookAt(...cam.target);
+      camera.updateProjectionMatrix();
+    }
     stage?.update(t, reduce);
     vrm.update(dt);
     if (post) post.render(scene, camera, t);

@@ -2,6 +2,25 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-29 — Elegir personaje, como un perfil con su short en 3D
+
+- **Short en vivo** (`mobile/src/reel.ts`): cada personaje tiene un guion de ~14 s con cortes.
+  - Planos: ojos, cara, busto, cintura y cuerpo entero, con movimientos lentos de cámara.
+  - Lo que hace en cada plano: habla, emoción, gesto, mirar a otro lado y saludar con la mano.
+  - Se dibuja con el modelo real en su escenario: no hay videos que grabar ni pagar.
+  - Luna: planos lentos y casi de frente. Nova: ángulos bajos y laterales, sonrisa. Rio: cuerpo entero mirando el paisaje, risa y saludo.
+- **Saludo con la mano** (`idle-body.ts`, `WAVE_POSE`): pose buscada con capturas; codo abajo y mano junto a la cabeza.
+- **Pantalla de elegir nueva** (`screens/Characters.tsx`), con diseño y textos propios:
+  - El short a pantalla completa, etiquetas de intereses, el nombre con el botón «Elegir» y dos líneas de carácter.
+  - Al deslizar hacia arriba, el perfil: preguntas, dato curioso, lo que le gusta y lo que no, su frase y lo esencial (que es una IA, qué ofrece y sus límites).
+  - Abajo, las caras para cambiar de personaje (retratos sacados de sus modelos 3D: `public/avatars/*-face.png`).
+  - Al elegir, una transición de «Conectando…». Hay botón para volver a la conversación y se puede cambiar de personaje con las flechas del teclado.
+  - En el ordenador, el short queda vertical en el centro, con el color del personaje alrededor.
+- **Verificación:**
+  - `mobile`: 59 pruebas (8 nuevas en `test/reel.test.ts`: duración, planos, cámara sin saltos, voz simulada y perfiles completos en es/en); `vitest`: 470; `tsc --build`; `lint:arch`.
+  - Capturas en navegador sin GPU (teléfono 390×844 y ordenador 1280×800).
+  - La transición se comprobó por DOM: «Conectando con Rio…» se ve durante 1,1 s.
+
 ## 2026-09-29 — Avatar: el cuerpo acompaña la emoción y los gestos
 
 - La emoción del turno cambia la amplitud del cuerpo: alegre o juguetona, gestos y brazos más amplios (Rio lo nota más); preocupada o pensativa, más recogidos. Cambia poco a poco y vuelve a neutro cuando la emoción se desvanece.

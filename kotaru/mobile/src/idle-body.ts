@@ -40,7 +40,17 @@ export interface BodyInput {
   readonly gesture?: { readonly name: string; readonly age: number };
   /** Energia de la emocion actual: >1 alegre o entusiasta (gestos mas amplios), <1 triste o tranquila. */
   readonly energy?: number;
+  /** Saludar con la mano (0 a 1; sube y baja suave). Con la derecha; si esta en la cadera, la izquierda. */
+  readonly wave?: number;
 }
+
+/** Pose del saludo con la mano derecha (rotaciones absolutas de huesos normalizados, radianes). */
+export const WAVE_POSE = {
+  upper: [0, 0.5, 0.8],
+  lower: [0, 0, -2.1],
+  hand: [0, 0, 0],
+  shake: 0.22,
+};
 
 /** Duraciones de los gestos de cuerpo (s): las mismas que los de cabeza. */
 const BODY_GESTURE_LENGTH: Readonly<Record<string, number>> = { shrug: 1.2, laugh_soft: 1.2, lean_in: 1.6, nod: 0.9 };
@@ -100,6 +110,7 @@ export class IdleBody {
   #intensity = 1;
   #listen = 0;
   #energy = 1;
+  #wave = 0;
   #hipsBaseY: number | null = null;
   /** Desplazamiento de cabeza que suma este estilo (inclinacion, asentir, mirar alrededor). */
   readonly head = { x: 0, y: 0, z: 0 };
@@ -158,6 +169,14 @@ export class IdleBody {
   /** Cuantos huesos encontro (para pruebas y diagnostico). */
   get boneCount(): number {
     return this.#bones.size;
+  }
+
+  /** Mezcla la pose normal (base + desplazamiento) con una rotacion absoluta, en proporcion w. */
+  #setMix(name: string, d: readonly number[], abs: readonly [number, number, number], w: number): void {
+    const b = this.#bones.get(name);
+    if (!b) return;
+    const mix = (base: number, off: number, target: number) => base + off + (target - base - off) * w;
+    b.bone.rotation.set(mix(b.x, d[0]!, abs[0]), mix(b.y, d[1]!, abs[1]), mix(b.z, d[2]!, abs[2]));
   }
 
   #set(name: string, dx: number, dy: number, dz: number): void {
@@ -229,10 +248,20 @@ export class IdleBody {
     const liftR = st.lift * E * g * (0.5 + 0.5 * Math.max(0, -alt)) * (0.6 + 0.4 * Math.min(1, input.level));
     this.#set('leftLowerArm', 0, -G * 0.55 - liftL - beat * 0.12 - Math.sin(t * 0.7) * 0.02, 0);
     this.#set('leftHand', Math.sin(t * 0.9) * 0.03 + beat * 0.06, 0, -G * 0.12);
+    // Saludo: el brazo sube, el antebrazo queda casi vertical y la mano se mueve de lado a lado.
+    this.#wave += ((input.wave ?? 0) - this.#wave) * Math.min(1, dt * 4);
+    const W = this.#wave;
+    const shake = Math.sin(time * 9) * WAVE_POSE.shake;
     if (rightFree) {
-      this.#set('rightUpperArm', -G * 0.12 - Math.max(0, -alt) * G * 0.12, 0, armR + shift * 0.01 - G * 0.12 - Math.max(0, -alt) * G * 0.1);
-      this.#set('rightLowerArm', 0, G * 0.5 + liftR + beat * 0.1 + Math.sin(t * 0.7 + 2) * 0.02, 0);
-      this.#set('rightHand', Math.sin(t * 0.9 + 1.1) * 0.03 - beat * 0.06, 0, G * 0.12);
+      const ua = [-G * 0.12 - Math.max(0, -alt) * G * 0.12, 0, armR + shift * 0.01 - G * 0.12 - Math.max(0, -alt) * G * 0.1];
+      const la = [0, G * 0.5 + liftR + beat * 0.1 + Math.sin(t * 0.7 + 2) * 0.02, 0];
+      const ha = [Math.sin(t * 0.9 + 1.1) * 0.03 - beat * 0.06, 0, G * 0.12];
+      const [u0, u1, u2] = WAVE_POSE.upper as [number, number, number];
+      const [l0, l1, l2] = WAVE_POSE.lower as [number, number, number];
+      const [h0, h1, h2] = WAVE_POSE.hand as [number, number, number];
+      this.#setMix('rightUpperArm', ua, [u0, u1, u2], W);
+      this.#setMix('rightLowerArm', la, [l0, l1, l2 + shake], W);
+      this.#setMix('rightHand', ha, [h0, h1, h2 + shake * 0.4], W);
     } else {
       // Mano en la cadera: solo un leve acompañamiento de la respiracion y del vaiven.
       this.#set('rightUpperArm', 0, 0, armR * 0.5 - shift * swayAmp * 0.5);

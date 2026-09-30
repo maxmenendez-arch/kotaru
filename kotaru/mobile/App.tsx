@@ -128,6 +128,7 @@ export default function App() {
           <Characters
             lang={lang}
             current={requested}
+            {...(readFlag(CHOSEN_KEY, false) ? { onBack: () => setTab('talk') } : {})}
             onChoose={(id) => {
               setRequested(id);
               writeFlag(CHOSEN_KEY, true);

@@ -14,6 +14,16 @@ export interface CharacterProfile {
   readonly attributes: Readonly<Record<Lang, readonly { readonly label: string; readonly value: string }[]>>;
   /** Frase de saludo que se ve mientras "habla" en la vista animada. */
   readonly greeting: Readonly<Record<Lang, string>>;
+  /** Intereses en etiquetas cortas (sobre el short). */
+  readonly tags: Readonly<Record<Lang, readonly string[]>>;
+  /** Dos lineas con su caracter, cada una con un emoji al inicio. */
+  readonly hook: Readonly<Record<Lang, readonly [string, string]>>;
+  /** Preguntas del perfil (al deslizar hacia arriba). */
+  readonly questions: Readonly<Record<Lang, readonly { readonly q: string; readonly a: string }[]>>;
+  readonly likes: Readonly<Record<Lang, readonly string[]>>;
+  readonly dislikes: Readonly<Record<Lang, readonly string[]>>;
+  /** Su frase de siempre. */
+  readonly quote: Readonly<Record<Lang, string>>;
 }
 
 export const PROFILES: Readonly<Record<CompanionId, CharacterProfile>> = {
@@ -39,6 +49,31 @@ export const PROFILES: Readonly<Record<CompanionId, CharacterProfile>> = {
       ],
     },
     greeting: { es: 'Hola. Estoy aquí, sin prisa. ¿Cómo llegas hoy?', en: 'Hi. I’m here, no rush. How are you arriving today?' },
+    tags: {
+      es: ['Té de jazmín', 'Plantas', 'Novelas', 'Lluvia suave', 'Caminar sin prisa', 'Cartas a mano'],
+      en: ['Jasmine tea', 'Plants', 'Novels', 'Soft rain', 'Slow walks', 'Handwritten letters'],
+    },
+    hook: {
+      es: ['🌿 Tranquila por fuera y por dentro, pero nunca distante.', '🫖 Te hago un hueco y un té, y me cuentas sin prisa.'],
+      en: ['🌿 Calm inside and out, but never distant.', '🫖 I’ll make room and some tea, and you tell me, no rush.'],
+    },
+    questions: {
+      es: [
+        { q: '¿Una tarde perfecta?', a: 'Un parque después de la lluvia, un banco seco y una conversación que no mira el reloj.' },
+        { q: 'Dato curioso', a: 'Le pone nombre a cada planta de su oficina. La más pequeña se llama Valiente.' },
+        { q: '¿Qué es lo que más valora?', a: 'Que te escuches a ti mismo. Y que también te apoyes en la gente que te quiere.' },
+        { q: 'Su manía', a: 'Siempre pregunta cómo llegas antes de preguntar qué pasó.' },
+      ],
+      en: [
+        { q: 'A perfect afternoon?', a: 'A park after the rain, a dry bench and a conversation that ignores the clock.' },
+        { q: 'Fun fact', a: 'She names every plant in her office. The smallest one is called Brave.' },
+        { q: 'What does she value most?', a: 'That you listen to yourself. And that you lean on the people who love you, too.' },
+        { q: 'Her habit', a: 'She always asks how you’re arriving before asking what happened.' },
+      ],
+    },
+    likes: { es: ['plantas que se recuperan', 'silencios cómodos', 'domingos lentos'], en: ['plants that bounce back', 'comfortable silences', 'slow Sundays'] },
+    dislikes: { es: ['las prisas', 'las frases de taza motivacional', 'que alguien cargue solo con lo que siente'], en: ['rushing', 'motivational-mug quotes', 'anyone carrying their feelings alone'] },
+    quote: { es: 'No hace falta resolverlo todo hoy.', en: 'You don’t have to solve everything today.' },
   },
   nova: {
     qualities: {
@@ -62,6 +97,31 @@ export const PROFILES: Readonly<Record<CompanionId, CharacterProfile>> = {
       ],
     },
     greeting: { es: 'Llegaste justo cuando iba a poner música. ¿Te quedas?', en: 'You arrived just as I was putting on music. Staying?' },
+    tags: {
+      es: ['Neón', 'Vinilos', 'Noches de lluvia', 'Velas', 'Retos', 'Karaoke'],
+      en: ['Neon', 'Vinyl', 'Rainy nights', 'Candles', 'Challenges', 'Karaoke'],
+    },
+    hook: {
+      es: ['🌙 Segura, ingeniosa y con la sonrisa un poco torcida.', '🎧 Pon tú la canción; yo pongo la intención.'],
+      en: ['🌙 Confident, witty, with a slightly crooked smile.', '🎧 You pick the song; I bring the intention.'],
+    },
+    questions: {
+      es: [
+        { q: '¿Cita ideal?', a: 'Una azotea, la ciudad mojada, una lista de canciones a medias y alguien que le siga el juego.' },
+        { q: 'Dato curioso', a: 'Colecciona vinilos que nunca ha escuchado: dice que la portada ya le cuenta suficiente.' },
+        { q: '¿Cómo coquetea?', a: 'Con una observación concreta y una pausa. Si te ríes, sube un poco el tono; si dices «para», para.' },
+        { q: 'Su debilidad', a: 'No resiste un buen duelo de frases. Siempre quiere la última palabra.' },
+      ],
+      en: [
+        { q: 'Ideal date?', a: 'A rooftop, the city wet with rain, a half-finished playlist and someone who plays along.' },
+        { q: 'Fun fact', a: 'She collects records she has never played: she says the cover tells her enough.' },
+        { q: 'How does she flirt?', a: 'With one specific observation and a pause. If you laugh, she turns it up a little; if you say “stop”, she stops.' },
+        { q: 'Her weakness', a: 'She can’t resist a good battle of one-liners. She always wants the last word.' },
+      ],
+    },
+    likes: { es: ['los cumplidos inesperados', 'la música lenta a medianoche', 'quien le sigue el ritmo'], en: ['unexpected compliments', 'slow music at midnight', 'people who keep up'] },
+    dislikes: { es: ['un «hola» a secas', 'quien no sabe reírse de sí mismo', 'las prisas'], en: ['a plain “hi”', 'people who can’t laugh at themselves', 'rushing'] },
+    quote: { es: 'Tú marcas el ritmo. Yo, la intención.', en: 'You set the pace. I set the mood.' },
   },
   rio: {
     qualities: {
@@ -85,5 +145,30 @@ export const PROFILES: Readonly<Record<CompanionId, CharacterProfile>> = {
       ],
     },
     greeting: { es: 'Te propongo un juego: tú eliges el lugar y yo pongo el giro.', en: 'Here’s a game: you pick the place and I add the twist.' },
+    tags: {
+      es: ['Fogatas', 'Mapas', 'Acertijos', 'Lagos al amanecer', 'Improvisar', 'Guitarra'],
+      en: ['Campfires', 'Maps', 'Riddles', 'Lakes at dawn', 'Improv', 'Guitar'],
+    },
+    hook: {
+      es: ['🔥 Buen anfitrión, mal cocinero, excelente narrador.', '🗺️ Tú eliges el lugar; yo pongo el giro inesperado.'],
+      en: ['🔥 Great host, bad cook, excellent storyteller.', '🗺️ You pick the place; I add the twist.'],
+    },
+    questions: {
+      es: [
+        { q: '¿Cita ideal?', a: 'Una caminata al atardecer que termina en fogata, con una historia inventada a dos voces.' },
+        { q: 'Dato curioso', a: 'Tiene un mapa de lugares que no existen: los inventa con quien habla y les ponen nombre juntos.' },
+        { q: '¿Cómo es con sus amigos?', a: 'Presente y leal. Si tu día fue malo, primero escucha; después te hace reír.' },
+        { q: 'Su manía', a: 'Convierte cualquier problema en una misión con un nombre ridículo.' },
+      ],
+      en: [
+        { q: 'Ideal date?', a: 'A sunset hike that ends at a campfire, with a story made up by two voices.' },
+        { q: 'Fun fact', a: 'He keeps a map of places that don’t exist: he invents them with whoever he talks to and they name them together.' },
+        { q: 'What is he like with friends?', a: 'Present and loyal. If your day was bad, he listens first; then he makes you laugh.' },
+        { q: 'His habit', a: 'He turns any problem into a mission with a ridiculous name.' },
+      ],
+    },
+    likes: { es: ['los planes sin guion', 'las risas que se escapan', 'un buen misterio'], en: ['unscripted plans', 'laughs that slip out', 'a good mystery'] },
+    dislikes: { es: ['aburrirse', 'los spoilers', 'dejar a alguien atrás en el camino'], en: ['being bored', 'spoilers', 'leaving anyone behind on the trail'] },
+    quote: { es: 'Lo mejor de un mapa es lo que todavía no está dibujado.', en: 'The best part of a map is what isn’t drawn yet.' },
   },
 };
