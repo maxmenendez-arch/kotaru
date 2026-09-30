@@ -19,7 +19,7 @@ export interface MotionClipJson {
   readonly fps: number;
   readonly frames: number;
   readonly bones: readonly string[];
-  readonly rest: { readonly dirs: Record<string, readonly number[]>; readonly up: readonly number[]; readonly left: readonly number[] };
+  readonly rest: { readonly dirs: Record<string, readonly number[]>; readonly thumbs?: Record<string, readonly number[]>; readonly up: readonly number[]; readonly left: readonly number[] };
   readonly q: string;
   readonly p: string;
 }
@@ -31,6 +31,8 @@ export interface MotionClip {
   readonly duration: number;
   readonly bones: readonly string[];
   readonly restDirs: ReadonlyMap<string, Vector3>;
+  /** Hacia el pulgar en reposo (manos): para el giro de la muñeca. */
+  readonly restThumbs: ReadonlyMap<string, Vector3>;
   readonly restUp: Vector3;
   readonly restLeft: Vector3;
   /** Rotaciones en el mundo del BVH, cuantizadas (cuadro, hueso, xyzw). */
@@ -64,6 +66,7 @@ export function parseClip(json: MotionClipJson): MotionClip {
     duration: json.frames / json.fps,
     bones: json.bones,
     restDirs: new Map(Object.entries(json.rest.dirs).map(([k, v]) => [k, new Vector3(v[0], v[1], v[2])])),
+    restThumbs: new Map(Object.entries(json.rest.thumbs ?? {}).map(([k, v]) => [k, new Vector3(v[0], v[1], v[2])])),
     restUp: new Vector3(...(json.rest.up as [number, number, number])),
     restLeft: new Vector3(...(json.rest.left as [number, number, number])),
     q: decode(json.q),
@@ -131,6 +134,17 @@ export const DRIVEN = [
   'rightFoot',
 ] as const;
 
+/** Marco ortonormal a partir de una direccion principal y otra de apoyo. */
+function frame2(main: Vector3, aux: Vector3): Matrix4 {
+  const x = main.clone().normalize();
+  const y = aux.clone().sub(x.clone().multiplyScalar(aux.dot(x))).normalize();
+  const z = new Vector3().crossVectors(x, y);
+  return new Matrix4().makeBasis(x, y, z);
+}
+
+/** Parte del giro de la muñeca que hace el antebrazo (en una persona, mas de la mitad). */
+const FOREARM_TWIST = 0.6;
+
 function basis(left: Vector3, up: Vector3): Matrix4 {
   const x = left.clone().normalize();
   const y = up.clone().sub(x.clone().multiplyScalar(up.dot(x))).normalize();
@@ -176,7 +190,22 @@ export class Retarget {
         continue;
       }
       const to = bvh.clone().applyQuaternion(this.#m).normalize();
-      this.#fix.set(b, new Quaternion().setFromUnitVectors(from, to));
+      // Manos: con dos referencias (dedos y pulgar) para que la muñeca tenga su giro real; el
+      // resto de huesos, solo con la direccion.
+      const side = b === 'leftHand' ? 'left' : b === 'rightHand' ? 'right' : null;
+      const thumbB = clip.restThumbs.get(b);
+      const thumbNode = side ? pos(`${side}ThumbProximal`) ?? pos(`${side}ThumbMetacarpal`) : undefined;
+      if (side && thumbB && thumbNode) {
+        const thumbV = thumbNode.clone().sub(pos(b)!);
+        const tb = thumbB.clone().applyQuaternion(this.#m);
+        const r = frame2(to, tb).multiply(frame2(from, thumbV).transpose());
+        this.#fix.set(b, new Quaternion().setFromRotationMatrix(r));
+      } else this.#fix.set(b, new Quaternion().setFromUnitVectors(from, to));
+    }
+    for (const side of ['left', 'right'] as const) {
+      const l = pos(`${side}LowerArm`);
+      const h = pos(`${side}Hand`);
+      if (l && h) this.#forearm[side] = h.clone().sub(l).normalize();
     }
     const toes = pos('leftToes') ?? pos('leftFoot')!;
     this.#legLength = Math.max(0.1, hips.y - toes.y);
@@ -200,6 +229,7 @@ export class Retarget {
   }
 
   readonly #face = new Quaternion();
+  readonly #forearm: { left?: Vector3; right?: Vector3 } = {};
 
   get bones(): readonly string[] {
     return this.#bones;
@@ -238,6 +268,22 @@ export class Retarget {
       q.copy(this.#world.get(b)!);
       if (parent) q.premultiply(this.#b.copy(this.#world.get(parent)!).invert());
       out.set(b, q);
+    }
+    // El giro de la muñeca (palma arriba o abajo) no lo hace la muñeca sola: en un brazo real
+    // lo reparte el antebrazo. Se pasa parte del giro de la mano al antebrazo (sin mover el
+    // codo ni la mano: solo como gira el antebrazo sobre su eje).
+    for (const side of ['left', 'right'] as const) {
+      const axis = this.#forearm[side];
+      const lower = out.get(`${side}LowerArm`);
+      const hand = out.get(`${side}Hand`);
+      if (!axis || !lower || !hand) continue;
+      const d = hand.x * axis.x + hand.y * axis.y + hand.z * axis.z;
+      const twist = this.#a.set(axis.x * d, axis.y * d, axis.z * d, hand.w);
+      if (twist.lengthSq() < 1e-9) continue;
+      twist.normalize();
+      const part = this.#b.identity().slerp(twist, FOREARM_TWIST);
+      lower.multiply(part);
+      hand.premultiply(part.invert());
     }
     const clip = this.#clip;
     const f = Math.min(clip.frames - 1, Math.max(0, Math.round(t * clip.fps)));

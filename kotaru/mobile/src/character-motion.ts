@@ -97,9 +97,9 @@ interface Loaded {
  * mas delgada que la ropa de los personajes, y las manos atravesaban la falda (Luna) o el short
  * (Nova). Se abren un poco hacia fuera, mas cuanto mas ancha es la ropa.
  */
-const ARM_OUT: Record<string, number> = { luna: 0.2, nova: 0.14, rio: 0.08 };
+const ARM_OUT: Record<string, number> = { luna: 0.08, nova: 0.06, rio: 0.03 };
 /** Y un poco hacia delante (rad): las manos quedan por delante de la falda, no dentro. */
-const ARM_FWD: Record<string, number> = { luna: 0.3, nova: 0.2, rio: 0.08 };
+const ARM_FWD: Record<string, number> = { luna: 0.1, nova: 0.08, rio: 0.03 };
 
 /** Sentido del giro «hacia delante» (comprobado con capturas). */
 export let FWD_SIGN = -1;

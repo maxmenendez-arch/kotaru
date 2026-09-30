@@ -16,6 +16,7 @@ import { buildStage, type Stage } from './scene3d';
 import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
 import { CharacterMotion, rigRest } from './character-motion';
+import { ArmCollider, measureBody } from './arm-collision';
 import { IdleBody, armEnvelope, armForEmotion, armForGesture, emotionEnergy } from './idle-body';
 import { applyLook, type LookHandle } from './avatar-look';
 import { createHairWind } from './hair-wind';
@@ -123,6 +124,9 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   const bone = (name: VRMHumanBoneName) => vrm.humanoid.getNormalizedBoneNode(name);
   // Esqueleto de reposo para la captura de movimiento (antes de cambiar la pose).
   const motion = flagOn('mocap') ? new CharacterMotion(vrm, rigRest(vrm), props().companion) : null;
+  // Volumen del cuerpo y la ropa: los brazos no pueden entrar (arm-collision.ts). ?collide=0 lo apaga.
+  const profile = flagOn('collide') ? measureBody(vrm) : null;
+  const collider = profile ? new ArmCollider(vrm, profile) : null;
   relaxPose(bone);
   vrm.update(0);
   // Acabado por personaje: luz de borde de su escenario, pelo con sombra, brillo en los ojos.
@@ -164,7 +168,7 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   scene.add(gaze);
   if (vrm.lookAt) vrm.lookAt.target = gaze;
 
-  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, easeShot, anchors, look, motion, () => {
+  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, easeShot, anchors, look, motion, collider, () => {
     look.dispose();
     canvas.removeEventListener('kotaru-resize', resize);
     post?.dispose();
@@ -214,6 +218,7 @@ function animate(
   anchors: Anchors,
   look: LookHandle,
   motion: CharacterMotion | null,
+  collider: ArmCollider | null,
   cleanup: () => void,
 ): () => void {
   const timer = new THREE.Timer();
@@ -369,6 +374,8 @@ function animate(
     motion?.update(dt, { speaking, still: reduce, arm: body.arm, busy: p.state === 'listening' || p.state === 'thinking', noActions: !!cue });
     // Pruebas: ?act=drink (o hair) hace esa accion en cuanto se puede.
     if (motion && pendingAct && motion.ready && motion.act(pendingAct)) pendingAct = null;
+    // Por ultimo: sacar los brazos de dentro de la ropa si hace falta.
+    collider?.update();
     stage?.update(t, reduce);
     vrm.update(dt);
     if (post) post.render(scene, camera, t);

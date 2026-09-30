@@ -180,6 +180,8 @@ const clip = {
   bones: MAP.map(([vrm]) => vrm),
   rest: {
     dirs: Object.fromEntries(MAP.map(([vrm, a, b]) => [vrm, restDir(a, b).toArray().map((x) => +x.toFixed(5))])),
+    // Segunda referencia de la mano (hacia el pulgar): fija el giro de la muñeca, no solo la direccion.
+    thumbs: { leftHand: restDir('LeftHand', 'LThumb_end').toArray().map((x) => +x.toFixed(5)), rightHand: restDir('RightHand', 'RThumb_end').toArray().map((x) => +x.toFixed(5)) },
     // Marco de la cadera en reposo: arriba (hacia la espalda) e izquierda (de cadera derecha a izquierda).
     up: restDir('Hips', 'Spine1').toArray().map((x) => +x.toFixed(5)),
     left: rp('LeftUpLeg').sub(rp('RightUpLeg')).normalize().toArray().map((x) => +x.toFixed(5)),
