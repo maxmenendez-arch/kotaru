@@ -104,12 +104,17 @@ const CHILD: Record<string, readonly string[]> = {
   rightFoot: ['rightToes'],
 };
 
-/** Huesos que mueve la captura (la cabeza y el cuello los lleva la mirada: avatar-viewer). */
+/**
+ * Huesos que mueve la captura. El cuello y la cabeza solo se usan en las acciones (beber,
+ * arreglarse el pelo): el resto del tiempo los lleva la mirada (avatar-viewer).
+ */
 export const DRIVEN = [
   'hips',
   'spine',
   'chest',
   'upperChest',
+  'neck',
+  'head',
   'leftShoulder',
   'leftUpperArm',
   'leftLowerArm',

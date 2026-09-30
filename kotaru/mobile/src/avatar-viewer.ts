@@ -231,6 +231,13 @@ function animate(
   let lastShot = -1;
   let focusNow = 0;
   const focusPoint = new THREE.Vector3();
+  let pendingAct = (() => {
+    try {
+      return new URLSearchParams(window.location.search).get('act');
+    } catch {
+      return null;
+    }
+  })();
 
   const body = new IdleBody((name) => vrm.humanoid.getNormalizedBoneNode(name), styleFor(props().companion));
   const hairWind = createHairWind(vrm, props().companion, reduce);
@@ -359,7 +366,9 @@ function animate(
     focusNow = cut ? closeness : focusNow + (closeness - focusNow) * Math.min(1, dt * 3);
     post?.setFocus(focusNow);
     // Captura de movimiento real encima del de codigo (postura, peso, gestos al hablar).
-    motion?.update(dt, { speaking, still: reduce, arm: body.arm });
+    motion?.update(dt, { speaking, still: reduce, arm: body.arm, busy: p.state === 'listening' || p.state === 'thinking', noActions: !!cue });
+    // Pruebas: ?act=drink (o hair) hace esa accion en cuanto se puede.
+    if (motion && pendingAct && motion.ready && motion.act(pendingAct)) pendingAct = null;
     stage?.update(t, reduce);
     vrm.update(dt);
     if (post) post.render(scene, camera, t);

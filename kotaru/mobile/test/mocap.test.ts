@@ -71,9 +71,9 @@ test('si en la captura la persona miraba de lado, el personaje queda de frente',
 });
 
 test('los clips de la app se cargan y dan rotaciones validas para un personaje', () => {
-  for (const file of ['idle-82_08', 'idle-82_08-m', 'idle-40_11', 'talk-18_08']) {
+  for (const file of ['idle-82_08', 'idle-82_08-m', 'idle-40_11', 'talk-18_08', 'act-drink-79_38', 'act-drink-79_38-m', 'act-hair-81_01', 'act-adjust-79_24']) {
     const c = parseClip(JSON.parse(readFileSync(new URL(`../public/motions/${file}.json`, import.meta.url), 'utf8')) as MotionClipJson);
-    assert.ok(c.duration > 4, file);
+    assert.ok(c.duration >= 2, file);
     const rt = new Retarget(c, rig());
     const out = new Map<string, Quaternion>();
     const hips = new Vector3();
@@ -108,4 +108,15 @@ test('mezclador: entra con fundido, cambia de clip sin saltos y deja de pesar al
   m.stop('b');
   for (let i = 0; i < 40; i++) m.update(0.05);
   assert.equal(m.weight, 0);
+});
+
+test('biblioteca: cada clip existe, las acciones duran poco y el vaso va en la mano del lado correcto', async () => {
+  const { LIBRARY } = await import('../src/character-motion.ts');
+  const all = [...LIBRARY.idle, ...LIBRARY.talk, ...LIBRARY.actions];
+  for (const spec of all) assert.ok(readFileSync(new URL(`../public/motions/${spec.file}.json`, import.meta.url)).length > 1000, spec.file);
+  for (const a of LIBRARY.actions) {
+    const c = parseClip(JSON.parse(readFileSync(new URL(`../public/motions/${a.file}.json`, import.meta.url), 'utf8')) as MotionClipJson);
+    assert.ok(c.duration <= 7, `${a.file}: una accion suelta no debe tardar demasiado`);
+    if (a.prop === 'glass') assert.equal(a.hand, a.file.endsWith('-m') ? 'leftHand' : 'rightHand', a.file);
+  }
 });
