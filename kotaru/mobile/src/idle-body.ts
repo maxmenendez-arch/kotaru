@@ -68,7 +68,7 @@ export const ARM_POSES: Record<ArmAction, ArmPose> = {
   // Señalar el horizonte (Rio), con la izquierda: hacia donde mira.
   point: { side: 'left', upper: [0, 0.5, -0.2], lower: [0, 0.1, 0], hand: [0, 0, 0], shake: 0 },
   // Mano en la barbilla (Nova, con la izquierda: la derecha esta en la cadera).
-  chin: { side: 'left', upper: [-0.35, 1.2, 1.15], lower: [0, 2.2, -0.6], hand: [0, 0, 0], shake: 0 },
+  chin: { side: 'left', upper: [-0.7, 0.7, 0.65], lower: [0, 2.6, 0.2], hand: [0, 0, -0.6], shake: 0 },
   // Mano al pecho (Luna).
   chest: { side: 'right', upper: [-0.3, 1.0, 1.0], lower: [0, 1.9, -0.35], hand: [0, 0, 0], shake: 0 },
 };
