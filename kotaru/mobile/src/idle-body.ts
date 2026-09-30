@@ -66,7 +66,7 @@ export const ARM_POSES: Record<ArmAction, ArmPose> = {
   // Saludar: codo abajo, mano junto a la cabeza, de lado a lado.
   wave: { side: 'right', upper: [0, 0.5, 0.8], lower: [0, 0, -2.1], hand: [0, 0, 0], shake: 0.22 },
   // Señalar el horizonte (Rio), con la izquierda: hacia donde mira.
-  point: { side: 'left', upper: [0, 0.35, -0.95], lower: [0, 0.15, 0], hand: [0, 0, 0], shake: 0 },
+  point: { side: 'left', upper: [0, 0.5, -0.2], lower: [0, 0.1, 0], hand: [0, 0, 0], shake: 0 },
   // Mano en la barbilla (Nova, con la izquierda: la derecha esta en la cadera).
   chin: { side: 'left', upper: [-0.35, 1.2, 1.15], lower: [0, 2.2, -0.6], hand: [0, 0, 0], shake: 0 },
   // Mano al pecho (Luna).
@@ -74,6 +74,26 @@ export const ARM_POSES: Record<ArmAction, ArmPose> = {
 };
 
 /** Gesto de brazo para un gesto del servidor en la conversacion (GESTURES de ai-contracts), si lo hay. */
+/**
+ * Gesto de brazo ocasional segun la emocion del personaje en la conversacion (sin pedirlo el
+ * servidor): Luna se lleva la mano al pecho con ternura, Rio señala al horizonte con curiosidad,
+ * Nova apoya la barbilla cuando algo le intriga. Solo con emocion clara (intensidad >= 0.7) y
+ * aproximadamente una de cada tres veces, elegida de forma estable por el instante de la emocion
+ * (el mismo momento siempre decide lo mismo; no hay azar por fotograma).
+ */
+export function armForEmotion(companion: string, emotion: string | undefined, intensity: number, at: number): ArmAction | null {
+  if (!emotion || intensity < 0.7) return null;
+  const pick = EMOTION_ARMS[companion]?.[emotion];
+  if (!pick) return null;
+  return Math.floor(at / 1000) % 3 === 0 ? pick : null;
+}
+
+const EMOTION_ARMS: Record<string, Record<string, ArmAction>> = {
+  luna: { warm: 'chest' },
+  rio: { curious: 'point' },
+  nova: { curious: 'chin' },
+};
+
 export function armForGesture(gesture: string | undefined): ArmAction | null {
   switch (gesture) {
     case 'small_wave':

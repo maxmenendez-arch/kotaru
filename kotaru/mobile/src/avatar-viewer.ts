@@ -15,7 +15,7 @@ import {
 import { buildStage, type Stage } from './scene3d';
 import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
-import { IdleBody, armEnvelope, armForGesture, emotionEnergy } from './idle-body';
+import { IdleBody, armEnvelope, armForEmotion, armForGesture, emotionEnergy } from './idle-body';
 import { applyLook, type LookHandle } from './avatar-look';
 import { createHairWind } from './hair-wind';
 import { REELS, reelCamera, reelCue, reelVoice, type Anchors } from './reel';
@@ -283,7 +283,10 @@ function animate(
       : live;
     // Gesto de brazo: el del plano del short, o en la conversacion el que pide el servidor
     // (saludar, pose de pensar, señalar).
-    const armAction = cue ? (cue.shot.arm ?? (cue.shot.wave ? 'wave' : null)) : armForGesture(p.affect?.gesture);
+    // Si no, de vez en cuando uno propio de su emocion (mano al pecho, señalar, barbilla).
+    const armAction = cue
+      ? (cue.shot.arm ?? (cue.shot.wave ? 'wave' : null))
+      : (armForGesture(p.affect?.gesture) ?? (p.affect ? armForEmotion(p.companion, p.affect.emotion, p.affect.intensity ?? 0, p.affect.at) : null));
     const armOn = !armAction || reduce ? 0 : cue ? armEnvelope(cue.age, cue.shot.dur - 0.65) : armEnvelope(p.affect ? (now - p.affect.at) / 1000 : -1);
     const lookAway = cue?.shot.look === 'away' ? Math.min(1, cue.age / 0.6) * Math.min(1, Math.max(0, (cue.shot.dur - cue.age) / 0.8)) : 0;
 

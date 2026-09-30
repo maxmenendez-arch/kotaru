@@ -92,3 +92,15 @@ test('gestos del servidor en la conversacion: saludar, pensar y señalar mueven 
   assert.equal(armEnvelope(1), 1);
   assert.equal(armEnvelope(3), 0);
 });
+
+test('gesto por emocion: solo con emocion clara, del personaje que toca y no siempre', async () => {
+  const { armForEmotion } = await import('../src/idle-body.ts');
+  assert.equal(armForEmotion('luna', 'warm', 0.9, 3000), 'chest');
+  assert.equal(armForEmotion('rio', 'curious', 0.9, 0), 'point');
+  assert.equal(armForEmotion('nova', 'curious', 0.8, 6000), 'chin');
+  assert.equal(armForEmotion('luna', 'warm', 0.5, 3000), null);
+  assert.equal(armForEmotion('luna', 'happy', 0.9, 3000), null);
+  assert.equal(armForEmotion('rio', 'warm', 0.9, 3000), null);
+  const hits = Array.from({ length: 30 }, (_, i) => armForEmotion('luna', 'warm', 0.9, i * 1000)).filter(Boolean).length;
+  assert.equal(hits, 10);
+});
