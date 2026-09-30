@@ -726,7 +726,9 @@ export function Conversation({
           <View style={styles.bottomInner} pointerEvents="box-none">
           {notices}
           {line ? (
-            <Text numberOfLines={1} accessibilityLiveRegion="polite" style={[styles.subtitle, line.muted && styles.subtitleMuted]}>
+            // El subtitulo en vivo es de una linea (avanza por delante, captions.ts); la frase del
+            // personaje en reposo puede ocupar dos para no cortarse a mitad en el movil.
+            <Text numberOfLines={line.muted ? 2 : 1} accessibilityLiveRegion="polite" style={[styles.subtitle, line.muted && styles.subtitleMuted]}>
               {line.who ? <Text style={styles.speaker}>{line.who}: </Text> : null}
               {line.text}
             </Text>
@@ -1002,7 +1004,8 @@ const styles = StyleSheet.create({
   iconButton: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: GLASS, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
   iconButtonOn: { borderColor: 'rgba(255,255,255,0.6)' },
   iconButtonPressed: { opacity: 0.6 },
-  popover: { position: 'absolute', top: space.l, right: 44 + 2 * space.l, zIndex: 7, maxWidth: 320, padding: space.m, borderRadius: radius.card, backgroundColor: GLASS },
+  // Casi opaco: debajo queda la cabecera (nombre y estado) y se leian las dos cosas a la vez.
+  popover: { position: 'absolute', top: space.l, right: 44 + 2 * space.l, zIndex: 7, maxWidth: 320, padding: space.m, borderRadius: radius.card, backgroundColor: 'rgba(11,16,32,0.96)' },
   historySheet: { position: 'absolute', top: space.l, left: space.l, right: 44 + 2 * space.l, bottom: 140, zIndex: 8, maxWidth: 560, padding: space.l, borderRadius: radius.sheet, backgroundColor: 'rgba(11,16,32,0.9)' },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.m },
   sheetTitle: { ...type.title, color: color.cloud, flex: 1 },
