@@ -7,7 +7,10 @@ export interface AudioInput {
    * `INPUT_SAMPLE_RATE`. Resuelve `false` si no hay permiso o no se pudo abrir el micro.
    */
   start(onChunk: (pcm: Uint8Array) => void): Promise<boolean>;
+  /** Deja de entregar audio (el micro puede quedar abierto y en silencio: ver `release`). */
   stop(): void;
+  /** Cierra el micro de verdad (salir de la conversacion). */
+  release?(): void;
   /** Volumen de lo que entra ahora (0 a 1), solo para efectos visuales; no se guarda. */
   level?(): number;
 }

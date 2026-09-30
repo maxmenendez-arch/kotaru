@@ -21,6 +21,9 @@ export * from './audio-types';
  * No se guarda audio en ningun sitio.
  */
 
+/** Minutos sin hablar tras los que el micro abierto (en silencio) se cierra solo. */
+const MIC_IDLE_MS = 3 * 60 * 1000;
+
 /** Servido desde mobile/public: la CSP de la webapp no admite scripts blob:. */
 const WORKLET_URL = '/audio-capture-worklet.js';
 
@@ -48,16 +51,22 @@ class WebMicrophone implements AudioInput {
     const context = this.#context;
     void context.resume();
 
+    // Entre turnos el micro queda abierto y en silencio (como en una llamada): se reutiliza.
+    this.#clearIdle();
     let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-      });
-    } catch {
-      return false;
+    if (this.#stream && this.#stream.getTracks().some((t) => t.readyState === 'live')) {
+      stream = this.#stream;
+    } else {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+        });
+      } catch {
+        return false;
+      }
     }
     if (generation !== this.#generation) {
-      stream.getTracks().forEach((t) => t.stop());
+      if (stream !== this.#stream) stream.getTracks().forEach((t) => t.stop());
       return true;
     }
     this.#stream = stream;
@@ -109,13 +118,35 @@ class WebMicrophone implements AudioInput {
     return this.#workletLoaded;
   }
 
+  /**
+   * Deja de escuchar: no se procesa ni se envia nada mas. El micro queda abierto (en
+   * silencio) unos minutos: en iPhone, cerrarlo cambia el audio del modo "llamada" al modo
+   * normal, con otro volumen, y el personaje y el fondo se oian mucho mas bajos al hablar
+   * (lo noto el dueño el 2026-09-29/30). Se cierra con `release` o solo tras MIC_IDLE_MS.
+   */
   stop(): void {
     this.#generation += 1;
     this.#level = 0;
     for (const node of this.#nodes) node.disconnect();
     this.#nodes = [];
+    this.#clearIdle();
+    if (this.#stream) this.#idle = setTimeout(() => this.release(), MIC_IDLE_MS);
+  }
+
+  release(): void {
+    this.#generation += 1;
+    this.#level = 0;
+    this.#clearIdle();
+    for (const node of this.#nodes) node.disconnect();
+    this.#nodes = [];
     this.#stream?.getTracks().forEach((t) => t.stop());
     this.#stream = null;
+  }
+
+  #idle: ReturnType<typeof setTimeout> | null = null;
+  #clearIdle(): void {
+    if (this.#idle) clearTimeout(this.#idle);
+    this.#idle = null;
   }
 }
 

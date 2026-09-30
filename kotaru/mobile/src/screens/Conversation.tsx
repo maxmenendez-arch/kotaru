@@ -145,6 +145,8 @@ export function Conversation({
   // no cambia al abrir y cerrar el microfono en cada turno (call-audio.web.ts).
   useEffect(() => {
     keepCallAudio(active);
+    // Al salir de la conversacion el micro (abierto en silencio entre turnos) se cierra.
+    if (!active) mic.current.release?.();
     return () => keepCallAudio(false);
   }, [active]);
   // Con un sonido relajante elegido (lluvia, olas...), el lugar queda mas bajo debajo.
@@ -189,6 +191,7 @@ export function Conversation({
     () => () => {
       client.current?.close();
       audio.input.stop();
+      audio.input.release?.();
       audio.output.dispose();
       ambient.dispose();
       place.dispose();

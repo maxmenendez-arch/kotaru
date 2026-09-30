@@ -2,6 +2,21 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — iPhone: el micrófono queda abierto y en silencio entre turnos, como en una llamada
+
+- **Problema:** el dueño seguía oyendo el volumen correcto (alto) solo con el micrófono abierto; al terminar de hablar el personaje, el fondo casi no se oía.
+- **Causa:** en iPhone el volumen de llamada y el de multimedia son dos niveles distintos. Con el micrófono abierto, iOS suena a volumen de llamada; al cerrarlo, pasa al de multimedia (más bajo en su teléfono). `navigator.audioSession` no bastó.
+- **Arreglo** (`audio.web.ts`):
+  - `stop()` ya no cierra el micrófono: deja de procesar y de enviar audio, pero la pista queda abierta y en silencio.
+  - `release()` lo cierra de verdad al salir de la conversación (`active` falso, desmontar), o solo tras 3 minutos sin hablar (`MIC_IDLE_MS`).
+  - El siguiente turno reutiliza el micrófono sin volver a pedir permiso, así que también arranca antes.
+- **Privacidad:** entre turnos no se captura nada; el indicador del sistema muestra el micrófono activo mientras dura la «llamada», como en cualquier app de llamadas.
+- **Verificado** en Chromium con micrófono falso:
+  - escuchando llegan trozos;
+  - tras `stop`, 0 trozos y la pista sigue viva;
+  - el segundo turno no llama otra vez a `getUserMedia`;
+  - tras `release`, la pista termina.
+
 ## 2026-09-30 — Reacciones al momento a lo que se le dice al personaje
 
 - **`mobile/src/reactions.ts`:** clasifica el tono de lo que la persona dijo o escribió, en el dispositivo, por palabras en español e inglés, sin llamar a nadie ni guardar nada.
