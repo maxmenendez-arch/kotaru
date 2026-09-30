@@ -138,33 +138,60 @@ class WebMicrophone implements AudioInput {
     if (this.#stream) this.#idle = setTimeout(() => this.release(), MIC_IDLE_MS);
   }
 
+  /**
+   * Abre el micro en silencio al conectar, para que el iPhone pase al modo "llamada" (y a su
+   * volumen) desde el principio y no al pulsar "hablar" por primera vez. No basta con abrir el
+   * micro: hay que hacer lo mismo que el primer turno, crear el contexto de audio dentro del
+   * toque y conectarle el micro (a traves de una ganancia a cero: no suena ni se envia nada).
+   * Asi lo noto el dueño el 2026-09-30: con solo abrirlo, el volumen seguia bajo.
+   */
   async warm(): Promise<boolean> {
-    if (this.#stream && this.#stream.getTracks().some((t) => t.readyState === 'live')) return true;
-    if (!navigator.mediaDevices?.getUserMedia) return false;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-      });
-      // Si mientras tanto empezo un turno, ese turno ya tiene su micro: este sobra.
-      if (this.#stream) {
-        stream.getTracks().forEach((t) => t.stop());
-        return true;
+    const Context = audioContextCtor();
+    if (!Context || !navigator.mediaDevices?.getUserMedia) return false;
+    // Dentro del toque (antes de cualquier espera): crear y reanudar el contexto.
+    this.#context ??= new Context();
+    const context = this.#context;
+    void context.resume();
+    let stream = this.#stream && this.#stream.getTracks().some((t) => t.readyState === 'live') ? this.#stream : null;
+    if (!stream) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+        });
+      } catch {
+        return false;
       }
-      this.#stream = stream;
-      this.#clearIdle();
-      this.#idle = setTimeout(() => this.release(), MIC_IDLE_MS);
-      return true;
-    } catch {
-      return false;
+      // Si mientras tanto empezo un turno, ese turno ya tiene su micro: este sobra.
+      if (this.#stream && this.#stream !== stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = this.#stream;
+      } else {
+        this.#stream = stream;
+        this.#clearIdle();
+        this.#idle = setTimeout(() => this.release(), MIC_IDLE_MS);
+      }
     }
+    if (!this.#keep.length) {
+      const source = context.createMediaStreamSource(stream);
+      const silent = context.createGain();
+      silent.gain.value = 0;
+      source.connect(silent);
+      silent.connect(context.destination);
+      this.#keep = [source, silent];
+    }
+    return true;
   }
+
+  /** Conexion silenciosa del micro al contexto mientras esta abierto (ver `warm`). */
+  #keep: AudioNode[] = [];
 
   release(): void {
     this.#generation += 1;
     this.#level = 0;
     this.#clearIdle();
-    for (const node of this.#nodes) node.disconnect();
+    for (const node of [...this.#nodes, ...this.#keep]) node.disconnect();
     this.#nodes = [];
+    this.#keep = [];
     this.#stream?.getTracks().forEach((t) => t.stop());
     this.#stream = null;
   }

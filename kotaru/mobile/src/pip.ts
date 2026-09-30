@@ -15,6 +15,7 @@ export interface PipOptions {
   onTalkStart(): void;
   onTalkEnd(): void;
   onClosed(): void;
+  onFailed?(reason: string): void;
 }
 
 export interface PipHandle {
@@ -31,6 +32,8 @@ export async function openPip(_options: PipOptions): Promise<PipHandle | null> {
 }
 
 export function preparePip(_canvas: unknown): void {}
+
+export function disposePip(): void {}
 
 export function autoPip(_open: () => void): () => void {
   return () => undefined;

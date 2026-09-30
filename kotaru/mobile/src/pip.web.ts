@@ -50,6 +50,8 @@ export interface PipOptions {
   onTalkStart(): void;
   onTalkEnd(): void;
   onClosed(): void;
+  /** No se pudo abrir: 'not-ready' (aun cargando), 'unsupported' o 'refused[: motivo]'. */
+  onFailed?(reason: string): void;
 }
 
 export interface PipHandle {
@@ -177,7 +179,7 @@ async function openDocumentPip(api: DocumentPipApi, o: PipOptions): Promise<PipH
 type PipVideo = HTMLVideoElement & {
   webkitSetPresentationMode?: (m: string) => void;
   webkitPresentationMode?: string;
-  autoPictureInPicture?: boolean;
+  webkitSupportsPresentationMode?: (m: string) => boolean;
 };
 
 /** Video preparado de antemano (iPhone): el lienzo del personaje y la voz, ya reproduciendose. */
@@ -185,30 +187,39 @@ let prepared: { canvas: HTMLCanvasElement; video: PipVideo; stream: MediaStream 
 
 /**
  * Prepara la ventana de video ANTES del toque. En iPhone la ventana flotante solo se abre si
- * se pide en el mismo instante del toque y con un video que ya se esta reproduciendo; si hay
- * que esperar a que arranque, Safari ya no la concede. Se llama con cada toque en la
- * conversacion (barato: si ya esta preparado para ese lienzo, no hace nada).
+ * se pide en el mismo instante del toque y con un video que ya se esta reproduciendo. Se llama
+ * al entrar en la conversacion (y en cada toque, por si acaso): si ya esta preparado para ese
+ * lienzo, no hace nada.
+ *
+ * El video va a pantalla completa DETRAS del personaje (z-index negativo): no se ve, pero
+ * Safari lo considera visible. Antes era diminuto y casi transparente, y Safari deja de
+ * decodificar (y no deja flotar) un video que considera oculto.
  */
 export function preparePip(canvas: HTMLCanvasElement | null): void {
   if (!canvas || documentPip() || pipSupport() !== 'video') return;
-  if (prepared?.canvas === canvas) return;
-  disposePrepared();
-  const stream = canvas.captureStream(30);
+  if (prepared?.canvas === canvas) {
+    if (prepared.video.paused) void prepared.video.play().catch(() => undefined);
+    return;
+  }
+  disposePip();
+  const stream = canvas.captureStream(24);
   const voice = pipVoiceTrack();
   if (voice) stream.addTrack(voice);
   const video = document.createElement('video') as PipVideo;
   video.muted = true;
+  video.autoplay = true;
   video.playsInline = true;
   video.setAttribute('playsinline', '');
+  video.setAttribute('aria-hidden', 'true');
   video.srcObject = stream;
-  // Visible (iOS no deja flotar un video que no se ve), diminuto y sin tapar nada.
-  Object.assign(video.style, { position: 'fixed', width: '48px', height: '48px', opacity: '0.01', pointerEvents: 'none', left: '0', bottom: '0', zIndex: '0' });
+  Object.assign(video.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', objectFit: 'cover', zIndex: '-1', pointerEvents: 'none' });
   document.body.append(video);
   void video.play().catch(() => undefined);
   prepared = { canvas, video, stream };
 }
 
-function disposePrepared(): void {
+/** Quita el video preparado (al salir de la conversacion). */
+export function disposePip(): void {
   if (!prepared) return;
   prepared.stream.getVideoTracks().forEach((t) => t.stop());
   prepared.video.remove();
@@ -218,9 +229,17 @@ function disposePrepared(): void {
 function openVideoPip(o: PipOptions): PipHandle | null {
   // Sin esperas antes de pedir la ventana: el toque todavia cuenta.
   preparePip(o.canvas);
-  if (!prepared) return null;
+  if (!prepared) {
+    o.onFailed?.('unsupported');
+    return null;
+  }
   const { video } = prepared;
-  void video.play().catch(() => undefined);
+  if (video.paused || video.readyState < 2) {
+    // Aun no hay imagen: iPhone no la dejaria flotar. Se arranca y se pide volver a tocar.
+    void video.play().catch(() => undefined);
+    o.onFailed?.('not-ready');
+    return null;
+  }
   let closed = false;
   const cleanup = () => {
     if (closed) return;
@@ -231,17 +250,38 @@ function openVideoPip(o: PipOptions): PipHandle | null {
     o.onClosed();
   };
   video.addEventListener('leavepictureinpicture', cleanup, { once: true });
-  video.addEventListener('webkitpresentationmodechanged', () => {
-    if (video.webkitPresentationMode === 'inline') cleanup();
-  });
+  const onMode = () => {
+    if (video.webkitPresentationMode === 'inline') {
+      video.removeEventListener('webkitpresentationmodechanged', onMode);
+      cleanup();
+    }
+  };
+  video.addEventListener('webkitpresentationmodechanged', onMode);
+  const floating = () => video.webkitPresentationMode === 'picture-in-picture' || document.pictureInPictureElement === video;
   try {
-    if (video.webkitSetPresentationMode) video.webkitSetPresentationMode('picture-in-picture');
-    else if (video.requestPictureInPicture) void video.requestPictureInPicture().catch(() => cleanup());
-    else return null;
-  } catch {
+    if (video.webkitSupportsPresentationMode?.('picture-in-picture') && video.webkitSetPresentationMode) {
+      video.webkitSetPresentationMode('picture-in-picture');
+    } else if (video.requestPictureInPicture) {
+      void video.requestPictureInPicture().catch((err: unknown) => {
+        o.onFailed?.(`refused: ${err instanceof Error ? err.name : 'error'}`);
+        cleanup();
+      });
+    } else {
+      o.onFailed?.('unsupported');
+      return null;
+    }
+  } catch (err) {
+    o.onFailed?.(`refused: ${err instanceof Error ? err.name : 'error'}`);
     cleanup();
     return null;
   }
+  // Si el sistema no la abrio (sin error), se avisa en vez de no hacer nada.
+  setTimeout(() => {
+    if (!closed && !floating()) {
+      o.onFailed?.('refused');
+      cleanup();
+    }
+  }, 1500);
   // En la ventana flotante la voz sale por el video: asi sigue sonando fuera de Safari.
   video.muted = false;
   routeVoiceToPip(true);
@@ -250,7 +290,7 @@ function openVideoPip(o: PipOptions): PipHandle | null {
       // La ventana de video del sistema no admite botones propios.
     },
     close() {
-      if (video.webkitSetPresentationMode) video.webkitSetPresentationMode('inline');
+      if (video.webkitPresentationMode === 'picture-in-picture' && video.webkitSetPresentationMode) video.webkitSetPresentationMode('inline');
       else if (document.pictureInPictureElement === video) void document.exitPictureInPicture().catch(() => undefined);
       cleanup();
     },

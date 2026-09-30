@@ -21,7 +21,7 @@ import { Body, Button, Card, Screen } from '../ui/kit';
 import { Icon, type IconName } from '../ui/icons';
 import { EdgeGlow } from '../ui/edge-glow';
 import { captionLine, charsForWidth } from '../captions';
-import { autoPip, openPip as openPipWindow, pipSupport, preparePip, type PipHandle } from '../pip';
+import { autoPip, disposePip, openPip as openPipWindow, pipSupport, preparePip, type PipHandle } from '../pip';
 
 /**
  * Conversacion por voz (pulsar para hablar).
@@ -384,9 +384,27 @@ export function Conversation({
       onClosed: () => {
         pip.current = null;
       },
+      // Si no se abre, se dice por que (antes el icono no hacia nada y no se sabia la causa).
+      onFailed: (why) => {
+        pip.current = null;
+        setError(why === 'not-ready' ? s.pipNotReady : s.pipFailed(why));
+      },
     }).catch(() => null);
     pip.current = handle;
   };
+  // iPhone: el video de la ventana flotante se prepara al entrar (tiene que estar ya en marcha
+  // cuando se toque el icono) y se quita al salir de la conversacion.
+  useEffect(() => {
+    if (!active || !backgrounds || !pipAvailable) {
+      disposePip();
+      return;
+    }
+    const find = () => document.querySelector<HTMLCanvasElement>('#kotaru-stage canvas');
+    preparePip(find());
+    const timer = setInterval(() => preparePip(find()), 2000);
+    return () => clearInterval(timer);
+  }, [active, backgrounds, pipAvailable]);
+  useEffect(() => () => disposePip(), []);
   const openPipRef = useRef(openPip);
   openPipRef.current = openPip;
 
