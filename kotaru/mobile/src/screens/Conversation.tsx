@@ -21,6 +21,7 @@ import { Body, Button, Card, Screen } from '../ui/kit';
 import { Icon, type IconName } from '../ui/icons';
 import { EdgeGlow } from '../ui/edge-glow';
 import { captionLine, charsForWidth } from '../captions';
+import { SubtitleStrip } from '../ui/subtitle-strip';
 import { HandsFreeVad, PreRoll, pcmLevel, pcmMs } from '../hands-free';
 import { INPUT_SAMPLE_RATE } from '../audio-types';
 import { autoPip, disposePip, openPip as openPipWindow, pipSupport, preparePip, type PipHandle } from '../pip';
@@ -731,7 +732,7 @@ export function Conversation({
       listening || (heard && !reply)
         ? { who: s.you, text: captionLine(heard, lineChars - s.you.length - 2), muted: true }
         : reply
-          ? { who: null, text: captionLine(reply, lineChars), muted: false }
+          ? { who: null, text: reply, muted: false, scroll: true }
           : state === 'closed' && history.length === 0
             ? { who: null, text: companion.tagline[lang], muted: true }
             : null;
@@ -872,8 +873,10 @@ export function Conversation({
         >
           <View style={styles.bottomInner} pointerEvents="box-none">
           {notices}
-          {line ? (
-            // El subtitulo en vivo es de una linea (avanza por delante, captions.ts); la frase del
+          {line && 'scroll' in line ? (
+            <SubtitleStrip text={line.text} style={styles.subtitle} />
+          ) : line ? (
+            // Lo que se oye de ti es de una linea (avanza por delante, captions.ts); la frase del
             // personaje en reposo puede ocupar dos para no cortarse a mitad en el movil.
             <Text numberOfLines={line.muted ? 2 : 1} accessibilityLiveRegion="polite" style={[styles.subtitle, line.muted && styles.subtitleMuted]}>
               {line.who ? <Text style={styles.speaker}>{line.who}: </Text> : null}
@@ -1234,3 +1237,4 @@ const styles = StyleSheet.create({
   safetyTitle: { ...type.title, color: color.cloud, marginBottom: space.s },
   error: { ...type.support, color: color.danger, marginBottom: space.s },
 });
+
