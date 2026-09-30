@@ -56,7 +56,7 @@ export interface PipOptions {
 
 export interface PipHandle {
   /** Estado para mostrar (texto) y si esta escuchando. */
-  update(stateLabel: string, listening: boolean, canTalk: boolean): void;
+  update(stateLabel: string, listening: boolean, canTalk: boolean, talkText?: string): void;
   close(): void;
 }
 
@@ -163,10 +163,11 @@ async function openDocumentPip(api: DocumentPipApi, o: PipOptions): Promise<PipH
   pip.addEventListener('pagehide', restore);
 
   return {
-    update(stateLabel, listening, canTalk) {
+    update(stateLabel, listening, canTalk, talkText) {
       stateEl.textContent = stateLabel;
       talk.classList.toggle('on', listening);
-      talk.textContent = listening ? o.releaseLabel : o.talkLabel;
+      // Con manos libres no hay que pulsar: el boton solo muestra si esta escuchando.
+      talk.textContent = talkText ?? (listening ? o.releaseLabel : o.talkLabel);
       talk.disabled = !canTalk;
     },
     close() {

@@ -21,6 +21,8 @@ import { Body, Button, Card, Screen } from '../ui/kit';
 import { Icon, type IconName } from '../ui/icons';
 import { EdgeGlow } from '../ui/edge-glow';
 import { captionLine, charsForWidth } from '../captions';
+import { HandsFreeVad, PreRoll, pcmLevel, pcmMs } from '../hands-free';
+import { INPUT_SAMPLE_RATE } from '../audio-types';
 import { autoPip, disposePip, openPip as openPipWindow, pipSupport, preparePip, type PipHandle } from '../pip';
 
 /**
@@ -65,6 +67,7 @@ const RING: Record<ConversationState, string> = {
 };
 
 const PLACE_KEY = 'kotaru.placeSound';
+const HANDS_FREE_KEY = 'kotaru.handsFree';
 /**
  * El lugar suena bajo y casi constante: si subia al escuchar y bajaba mucho al hablar el
  * personaje, su voz parecia mas baja por contraste (lo noto el dueño el 2026-09-29).
@@ -338,7 +341,7 @@ export function Conversation({
   };
 
   const pressIn = () => {
-    if (!client.current || state === 'closed' || state === 'limit_reached' || !voiceOn) return;
+    if (!client.current || state === 'closed' || state === 'limit_reached' || !voiceOn || handsFreeOn) return;
     archiveCurrent();
     setHeard('');
     setReply('');
@@ -357,9 +360,88 @@ export function Conversation({
     );
   };
   const pressOut = () => {
+    if (handsFreeOn) return;
     mic.current.stop();
     client.current?.stopTalking();
   };
+
+  // ---- Manos libres (hands-free.ts) ------------------------------------------------------
+  // Opcion guardada (pantalla normal o completa) y encendido automatico mientras la ventana
+  // flotante esta abierta, para hablarle mientras se hacen otras cosas. El micro queda abierto,
+  // pero al servidor solo va la voz detectada; el indicador «Manos libres» se ve siempre.
+  const [handsFree, setHandsFreeState] = useState(() => readFlag(HANDS_FREE_KEY, false));
+  const setHandsFree = (on: boolean) => {
+    setHandsFreeState(on);
+    writeFlag(HANDS_FREE_KEY, on);
+  };
+  const [pipHands, setPipHands] = useState(false);
+  const handsFreeOn =
+    (handsFree || pipHands) &&
+    active &&
+    !!connection &&
+    voiceOn &&
+    state !== 'closed' &&
+    state !== 'connecting' &&
+    state !== 'reconnecting' &&
+    state !== 'limit_reached' &&
+    state !== 'safety_handoff';
+  // El personaje habla o piensa: hace falta hablar mas claro para interrumpirle (eco).
+  const busyRef = useRef(false);
+  busyRef.current = state === 'thinking' || state === 'speaking' || state === 'endpoint' || voiceTail;
+  const beginHandsFreeRef = useRef(() => {});
+  beginHandsFreeRef.current = () => {
+    archiveCurrent();
+    setHeard('');
+    setReply('');
+    speaker.current.stopNow();
+    client.current?.startTalking();
+  };
+  const handsFreeIdleRef = useRef(() => {});
+  handsFreeIdleRef.current = () => {
+    setHandsFree(false);
+    setPipHands(false);
+    setError(s.handsFreeIdleOff);
+  };
+  useEffect(() => {
+    if (!handsFreeOn) return;
+    const vad = new HandsFreeVad(performance.now());
+    const roll = new PreRoll(300);
+    let inTurn = false;
+    let stopped = false;
+    mic.current
+      .start((pcm) => {
+        if (stopped) return;
+        const ms = pcmMs(pcm, INPUT_SAMPLE_RATE);
+        const event = vad.push(pcmLevel(pcm), ms, performance.now(), busyRef.current);
+        if (event === 'start') {
+          beginHandsFreeRef.current();
+          for (const chunk of roll.drain()) client.current?.sendAudio(chunk);
+          inTurn = true;
+        }
+        if (inTurn) client.current?.sendAudio(pcm);
+        else roll.push(pcm, ms);
+        if (event === 'end') {
+          inTurn = false;
+          client.current?.stopTalking();
+        }
+        if (event === 'idle-off') handsFreeIdleRef.current();
+      })
+      .then(
+        (ok) => {
+          if (!ok && !stopped) {
+            setError(s.micDenied);
+            setHandsFree(false);
+            setPipHands(false);
+          }
+        },
+        () => setError(s.error),
+      );
+    return () => {
+      stopped = true;
+      mic.current.stop();
+      if (inTurn) client.current?.stopTalking();
+    };
+  }, [handsFreeOn]);
 
   // La ventana flotante llama a lo ultimo (no a la version de cuando se abrio).
   const pressInRef = useRef(pressIn);
@@ -383,14 +465,18 @@ export function Conversation({
       onTalkEnd: () => pressOutRef.current(),
       onClosed: () => {
         pip.current = null;
+        setPipHands(false);
       },
       // Si no se abre, se dice por que (antes el icono no hacia nada y no se sabia la causa).
       onFailed: (why) => {
         pip.current = null;
+        setPipHands(false);
         setError(why === 'not-ready' ? s.pipNotReady : s.pipFailed(why));
       },
     }).catch(() => null);
     pip.current = handle;
+    // En la ventana flotante no se puede mantener pulsado: se escucha solo (manos libres).
+    if (handle) setPipHands(true);
   };
   // iPhone: el video de la ventana flotante se prepara al entrar (tiene que estar ya en marcha
   // cuando se toque el icono) y se quita al salir de la conversacion.
@@ -410,7 +496,13 @@ export function Conversation({
 
   // Estado en la ventana flotante.
   useEffect(() => {
-    pip.current?.update(STATE_LABELS[lang][state === 'idle' && voiceTail ? 'speaking' : state], state === 'listening', !!client.current && state !== 'closed' && voiceOn);
+    const pipLabel = STATE_LABELS[lang][state === 'idle' && voiceTail ? 'speaking' : state];
+    pip.current?.update(
+      handsFreeOn ? `${s.handsFreeBadge} · ${pipLabel}` : pipLabel,
+      state === 'listening',
+      !!client.current && state !== 'closed' && voiceOn && !handsFreeOn,
+      handsFreeOn ? (state === 'listening' ? s.handsFreeHearing : s.handsFreeBadge) : undefined,
+    );
   });
 
   // Con la conversacion abierta, el navegador puede abrir la ventana flotante solo al
@@ -472,6 +564,7 @@ export function Conversation({
       <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.state}>
         {label}
       </Text>
+      {handsFreeOn ? <Text style={[styles.state, styles.handsFreeBadge]}>● {s.handsFreeBadge}</Text> : null}
     </>
   );
   const extras = (
@@ -578,17 +671,40 @@ export function Conversation({
         <Text style={styles.note}>{s.voiceNotYet(companion.name)}</Text>
       ) : (
         <>
+          {handsFreeOn ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={s.handsFreePause}
+              {...({ dataSet: { [NO_SELECT_ATTR]: 'true' } } as object)}
+              onPress={() => {
+                setHandsFree(false);
+                setPipHands(false);
+              }}
+              style={[styles.talk, listening && styles.talkOn]}
+            >
+              <Text selectable={false} style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.handsFreeHearing : s.handsFreeOn}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={listening ? s.releaseToSend : s.holdToTalk}
+              // Web: sin seleccion de texto ni menu al mantener pulsado (no-select.web.ts).
+              // `dataSet` es de react-native-web y no esta en los tipos de React Native.
+              {...({ dataSet: { [NO_SELECT_ATTR]: 'true' } } as object)}
+              onPressIn={pressIn}
+              onPressOut={pressOut}
+              style={[styles.talk, listening && styles.talkOn]}
+            >
+              <Text selectable={false} style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.releaseToSend : s.holdToTalk}</Text>
+            </Pressable>
+          )}
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={listening ? s.releaseToSend : s.holdToTalk}
-            // Web: sin seleccion de texto ni menu al mantener pulsado (no-select.web.ts).
-            // `dataSet` es de react-native-web y no esta en los tipos de React Native.
-            {...({ dataSet: { [NO_SELECT_ATTR]: 'true' } } as object)}
-            onPressIn={pressIn}
-            onPressOut={pressOut}
-            style={[styles.talk, listening && styles.talkOn]}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: handsFree }}
+            onPress={() => setHandsFree(!handsFree)}
+            style={styles.handsFreeLink}
           >
-            <Text selectable={false} style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.releaseToSend : s.holdToTalk}</Text>
+            <Text style={styles.handsFreeLinkText}>{handsFree ? s.handsFreeDisable : s.handsFreeEnable}</Text>
           </Pressable>
           {audio.simulated ? <Text style={styles.note}>{s.simulatedMic}</Text> : null}
         </>
@@ -656,6 +772,7 @@ export function Conversation({
           <Text accessibilityLiveRegion="polite" accessibilityRole="text" style={styles.stateFloating}>
             {label}
           </Text>
+          {handsFreeOn ? <Text style={[styles.minutesFloating, styles.handsFreeBadge]}>● {s.handsFreeBadge}</Text> : null}
           {minutes !== null && voiceOn ? <Text style={styles.minutesFloating}>{s.minutesLeft(minutes)}</Text> : null}
           {voiceChoice !== 'auto' && voiceUsed ? <Text style={styles.minutesFloating}>{s.voiceUsed(voiceUsed)}</Text> : null}
         </View>
@@ -673,6 +790,9 @@ export function Conversation({
             <IconButton icon="heart" label={s.iconMode} onPress={() => setSheet(sheet === 'mode' ? null : 'mode')} on={sheet === 'mode' || mode === 'flirt'} color={mode === 'flirt' ? companion.accent : iconColor} />
           ) : null}
           {pipAvailable ? <IconButton icon="pip" label={s.iconPip} onPress={() => void openPip()} color={iconColor} /> : null}
+          {connection && voiceOn ? (
+            <IconButton icon="mic" label={handsFree ? s.handsFreeDisable : s.handsFreeEnable} onPress={() => setHandsFree(!handsFree)} on={handsFree} color={iconColor} />
+          ) : null}
         </View>
 
         {/* Paneles pequeños que abren los iconos. */}
@@ -781,17 +901,33 @@ export function Conversation({
               ) : !voiceOn ? (
                 <Text style={styles.noteFloating}>{s.voiceNotYet(companion.name)}</Text>
               ) : (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={listening ? s.releaseToSend : s.holdToTalk}
-                  {...({ dataSet: { [NO_SELECT_ATTR]: 'true' } } as object)}
-                  onPressIn={pressIn}
-                  onPressOut={pressOut}
-                  style={[styles.talk, styles.talkFloating, listening && styles.talkOn]}
-                >
-                  <Icon name="mic" size={20} color={listening ? color.ink : '#FFFFFF'} />
-                  <Text selectable={false} style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.releaseToSend : s.holdToTalk}</Text>
-                </Pressable>
+                handsFreeOn ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={s.handsFreePause}
+                    {...({ dataSet: { [NO_SELECT_ATTR]: 'true' } } as object)}
+                    onPress={() => {
+                      setHandsFree(false);
+                      setPipHands(false);
+                    }}
+                    style={[styles.talk, styles.talkFloating, listening && styles.talkOn]}
+                  >
+                    <Icon name="mic" size={20} color={listening ? color.ink : '#FFFFFF'} />
+                    <Text selectable={false} style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.handsFreeHearing : s.handsFreeOn}</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={listening ? s.releaseToSend : s.holdToTalk}
+                    {...({ dataSet: { [NO_SELECT_ATTR]: 'true' } } as object)}
+                    onPressIn={pressIn}
+                    onPressOut={pressOut}
+                    style={[styles.talk, styles.talkFloating, listening && styles.talkOn]}
+                  >
+                    <Icon name="mic" size={20} color={listening ? color.ink : '#FFFFFF'} />
+                    <Text selectable={false} style={[styles.talkText, listening && styles.talkTextOn]}>{listening ? s.releaseToSend : s.holdToTalk}</Text>
+                  </Pressable>
+                )
               )}
             </View>
           </View>
@@ -1038,6 +1174,9 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   },
+  handsFreeLink: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: space.m },
+  handsFreeLinkText: { ...type.micro, color: color.mist, textDecorationLine: 'underline' },
+  handsFreeBadge: { color: '#37D6C8' },
   subtitleMuted: { color: '#E6E9F2', fontStyle: 'italic' },
   errorFloating: { ...type.support, color: color.danger, textAlign: 'center', backgroundColor: GLASS, borderRadius: radius.control, padding: space.xs, overflow: 'hidden' },
   noteFloating: { ...type.support, color: color.cloud, textAlign: 'center', backgroundColor: GLASS, borderRadius: radius.control, padding: space.s, overflow: 'hidden' },

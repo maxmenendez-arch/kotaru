@@ -19,7 +19,7 @@ export interface PipOptions {
 }
 
 export interface PipHandle {
-  update(stateLabel: string, listening: boolean, canTalk: boolean): void;
+  update(stateLabel: string, listening: boolean, canTalk: boolean, talkText?: string): void;
   close(): void;
 }
 
