@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSystemPrompt, COMPANIONS, CONVERSATION_MODES, modeMessage, LUNA_V1, memoryMessage, NOVA_V1, PERSONAS, personaFor, promptId, RIO_V1 } from '../src/index.js';
+import { addressMessage, buildSystemPrompt, COMPANIONS, CONVERSATION_MODES, modeMessage, LUNA_V1, memoryMessage, NOVA_V1, PERSONAS, personaFor, promptId, RIO_V1 } from '../src/index.js';
 
 describe('prompt del personaje', () => {
   it('siempre dice que es una IA y que no es profesional ni puede llamar a emergencias, en los dos idiomas', () => {
@@ -22,7 +22,7 @@ describe('prompt del personaje', () => {
   });
 
   it('registra la version de la ficha y la de las reglas', () => {
-    expect(promptId(RIO_V1)).toBe('rio-v4@5.0.0+rules@1.3.0');
+    expect(promptId(RIO_V1)).toBe('rio-v4@5.1.0+rules@1.4.0');
   });
 });
 
@@ -219,5 +219,34 @@ describe('modo Coqueteo con los manuales v3 (Nova y Rio)', () => {
 
   it('en Amigo no entra nada del motor de coqueteo', () => {
     expect(modeMessage(rio, 'friend', 'es-419')!.content).not.toMatch(/escena/);
+  });
+});
+
+describe('conocer a la persona y cómo hablarle (rules@1.4.0)', () => {
+  it('el prompt pide conocer a la persona sin interrogatorios ni datos sensibles', () => {
+    const es = buildSystemPrompt(RIO_V1, 'es-US');
+    expect(es).toContain('Te interesa conocer a la persona');
+    expect(es).toContain('No preguntas por datos sensibles');
+    expect(es).toContain('«Memoria»');
+    const en = buildSystemPrompt(RIO_V1, 'en-US');
+    expect(en).toContain('You want to get to know the person');
+  });
+
+  it('cada personaje tiene su forma de conocerte', () => {
+    for (const slug of ['luna', 'nova', 'rio'] as const) {
+      const p = personaFor(slug);
+      expect(p.skills.es.some((l) => l.startsWith('Conocerte'))).toBe(true);
+      expect(p.skills.en.some((l) => l.startsWith('Getting to know them'))).toBe(true);
+    }
+  });
+
+  it('la forma de tratar la elige la persona; sin elegir, neutro y sin deducirlo de la voz', () => {
+    expect(addressMessage('feminine', 'es-US').content).toContain('amiga');
+    expect(addressMessage('masculine', 'es-US').content).toContain('amigo');
+    expect(addressMessage('neutral', 'es-US').content).toContain('neutras');
+    const unset = addressMessage('unset', 'es-US').content;
+    expect(unset).toContain('formas neutras');
+    expect(unset).toContain('No lo deduzcas de su voz');
+    expect(addressMessage('unset', 'en-US').content).toContain('Never infer it from their voice');
   });
 });

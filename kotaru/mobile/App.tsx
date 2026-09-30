@@ -6,7 +6,7 @@ import { openAccount, SERVER_URL } from './src/auth';
 import type { Connection } from './src/connection';
 import type { Lang } from './src/i18n';
 import { t } from './src/i18n';
-import { Conversation, type VoiceChoice } from './src/screens/Conversation';
+import { Conversation, type AddressForm, type VoiceChoice } from './src/screens/Conversation';
 import { Memories } from './src/screens/Memories';
 import { Settings } from './src/screens/Settings';
 import { Characters } from './src/screens/Characters';
@@ -31,6 +31,11 @@ export default function App() {
   const [connection, setConnection] = useState<Connection | null>(null);
   // Voz elegida en Ajustes para probar. En la web se recuerda en este navegador (no es un
   // dato personal: solo "auto", "gemini" o "cartesia").
+  const [address, setAddressState] = useState<AddressForm>(readAddress);
+  const setAddress = (form: AddressForm) => {
+    setAddressState(form);
+    writeAddress(form);
+  };
   const [voiceChoice, setVoiceChoiceState] = useState<VoiceChoice>(readVoiceChoice);
   const setVoiceChoice = (choice: VoiceChoice) => {
     setVoiceChoiceState(choice);
@@ -119,6 +124,7 @@ export default function App() {
             lang={lang}
             connection={connection}
             voiceChoice={voiceChoice}
+            address={address}
             backgrounds={backgrounds}
             requestedCompanion={requested}
             active={tab === 'talk'}
@@ -145,6 +151,8 @@ export default function App() {
             showDevConnection={showDevConnection}
             voiceChoice={voiceChoice}
             onVoiceChoice={setVoiceChoice}
+            address={address}
+            onAddress={setAddress}
             backgrounds={backgrounds}
             onBackgrounds={setBackgrounds}
             onConnection={(c) => {
@@ -207,6 +215,26 @@ function writeVoiceChoice(choice: VoiceChoice): void {
     (globalThis as { localStorage?: Storage }).localStorage?.setItem(VOICE_KEY, choice);
   } catch {
     // Navegador privado o sin almacenamiento: vale solo mientras la pagina este abierta.
+  }
+}
+
+const ADDRESS_KEY = 'kotaru.address';
+
+/** «Cómo te hablo»: se guarda en el dispositivo y se envia al conectar (no va a la memoria). */
+function readAddress(): AddressForm {
+  try {
+    const v = (globalThis as { localStorage?: Storage }).localStorage?.getItem(ADDRESS_KEY);
+    return v === 'masculine' || v === 'feminine' || v === 'neutral' ? v : 'unset';
+  } catch {
+    return 'unset';
+  }
+}
+
+function writeAddress(form: AddressForm): void {
+  try {
+    (globalThis as { localStorage?: Storage }).localStorage?.setItem(ADDRESS_KEY, form);
+  } catch {
+    // Sin almacenamiento: vale mientras la pagina este abierta.
   }
 }
 

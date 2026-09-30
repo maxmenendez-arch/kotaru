@@ -22,7 +22,7 @@ import {
   type ProviderResolver,
   type RouterPort,
 } from '@kotaru/orchestrator';
-import { buildSystemPrompt, CONVERSATION_MODES, memoryMessage, modeMessage, personaFor, promptId, type ConversationMode, type PersonaCard } from '@kotaru/persona';
+import { ADDRESS_FORMS, addressMessage, buildSystemPrompt, CONVERSATION_MODES, memoryMessage, modeMessage, personaFor, promptId, type AddressForm, type ConversationMode, type PersonaCard } from '@kotaru/persona';
 import { evaluateSafety, statesMinorAge } from '@kotaru/safety';
 import type { MetricSink } from '@kotaru/telemetry';
 
@@ -123,6 +123,7 @@ export class GatewaySession {
   readonly #history: DomainMessage[] = [];
   /** Modo elegido en la app (solo cuenta con Nova y Rio). */
   #mode: ConversationMode = 'ask';
+  #address: AddressForm = 'unset';
   /** El Coqueteo se acaba de activar: en el siguiente turno el personaje abre la escena. */
   #flirtJustActivated = false;
   /** Voz elegida en Ajustes para probar ('auto': el orden del operador). */
@@ -298,6 +299,11 @@ export class GatewaySession {
           if (message.mode !== 'flirt') this.#flirtJustActivated = false;
           this.#mode = message.mode;
         }
+        return;
+
+      case 'address':
+        // Igual que el modo: un valor raro se ignora.
+        if ((ADDRESS_FORMS as readonly string[]).includes(message.form)) this.#address = message.form;
         return;
 
       case 'voice_choice':
@@ -581,7 +587,8 @@ export class GatewaySession {
     const block = memoryMessage(recalled, this.#grant.locale);
     const mode = modeMessage(this.#persona, this.#mode, this.#grant.locale, { justActivated: this.#flirtJustActivated });
     this.#flirtJustActivated = false;
-    return [...this.#history, ...(block ? [block] : []), ...(mode ? [mode] : [])];
+    const address = addressMessage(this.#address, this.#grant.locale);
+    return [...this.#history, ...(block ? [block] : []), address, ...(mode ? [mode] : [])];
   }
 
   async #refreshUsage(): Promise<void> {

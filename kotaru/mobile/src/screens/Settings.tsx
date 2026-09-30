@@ -5,7 +5,9 @@ import type { Lang } from '../i18n';
 import { t } from '../i18n';
 import { color, radius, space, type } from '../theme';
 import { Body, Button, Card, Screen, Title } from '../ui/kit';
-import type { VoiceChoice } from './Conversation';
+import type { AddressForm, VoiceChoice } from './Conversation';
+
+const ADDRESS_FORMS: readonly AddressForm[] = ['masculine', 'feminine', 'neutral'];
 
 const VOICE_CHOICES: readonly VoiceChoice[] = ['auto', 'gemini', 'chirp', 'cartesia'];
 const RETENTION_CHOICES = [7, 30, 90, 365] as const;
@@ -17,6 +19,8 @@ export function Settings({
   showDevConnection,
   voiceChoice = 'auto',
   onVoiceChoice,
+  address = 'unset',
+  onAddress,
   backgrounds = true,
   onBackgrounds,
 }: {
@@ -27,6 +31,8 @@ export function Settings({
   showDevConnection: boolean;
   voiceChoice?: VoiceChoice;
   onVoiceChoice?: (choice: VoiceChoice) => void;
+  address?: AddressForm;
+  onAddress?: (form: AddressForm) => void;
   backgrounds?: boolean;
   onBackgrounds?: (on: boolean) => void;
 }) {
@@ -150,6 +156,18 @@ export function Settings({
             <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={s.backgroundsTitle}>
               <Button label={s.backgroundsOn} kind={backgrounds ? 'primary' : 'quiet'} onPress={() => onBackgrounds(true)} />
               <Button label={s.backgroundsOff} kind={backgrounds ? 'quiet' : 'primary'} onPress={() => onBackgrounds(false)} />
+            </View>
+          </Card>
+        ) : null}
+
+        {onAddress ? (
+          <Card>
+            <Text style={styles.label}>{s.addressTitle}</Text>
+            <Body muted>{s.addressBody}</Body>
+            <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={s.addressTitle}>
+              {ADDRESS_FORMS.map((f) => (
+                <Button key={f} label={s.addressChoices[f]} kind={f === address ? 'primary' : 'quiet'} onPress={() => onAddress(address === f ? 'unset' : f)} />
+              ))}
             </View>
           </Card>
         ) : null}

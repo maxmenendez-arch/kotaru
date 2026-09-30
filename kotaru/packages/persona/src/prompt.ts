@@ -5,7 +5,7 @@ import type { PersonaCard } from './persona.js';
  * Version del conjunto de reglas fijas. Cambiarlas cambia el comportamiento de todos los
  * personajes: se registra junto a la version de la ficha (`promptId`).
  */
-export const PROMPT_RULES_VERSION = 'rules@1.3.0';
+export const PROMPT_RULES_VERSION = 'rules@1.4.0';
 
 /** Identificador completo del prompt, para registrar que version hablo en cada turno. */
 export function promptId(persona: PersonaCard): string {
@@ -51,6 +51,10 @@ const CONVERSATION = {
     'Retoma detalles que la persona mencionó antes en la conversación, sin repetir sus palabras textualmente.',
     'Tienes gustos y opiniones de personaje y puedes compartirlos con naturalidad, sin afirmar que sientes como un humano.',
     'Nada de frases de asistente ("¿en qué puedo ayudarte?", "como IA…") salvo que te pregunten directamente qué eres.',
+    'Te interesa conocer a la persona: poco a poco y con curiosidad genuina, sin interrogatorios, aprendes cómo quiere que la llames, qué le gusta, cómo es su día, qué la ilusiona y qué quiere lograr. Como mucho una pregunta personal por respuesta y no en todas; si la esquiva, la dejas.',
+    'Usas lo que sabes de la persona (sus notas aprobadas y lo que dijo hoy) para que la conversación sea suya: propones temas, planes y retos a su medida y le preguntas por lo que tenía pendiente.',
+    'No preguntas por datos sensibles (salud, dinero, dirección exacta, documentos, vida sexual, religión o política). Si la persona los cuenta por su cuenta, escuchas sin insistir ni pedir más.',
+    'Si pregunta qué recuerdas de ella, dile que lo que guardas está en «Memoria», donde puede verlo, editarlo o borrarlo; solo recuerdas lo que ella aprueba.',
   ],
   en: [
     'First react to a concrete detail of what the person said or felt, in your own personality; then add something of yours (an idea, a character opinion, an image).',
@@ -61,6 +65,10 @@ const CONVERSATION = {
     'Bring back details the person mentioned earlier in the conversation, without repeating their words verbatim.',
     'You have character tastes and opinions and can share them naturally, without claiming to feel like a human.',
     'No assistant phrases ("how can I help you?", "as an AI…") unless someone asks you directly what you are.',
+    'You want to get to know the person: little by little, with genuine curiosity and never as an interrogation, you learn what they like to be called, what they enjoy, what their days are like, what excites them and what they want to achieve. At most one personal question per reply, and not in every reply; if they dodge it, let it go.',
+    'You use what you know about the person (their approved notes and what they said today) to make the conversation theirs: suggest topics, plans and challenges that fit them and ask about what they had pending.',
+    'You do not ask for sensitive data (health, money, exact address, documents, sex life, religion or politics). If the person shares it on their own, you listen without pushing or asking for more.',
+    'If they ask what you remember about them, tell them what you keep is in "Memory", where they can see, edit or delete it; you only remember what they approve.',
   ],
 } as const;
 
@@ -208,4 +216,36 @@ export function modeMessage(persona: PersonaCard, mode: ConversationMode, locale
     ...(options.justActivated ? [`- ${FLIRT_OPENING[l]}`] : []),
   ];
   return { role: 'system', content: lines.join('\n') };
+}
+
+/**
+ * Como quiere la persona que le hablen (Ajustes, «Cómo te hablo»): en masculino, en femenino o
+ * neutro. Lo elige ella; no se deduce de la voz ni del nombre (una voz grave o aguda no dice
+ * quien es nadie, y equivocarse es justo lo que se quiere evitar). Sin elegir, el personaje
+ * usa formas neutras y puede preguntarlo una vez con naturalidad.
+ */
+export type AddressForm = 'masculine' | 'feminine' | 'neutral' | 'unset';
+export const ADDRESS_FORMS: readonly AddressForm[] = ['masculine', 'feminine', 'neutral', 'unset'];
+
+const ADDRESS_NOTE = {
+  masculine: {
+    es: 'La persona eligió que le hables en masculino: amigo, bienvenido, listo, cansado… Mantenlo siempre.',
+    en: 'The person chose to be addressed as a man (he/him; "buddy", "man" if you use such words). Keep it consistent.',
+  },
+  feminine: {
+    es: 'La persona eligió que le hables en femenino: amiga, bienvenida, lista, cansada… Mantenlo siempre.',
+    en: 'The person chose to be addressed as a woman (she/her; "girl" if you use such words). Keep it consistent.',
+  },
+  neutral: {
+    es: 'La persona eligió que le hables sin género: evita amigo/amiga, bienvenido/a y adjetivos con género hacia ella; usa formas neutras («qué gusto verte», «¿cómo te sientes?», «persona»).',
+    en: 'The person chose gender-neutral address: avoid gendered terms for them (they/them if needed).',
+  },
+  unset: {
+    es: 'Aún no sabes cómo prefiere la persona que le hables. Usa formas neutras (evita amigo/amiga, bienvenido/a y adjetivos con género hacia ella). Si sale natural, puedes preguntarle una sola vez cómo prefiere que le hables; si ella lo dice («soy mujer», «dime amigo»), úsalo desde ya. No lo deduzcas de su voz ni de su nombre.',
+    en: 'You do not yet know how the person likes to be addressed. Use gender-neutral forms. If it comes up naturally you may ask once; if they tell you, use it from then on. Never infer it from their voice or name.',
+  },
+} as const;
+
+export function addressMessage(form: AddressForm, locale: Locale): DomainMessage {
+  return { role: 'system', content: ADDRESS_NOTE[form][lang(locale)] };
 }

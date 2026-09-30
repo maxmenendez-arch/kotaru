@@ -75,6 +75,8 @@ const HANDS_FREE_KEY = 'kotaru.handsFree';
 const PLACE_VOLUME = 0.22;
 const PLACE_DUCK = 0.55;
 
+/** Como quiere la persona que le hablen; lo elige ella (no se deduce de la voz). */
+export type AddressForm = 'masculine' | 'feminine' | 'neutral' | 'unset';
 export type VoiceChoice = 'auto' | 'gemini' | 'chirp' | 'cartesia';
 const VOICE_NAMES: Readonly<Record<string, string>> = { gemini: 'Gemini', chirp: 'Chirp', cartesia: 'Cartesia', kokoro: 'Kokoro' };
 
@@ -82,6 +84,7 @@ export function Conversation({
   lang,
   connection,
   voiceChoice = 'auto',
+  address = 'unset',
   backgrounds = true,
   onNavigate,
   requestedCompanion,
@@ -90,6 +93,8 @@ export function Conversation({
   lang: Lang;
   connection: Connection | null;
   voiceChoice?: VoiceChoice;
+  /** Como quiere que le hablen (Ajustes, «Cómo te hablo»). */
+  address?: AddressForm;
   /** false: retrato redondo sin fondo (Ajustes). */
   backgrounds?: boolean;
   /** Pantalla inmersiva: los iconos llevan a Ajustes, Memoria o la seleccion de personaje. */
@@ -280,6 +285,7 @@ export function Conversation({
     });
     next.setMode(modes[who] ?? 'ask');
     next.setVoiceChoice(voiceChoice);
+    next.setAddress(address);
     client.current = next;
     setLimitNote(null);
     try {
@@ -517,6 +523,9 @@ export function Conversation({
     client.current?.setVoiceChoice(voiceChoice);
     if (voiceChoice === 'auto') setVoiceUsed(null);
   }, [voiceChoice]);
+  useEffect(() => {
+    client.current?.setAddress(address);
+  }, [address]);
 
   const chooseMode = (m: ConversationMode) => {
     setModes((all) => ({ ...all, [companionId]: m }));

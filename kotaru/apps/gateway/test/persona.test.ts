@@ -46,7 +46,7 @@ describe('lo que recibe el modelo', () => {
     socket.close();
 
     const call = seen[0]!;
-    expect(call.options).toMatchObject({ personaId: 'rio-v4', promptVersion: 'rio-v4@5.0.0+rules@1.3.0' });
+    expect(call.options).toMatchObject({ personaId: 'rio-v4', promptVersion: 'rio-v4@5.1.0+rules@1.4.0' });
     expect(call.messages[0]).toMatchObject({ role: 'system' });
     expect(call.messages[0]!.content).toMatch(/eres una IA/i);
     const notes = call.messages.find((m) => m.role === 'system' && m.content.includes('<notas>'));
@@ -83,6 +83,40 @@ describe('lo que recibe el modelo', () => {
     expect(seen[0]!.at(-1)).toMatchObject({ role: 'user', content: 'hola' });
     expect(seen[0]!.at(-2)).toMatchObject({ role: 'system' });
     expect(seen[0]!.at(-2)!.content).toMatch(/modo Amigo/);
+  });
+});
+
+describe('cómo te hablo (Ajustes)', () => {
+  it('sin elegir, el personaje usa formas neutras; al elegir femenino, le habla en femenino', async () => {
+    const { deps } = buildDeps('hola');
+    const seen: (readonly DomainMessage[])[] = [];
+    const inner = deps.resolve.llm('mock-llm')!;
+    const spy = {
+      descriptor: inner.descriptor,
+      estimate: inner.estimate.bind(inner),
+      health: inner.health.bind(inner),
+      stream(messages: readonly DomainMessage[], options: LlmOptions, ctx: Parameters<typeof inner.stream>[2]) {
+        seen.push(messages);
+        return inner.stream(messages, options, ctx);
+      },
+    };
+    server = await startGatewayServer({ port: 0, keys: [key], audience: AUDIENCE, deps: { ...deps, resolve: { ...deps.resolve, llm: () => spy } } });
+    const { socket, collected } = await connect(server.port);
+    const grant = signGrant({ ...claims, companionId: 'luna' }, key, { nowSeconds: Math.floor(Date.now() / 1000) });
+    socket.send(JSON.stringify({ type: 'hello', grant, protocolVersion: PROTOCOL_VERSION }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'ready'));
+    socket.send(JSON.stringify({ type: 'text_turn', turnId: 't1', text: 'hola' }));
+    await waitFor(collected, (m) => m.filter((x) => x.type === 'turn_done').length === 1);
+    socket.send(JSON.stringify({ type: 'address', form: 'feminine' }));
+    socket.send(JSON.stringify({ type: 'address', form: 'robot' }));
+    socket.send(JSON.stringify({ type: 'text_turn', turnId: 't2', text: 'otra vez' }));
+    await waitFor(collected, (m) => m.filter((x) => x.type === 'turn_done').length === 2);
+    socket.close();
+    const first = seen[0]!.map((m) => m.content).join('\n');
+    const second = seen[1]!.map((m) => m.content).join('\n');
+    expect(first).toMatch(/Usa formas neutras/);
+    expect(second).toMatch(/le hables en femenino/);
+    expect(second).not.toMatch(/Usa formas neutras/);
   });
 });
 

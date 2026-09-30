@@ -33,6 +33,8 @@ export type ClientMessage =
   | { readonly type: 'interrupt'; readonly turnId: string }
   /** Modo elegido para Nova o Rio: amigo, coqueteo o que lo decida la conversacion. */
   | { readonly type: 'mode'; readonly mode: 'friend' | 'flirt' | 'ask' }
+  /** Como quiere que le hablen (Ajustes, «Cómo te hablo»): lo elige la persona, no se deduce. */
+  | { readonly type: 'address'; readonly form: 'masculine' | 'feminine' | 'neutral' | 'unset' }
   /**
    * Voz elegida en Ajustes para probar: la de Gemini, la de Cartesia o la automatica (el
    * orden del operador). Si la elegida falla, habla la siguiente: no se queda muda.
@@ -116,6 +118,7 @@ export function isClientMessage(value: unknown): value is ClientMessage {
     type === 'interrupt' ||
     type === 'text_turn' ||
     type === 'mode' ||
+    type === 'address' ||
     type === 'voice_choice' ||
     type === 'bye'
   );

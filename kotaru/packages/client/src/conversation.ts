@@ -117,6 +117,7 @@ export class ConversationClient {
   #closedByUser = false;
   #counter = 0;
   #mode: 'friend' | 'flirt' | 'ask' = 'ask';
+  #address: 'masculine' | 'feminine' | 'neutral' | 'unset' = 'unset';
   #voiceChoice: 'auto' | 'gemini' | 'chirp' | 'cartesia' = 'auto';
 
   constructor(options: ConversationClientOptions) {
@@ -157,6 +158,7 @@ export class ConversationClient {
           this.#attempt = 0;
           this.#o.onEvent({ type: 'voice', available: message.voiceAvailable !== false });
           if (this.#mode !== 'ask') this.#send({ type: 'mode', mode: this.#mode });
+          if (this.#address !== 'unset') this.#send({ type: 'address', form: this.#address });
           if (this.#voiceChoice !== 'auto') this.#send({ type: 'voice_choice', choice: this.#voiceChoice });
           this.#set('idle');
           resolve();
@@ -219,6 +221,15 @@ export class ConversationClient {
    * Modo elegido para Nova o Rio (amigo, coqueteo o que lo decida la conversacion). Se
    * recuerda y se reenvia al reconectar; vale desde el siguiente mensaje.
    */
+  /**
+   * Como quiere la persona que le hablen (masculino, femenino o neutro). Se recuerda y se
+   * reenvia al reconectar; vale desde la siguiente respuesta.
+   */
+  setAddress(form: 'masculine' | 'feminine' | 'neutral' | 'unset'): void {
+    this.#address = form;
+    if (this.#socket?.readyState === OPEN) this.#send({ type: 'address', form });
+  }
+
   setMode(mode: 'friend' | 'flirt' | 'ask'): void {
     this.#mode = mode;
     if (this.#socket?.readyState === OPEN) this.#send({ type: 'mode', mode });
