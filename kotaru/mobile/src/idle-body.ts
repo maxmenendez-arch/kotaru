@@ -359,11 +359,11 @@ export class IdleBody {
 
     // Cabeza: inclinacion lenta (Nova), asentir al hablar (Luna, Rio) y mirar alrededor (Rio).
     const tilt = Math.sin(t * 0.37 + 0.9) * st.headTilt * k * (0.6 + g * 0.8);
-    const nod = Math.sin(time * st.gestureRate * Math.PI * 0.5) * st.nod * g;
+    const nod = Math.sin(time * st.gestureRate * Math.PI * 0.35) * st.nod * g * 0.8;
     // Al hablar mira a la persona: la mirada al paisaje se apaga en cuanto empieza a hablar.
     const look = st.lookAround * Math.max(0, 1 - g * 1.6) * this.#lookAround(time);
     // Al escuchar: la cabeza un poco ladeada y asentimientos lentos cada pocos segundos.
-    const listenNod = L * st.nod * 1.4 * Math.max(0, Math.sin(time * 1.3)) ** 6;
+    const listenNod = L * st.nod * 1.1 * Math.max(0, Math.sin(time * 0.7)) ** 4;
     this.head.x = nod + listenNod + L * 0.03;
     this.head.y = look * (1 - L);
     this.head.z = tilt + L * 0.05;
@@ -394,9 +394,10 @@ export class IdleBody {
         this.#seed = (this.#seed * 1664525 + 1013904223) >>> 0;
         return this.#seed / 4294967296;
       };
-      const away = r() < 0.45;
-      this.#glance = away ? { x: (r() - 0.5) * 0.08, y: (r() - 0.5) * 0.04 } : { x: 0, y: 0 };
-      this.#glanceAt = t + 1.2 + r() * 2.3;
+      // Menos saltos de mirada y mas cortos: muchos seguidos parecian nerviosos.
+      const away = r() < 0.3;
+      this.#glance = away ? { x: (r() - 0.5) * 0.05, y: (r() - 0.5) * 0.025 } : { x: 0, y: 0 };
+      this.#glanceAt = t + 2.5 + r() * 4;
     }
     return this.#glance;
   }

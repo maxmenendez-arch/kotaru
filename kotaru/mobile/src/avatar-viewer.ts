@@ -345,9 +345,9 @@ function animate(
     const pose = stateOffset(p.state);
     const gesture = reduce || !p.affect ? { x: 0, y: 0, z: 0 } : gestureOffset(p.affect.gesture, (now - p.affect.at) / 1000);
     const sway = reduce ? 0 : 1;
-    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x, dt, 6);
-    headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway + body.head.y + lookAway * 0.45, dt, 6);
-    headZ = approach(headZ, pose.z + gesture.z + Math.sin(t * 0.6) * 0.02 * sway + body.head.z, dt, 6);
+    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x, dt, 3);
+    headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway + body.head.y + lookAway * 0.45, dt, 3);
+    headZ = approach(headZ, pose.z + gesture.z + Math.sin(t * 0.6) * 0.02 * sway + body.head.z, dt, 3);
     if (neck) neck.rotation.set(headX * 0.4, headY * 0.4, headZ * 0.4);
     if (head) head.rotation.set(headX * 0.6, headY * 0.6, headZ * 0.6);
 
@@ -382,7 +382,7 @@ function animate(
     focusNow = cut ? closeness : focusNow + (closeness - focusNow) * Math.min(1, dt * 3);
     post?.setFocus(focusNow);
     // Captura de movimiento real encima del de codigo (postura, peso, gestos al hablar).
-    motion?.update(dt, { speaking, still: reduce, arm: body.arm, busy: p.state === 'listening' || p.state === 'thinking', noActions: !!cue });
+    motion?.update(dt, { speaking, still: reduce, arm: body.arm, busy: p.state === 'listening' || p.state === 'thinking', noActions: !!cue, flirt: p.mood === 'flirt' });
     // Recado (ir a por agua): mira hacia donde anda, y su voz viene de donde esta.
     const errand = motion?.errand ?? null;
     if (errand && errand.lookAhead > 0) {
@@ -401,7 +401,7 @@ function animate(
     // Pruebas: ?act=drink (o hair, errand) hace esa accion en cuanto se puede.
     if (motion && pendingAct && motion.ready && motion.act(pendingAct)) pendingAct = null;
     // Por ultimo: sacar los brazos de dentro de la ropa si hace falta.
-    collider?.update();
+    collider?.update(motion?.behind ?? 0);
     stage?.update(t, reduce);
     vrm.update(dt);
     if (post) post.render(scene, camera, t);

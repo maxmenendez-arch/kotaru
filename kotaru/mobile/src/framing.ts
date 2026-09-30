@@ -3,7 +3,7 @@
  *
  * - `portrait`: el retrato redondo de siempre (busto).
  * - `stage`: el escenario ancho sobre la conversacion (busto con algo de fondo).
- * - `immersive`: pantalla completa con el personaje de tres cuartos (cabeza a cadera) y
+ * - `immersive`: pantalla completa con el personaje de medio cuerpo (cabeza a cintura) y
  *   los controles flotando encima, abajo. La cabeza queda cerca del borde de arriba para
  *   que el panel de conversacion no la tape.
  */
@@ -38,13 +38,15 @@ export function frameCamera(framing: Framing, aspect: number, headY: number, fre
   }
   const fov = 30;
   // Alto visible a la altura del personaje: en vertical (telefono), de la cabeza a la
-  // cadera; en horizontal (ordenador) algo mas cerca, de la cabeza a la cintura.
+  // cintura; en horizontal (ordenador) algo mas cerca, hasta el pecho y la cintura. Cerca: el
+  // personaje se ve mas presente y las manos en reposo (donde mas se notan los fallos de
+  // la animacion) quedan justo por debajo del borde; al gesticular suben y se ven.
   const k = Math.min(1, Math.max(0, (aspect - 0.7) / 0.9));
   const headTop = headY + 0.11;
   // La barbilla queda unos 23 cm por debajo de lo alto de la cabeza; con 5 % de margen
   // sobre el panel. Nunca mas lejos de lo que muestra medio cuerpo (1,6 m).
   const room = Math.max(0.08, Math.min(1, freeBottom) - 0.05 - 0.17);
-  const span = Math.min(1.6, Math.max(1.0 - k * 0.24, 0.23 / room));
+  const span = Math.min(1.6, Math.max(0.8 - k * 0.12, 0.23 / room));
   // Arriba quedan el selector y la linea del nombre: la cabeza empieza por debajo.
   const top = headTop + span * 0.17;
   const center = top - span / 2;
