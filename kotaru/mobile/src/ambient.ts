@@ -24,9 +24,9 @@ export function createAmbient(): Ambient {
 }
 
 /** Ambiente de un lugar o musica de un short (scene-sounds.ts). */
-export function createSoundscape<K extends string>(builders: Readonly<Record<K, Builder>>, volume: number): Soundscape<K> {
+export function createSoundscape<K extends string>(builders: Readonly<Record<K, Builder>>, volume: number, duckLevel?: number): Soundscape<K> {
   try {
-    return new EngineSound<K>(builders, () => new NativeAudioContext() as unknown as AudioContext, () => void activateAudioSession(), {}, volume);
+    return new EngineSound<K>(builders, () => new NativeAudioContext() as unknown as AudioContext, () => void activateAudioSession(), duckLevel !== undefined ? { duckLevel } : {}, volume);
   } catch {
     return silentSoundscape<K>();
   }

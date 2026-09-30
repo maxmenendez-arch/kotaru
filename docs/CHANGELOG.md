@@ -2,6 +2,19 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — Volumen: la voz del personaje por encima del sonido del lugar
+
+- **Qué notó el dueño:** al tocar para hablar, el volumen subía «a como debería», y cuando hablaba el personaje se oía bajo.
+- **Causa:** el sonido del lugar sonaba alto mientras la persona hablaba y bajaba al 15 % cuando hablaba el personaje. Por contraste, la voz parecía baja. Además, la voz entraba al limitador sin margen.
+- **Arreglo:**
+  - El lugar suena bajo y casi constante (volumen 0,22 y, mientras habla el personaje, 55 %; antes 0,45 y 15 %).
+  - La voz del personaje sube ≈ +4 dB antes del limitador (`VOICE_GAIN`, `audio.web.ts`); el medidor de la boca no cambia.
+  - `EngineOptions.duckLevel` permite cuánto baja cada sonido.
+- **Medido en Chromium** (lluvia y coches de Nova con una voz de prueba normalizada como la de TTS):
+  - fondo mientras la persona habla: −26,7 dB antes, −32,7 dB ahora;
+  - mezcla con el personaje hablando: −13,5 dB antes, −12,5 dB ahora;
+  - diferencia entre la voz y el fondo: 13 dB antes, 20 dB ahora.
+
 ## 2026-09-30 — Voces: Nova Sulafat, Luna Despina (siempre femenina); saludo con risa en los shorts
 
 - **Voces elegidas por el dueño:** Nova «Sulafat» y Luna «Despina», en Gemini y en Chirp (`apps/gateway/src/voices.ts`). En el servidor hay que cambiar también `KOTARU_GEMINI_VOICES`, que manda sobre el código.

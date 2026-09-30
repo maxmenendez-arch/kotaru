@@ -122,6 +122,9 @@ class WebMicrophone implements AudioInput {
 /** Margen al empezar a sonar: absorbe trozos que llegan un poco tarde sin cortar la voz. */
 const START_MARGIN_S = 0.12;
 
+/** Ganancia de la voz del personaje en la mezcla (1 = como llega). */
+export const VOICE_GAIN = 1.6;
+
 class WebSpeaker implements AudioOutput {
   #context: AudioContext | null = null;
   #analyser: AnalyserNode | null = null;
@@ -144,7 +147,11 @@ class WebSpeaker implements AudioOutput {
     if (!this.#analyser) {
       this.#analyser = context.createAnalyser();
       this.#analyser.fftSize = 512;
-      this.#analyser.connect(sharedOutput()?.bus ?? context.destination);
+      // La voz va algo por encima del resto (≈ +4 dB) para que siempre se oiga clara sobre
+      // el sonido del lugar; el limitador de la mezcla evita que sature.
+      const lift = context.createGain();
+      lift.gain.value = VOICE_GAIN;
+      this.#analyser.connect(lift).connect(sharedOutput()?.bus ?? context.destination);
       this.#samples = new Float32Array(this.#analyser.fftSize);
     }
     return this.#analyser;

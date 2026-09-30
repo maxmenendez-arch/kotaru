@@ -21,6 +21,8 @@ export interface EngineOptions {
   readonly output?: (ctx: AudioContext) => AudioNode;
   /** El contexto es compartido con la voz: al cerrar la pantalla no se cierra. */
   readonly sharedContext?: boolean;
+  /** Cuanto queda mientras habla el personaje (0-1). Por defecto casi nada (DUCK_LEVEL). */
+  readonly duckLevel?: number;
 }
 
 /** Un sonido en marcha: sus nodos y sus temporizadores, para pararlo limpio. */
@@ -123,7 +125,7 @@ export class EngineSound<K extends string> {
 
   #applyMaster(rampS = 0.3): void {
     if (!this.#context || !this.#master) return;
-    const target = this.#volume * (this.#ducked ? DUCK_LEVEL : 1);
+    const target = this.#volume * (this.#ducked ? (this.#options.duckLevel ?? DUCK_LEVEL) : 1);
     const now = this.#context.currentTime;
     this.#master.gain.cancelScheduledValues(now);
     this.#master.gain.setValueAtTime(this.#master.gain.value, now);

@@ -17,7 +17,7 @@ export function createAmbient(): Ambient {
 }
 
 /** Ambiente de un lugar o musica de un short (scene-sounds.ts), en el contexto de la voz. */
-export function createSoundscape<K extends string>(builders: Readonly<Record<K, Builder>>, volume: number): Soundscape<K> {
+export function createSoundscape<K extends string>(builders: Readonly<Record<K, Builder>>, volume: number, duckLevel?: number): Soundscape<K> {
   if (!audioContextCtor()) return silentSoundscape<K>();
-  return new EngineSound<K>(builders, () => sharedOutput()?.context ?? null, () => undefined, { output: (ctx) => sharedOutput()?.bus ?? ctx.destination, sharedContext: true }, volume);
+  return new EngineSound<K>(builders, () => sharedOutput()?.context ?? null, () => undefined, { output: (ctx) => sharedOutput()?.bus ?? ctx.destination, sharedContext: true, ...(duckLevel !== undefined ? { duckLevel } : {}) }, volume);
 }

@@ -62,7 +62,12 @@ const RING: Record<ConversationState, string> = {
 };
 
 const PLACE_KEY = 'kotaru.placeSound';
-const PLACE_VOLUME = 0.45;
+/**
+ * El lugar suena bajo y casi constante: si subia al escuchar y bajaba mucho al hablar el
+ * personaje, su voz parecia mas baja por contraste (lo noto el dueño el 2026-09-29).
+ */
+const PLACE_VOLUME = 0.22;
+const PLACE_DUCK = 0.55;
 
 export type VoiceChoice = 'auto' | 'gemini' | 'chirp' | 'cartesia';
 const VOICE_NAMES: Readonly<Record<string, string>> = { gemini: 'Gemini', chirp: 'Chirp', cartesia: 'Cartesia', kokoro: 'Kokoro' };
@@ -118,7 +123,7 @@ export function Conversation({
   const [ambientVolume, setAmbientVolume] = useState(ambient.volume);
   // Sonido del lugar (lluvia y coches en el cuarto de Nova, pajaros en la oficina de Luna,
   // fogata y grillos en el claro de Rio): bajo, siempre de fondo, y baja mas cuando hablan.
-  const place = useRef(createSoundscape(SCENE_BUILDERS, PLACE_VOLUME)).current;
+  const place = useRef(createSoundscape(SCENE_BUILDERS, PLACE_VOLUME, PLACE_DUCK)).current;
   const [placeOn, setPlaceOnState] = useState(() => readFlag(PLACE_KEY, true));
   const setPlaceOn = (on: boolean) => {
     setPlaceOnState(on);
