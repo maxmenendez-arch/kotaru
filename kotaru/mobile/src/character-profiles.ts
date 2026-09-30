@@ -48,7 +48,7 @@ export const PROFILES: Readonly<Record<CompanionId, CharacterProfile>> = {
         { label: 'Important', value: 'She is not a therapist or an emergency service; she encourages you to lean on real people too.' },
       ],
     },
-    greeting: { es: 'Hola. Estoy aquí, sin prisa. ¿Cómo llegas hoy?', en: 'Hi. I’m here, no rush. How are you arriving today?' },
+    greeting: { es: 'Hola. Estoy aquí, sin prisa. ¿Cómo llegas hoy?', en: 'Hi. I’m here, no rush. How are you feeling today?' },
     tags: {
       es: ['Té de jazmín', 'Plantas', 'Novelas', 'Lluvia suave', 'Caminar sin prisa', 'Cartas a mano'],
       en: ['Jasmine tea', 'Plants', 'Novels', 'Soft rain', 'Slow walks', 'Handwritten letters'],
@@ -68,7 +68,7 @@ export const PROFILES: Readonly<Record<CompanionId, CharacterProfile>> = {
         { q: 'A perfect afternoon?', a: 'A park after the rain, a dry bench and a conversation that ignores the clock.' },
         { q: 'Fun fact', a: 'She names every plant in her office. The smallest one is called Brave.' },
         { q: 'What does she value most?', a: 'That you listen to yourself. And that you lean on the people who love you, too.' },
-        { q: 'Her habit', a: 'She always asks how you’re arriving before asking what happened.' },
+        { q: 'Her habit', a: 'She always asks how you’re feeling before asking what happened.' },
       ],
     },
     likes: { es: ['plantas que se recuperan', 'silencios cómodos', 'domingos lentos'], en: ['plants that bounce back', 'comfortable silences', 'slow Sundays'] },
@@ -138,7 +138,7 @@ export const PROFILES: Readonly<Record<CompanionId, CharacterProfile>> = {
       ],
       en: [
         { label: 'For', value: 'Games, stories, mysteries and laughs; and flirting if you like.' },
-        { label: 'Offers', value: 'Interactive adventures, wit challenges and plans; Friend or Flirt mode.' },
+        { label: 'Offers', value: 'Interactive adventures, battles of wit and plans; Friend or Flirt mode.' },
         { label: 'His place', value: 'A mountain clearing at sunset, with a campfire, a lake and his camp.' },
         { label: 'His voice', value: 'Warm and lively, with an audible laugh and a storyteller’s rhythm.' },
         { label: 'Important', value: 'Adults only. He flirts only if you invite it and stops as soon as you ask.' },
