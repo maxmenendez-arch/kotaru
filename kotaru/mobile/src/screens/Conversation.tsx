@@ -4,6 +4,8 @@ import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type
 import { createAmbient, createSoundscape, type AmbientKind } from '../ambient';
 import { keepCallAudio } from '../call-audio';
 import { readFlag, writeFlag } from '../prefs';
+import { classifyReaction, reactionFor, type Particles } from '../reactions';
+import { ReactionBurst } from '../ui/reaction-burst';
 import { SCENE_BUILDERS, SCENE_OF } from '../scene-sounds';
 import { createAudio } from '../audio';
 import { Avatar } from '../avatar';
@@ -147,6 +149,13 @@ export function Conversation({
   }, [active]);
   // Con un sonido relajante elegido (lluvia, olas...), el lugar queda mas bajo debajo.
   useEffect(() => place.setVolume(ambientKind ? PLACE_VOLUME * 0.5 : PLACE_VOLUME), [ambientKind, place]);
+  // Reaccion al momento a lo que dice la persona (reactions.ts): cara, gesto y particulas.
+  const [burst, setBurst] = useState<{ n: number; particles: Particles }>({ n: 0, particles: 'none' });
+  const react = (text: string) => {
+    const r = reactionFor(classifyReaction(text), companionId, mode);
+    setAffect({ emotion: r.emotion, intensity: r.intensity, gesture: r.gesture, at: performance.now() });
+    setBurst((b) => ({ n: b.n + 1, particles: r.particles }));
+  };
   const [breathing, setBreathing] = useState(false);
   // Pantalla inmersiva: panel abierto desde un icono y si se esta escribiendo.
   const [sheet, setSheet] = useState<null | 'history' | 'sounds' | 'mode'>(null);
@@ -206,6 +215,7 @@ export function Conversation({
         return;
       case 'user_transcript':
         setHeard(e.text);
+        if (e.final && e.text.trim()) react(e.text);
         return;
       case 'reply':
         setReply(e.text);
@@ -310,6 +320,7 @@ export function Conversation({
     }
     speaker.current.stopNow();
     if (client.current?.sendText(text)) {
+      react(text);
       archiveCurrent();
       setHeard(text);
       setReply('');
@@ -592,6 +603,7 @@ export function Conversation({
             {avatar(Math.round(area.height), Math.round(area.width))}
           </View>
         ) : null}
+        <ReactionBurst particles={burst.particles} burst={burst.n} />
         <EdgeGlow state={shown} level={() => (shown === 'listening' ? mic.current.level?.() ?? 0.3 : speaker.current.level?.() ?? 0)} accent={companion.accent} />
 
         {/* Arriba a la izquierda: quien es (siempre dice que es una IA) y en que estado esta. */}

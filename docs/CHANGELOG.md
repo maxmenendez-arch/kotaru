@@ -2,6 +2,19 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — Reacciones al momento a lo que se le dice al personaje
+
+- **`mobile/src/reactions.ts`:** clasifica el tono de lo que la persona dijo o escribió, en el dispositivo, por palabras en español e inglés, sin llamar a nadie ni guardar nada.
+  - Tonos: amor, intriga, expectativa, alegría, ternura (algo triste o difícil) y atención.
+  - Cada tono lleva su reacción: cara, gesto y partículas.
+  - **Siempre positivas:**
+    - ante algo triste, ternura y atención, sin partículas;
+    - lo difícil gana sobre el resto («estoy triste, te quiero» → ternura);
+    - corazones solo en coqueteo (Nova y Rio en Coqueteo o «Tú decides»); Luna y el modo Amigo responden al cariño con destellos cálidos.
+- **Cuándo:** en cuanto llega la transcripción final de lo que se dijo (o al enviar un texto), antes de la respuesta. La emoción de la respuesta llega después y la sustituye.
+- **`ui/reaction-burst.web.tsx`:** 12 partículas (corazones, destellos o estrellas) que suben y se desvanecen alrededor del personaje durante unos 2 s. Son SVG propios con animación CSS, no bloquean toques y se ocultan con «reducir movimiento». En nativo, solo la cara.
+- **Verificación:** `mobile` con 71 pruebas (4 nuevas: tonos es/en, que lo difícil gana, siempre positivas y corazones solo en coqueteo); captura de las tres partículas.
+
 ## 2026-09-30 — Volumen estable en iPhone, «hola» natural, brazos visibles, viento en el pelo y enfoque de retrato
 
 - **Volumen a la mitad cuando habla el personaje** (el dueño lo notó dos veces):
