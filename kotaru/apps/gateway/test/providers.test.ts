@@ -189,3 +189,14 @@ describe('proveedores del gateway', () => {
     expect(buildProviders(unreviewed.providers, unreviewed.providerSettings, Date.now).blocked.map((b) => b.id)).toContain('google-chirp3-hd');
   });
 });
+
+describe('voces elegidas por el dueño', () => {
+  it('Nova Sulafat, Luna Despina y Rio Algieba, en Gemini y en Chirp', async () => {
+    const { geminiVoices, chirpVoices } = await import('../src/voices.js');
+    expect(geminiVoices().nova.voice).toBe('Sulafat');
+    expect(geminiVoices().luna.voice).toBe('Despina');
+    expect(geminiVoices().rio.voice).toBe('Algieba');
+    expect(chirpVoices().nova.voice).toBe('Sulafat');
+    expect(chirpVoices().luna.voice).toBe('Despina');
+  });
+});

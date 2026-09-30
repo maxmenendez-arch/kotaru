@@ -14,12 +14,14 @@ export const GEMINI_VOICE_NAMES = [
 ] as const;
 
 /**
- * Elegidas de oido por el dueño el 2026-09-28 con deploy/muestras-voz.sh: Nova "Leda"
- * (Youthful), Luna "Vindemiatrix" (Gentle, transmite paz) y Rio "Algieba" (Smooth, masculina).
+ * Elegidas de oido por el dueño. El 2026-09-28 (deploy/muestras-voz.sh): Rio "Algieba"
+ * (Smooth, masculina). El 2026-09-29 (deploy/voz-luna.py, voces femeninas): Nova "Sulafat"
+ * (Warm) y Luna "Despina" (Smooth), porque con Vindemiatrix no se sabia si Luna era chico o
+ * chica. Antes: Nova "Leda", Luna "Vindemiatrix".
  */
 export const DEFAULT_GEMINI_VOICES: Readonly<Record<CompanionSlug, string>> = {
-  nova: 'Leda',
-  luna: 'Vindemiatrix',
+  nova: 'Sulafat',
+  luna: 'Despina',
   rio: 'Algieba',
 };
 
