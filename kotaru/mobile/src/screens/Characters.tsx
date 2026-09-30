@@ -161,6 +161,8 @@ export function Characters({
   const profileOpen = heroHeight > 0 && scrolled > heroHeight * 0.35;
   const veil = Math.min(0.72, scrolled / Math.max(1, height * 0.7));
   const topSpace = Math.max(0, height - STRIP_HEIGHT - heroHeight);
+  // La pista de «desliza» se va en cuanto se empieza a deslizar (ya cumplio su funcion).
+  const hintOpacity = Math.max(0, 1 - scrolled / Math.max(1, heroHeight * 0.2));
 
   return (
     <View
@@ -243,7 +245,7 @@ export function Characters({
             accessibilityRole="button"
             accessibilityLabel={s.profileHint}
             onPress={() => scroll.current?.scrollTo({ y: heroHeight * 0.9, animated: true })}
-            style={styles.hint}
+            style={[styles.hint, { opacity: hintOpacity }]}
           >
             <Text style={styles.hintText}>⌃ {s.profileHint}</Text>
           </Pressable>
@@ -297,6 +299,14 @@ export function Characters({
           <View style={{ height: space.xxxl + space.xl }} />
         </View>
       </ScrollView>
+
+      {/* Con el perfil abierto, franjas de fondo arriba (bajo el nombre) y abajo (bajo «Elegir»):
+          el texto que pasa por detras ya no se mezcla con ellos. */}
+      <View
+        pointerEvents="none"
+        style={[styles.topBand, { left: stageLeft, width: stageWidth, opacity: profileOpen ? 1 : 0 }]}
+      />
+      {profileOpen ? <View pointerEvents="none" style={[styles.ctaBand, { left: stageLeft, width: stageWidth, bottom: STRIP_HEIGHT }]} /> : null}
 
       {/* Arriba: volver y la marca de IA (siempre visible). */}
       <View style={[styles.top, { left: stageLeft + space.l, right: stageLeft + space.l }]} pointerEvents="box-none">
@@ -419,6 +429,8 @@ const styles = StyleSheet.create({
   aiPill: { paddingHorizontal: space.m, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(11,16,32,0.55)' },
   aiText: { ...type.micro, color: color.cloud, letterSpacing: 0.3 },
   cta: { position: 'absolute', alignSelf: 'center' },
+  topBand: { position: 'absolute', top: 0, height: space.m * 2 + 44, backgroundColor: 'rgba(8,10,20,0.94)', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  ctaBand: { position: 'absolute', height: 50 + space.s * 2, backgroundColor: 'rgba(8,10,20,0.9)' },
   ctaButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, backgroundColor: color.cloud, borderRadius: radius.pill, minHeight: 50 },
   strip: {
     position: 'absolute',
