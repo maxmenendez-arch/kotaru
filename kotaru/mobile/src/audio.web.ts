@@ -222,6 +222,7 @@ class WebSpeaker implements AudioOutput {
     if (this.#context !== out.context) {
       this.#context = out.context;
       this.#analyser = null;
+      this.#pan = this.#muffle = this.#distance = null;
     }
     void out.context.resume();
   }
@@ -235,10 +236,32 @@ class WebSpeaker implements AudioOutput {
       // el sonido del lugar; el limitador de la mezcla evita que sature.
       const lift = context.createGain();
       lift.gain.value = VOICE_GAIN;
-      this.#analyser.connect(lift).connect(sharedOutput()?.bus ?? context.destination);
+      // Donde esta el personaje en el cuarto: a un lado (pan), y de lejos algo mas baja y
+      // apagada (menos agudos), como una voz desde el otro extremo de la habitacion.
+      this.#pan = context.createStereoPanner();
+      this.#muffle = context.createBiquadFilter();
+      this.#muffle.type = 'lowpass';
+      this.#muffle.frequency.value = 20000;
+      this.#distance = context.createGain();
+      this.#analyser.connect(lift).connect(this.#pan).connect(this.#muffle).connect(this.#distance).connect(sharedOutput()?.bus ?? context.destination);
       this.#samples = new Float32Array(this.#analyser.fftSize);
     }
     return this.#analyser;
+  }
+
+  #pan: StereoPannerNode | null = null;
+  #muffle: BiquadFilterNode | null = null;
+  #distance: GainNode | null = null;
+
+  place(pan: number, far: number): void {
+    const context = this.#context;
+    if (!context || !this.#pan || !this.#muffle || !this.#distance) return;
+    const at = context.currentTime;
+    const p = Math.max(-1, Math.min(1, pan)) * 0.85;
+    const f = Math.max(0, Math.min(1, far));
+    this.#pan.pan.setTargetAtTime(p, at, 0.12);
+    this.#muffle.frequency.setTargetAtTime(20000 * Math.pow(3000 / 20000, f), at, 0.15);
+    this.#distance.gain.setTargetAtTime(1 - 0.5 * f, at, 0.15);
   }
 
   level(): number {
@@ -295,6 +318,10 @@ class WebSpeaker implements AudioOutput {
     this.stopNow();
     // El contexto es compartido con los sonidos relajantes: no se cierra, solo se suelta.
     this.#analyser?.disconnect();
+    this.#pan?.disconnect();
+    this.#muffle?.disconnect();
+    this.#distance?.disconnect();
+    this.#pan = this.#muffle = this.#distance = null;
     this.#context = null;
     this.#analyser = null;
     this.#samples = null;

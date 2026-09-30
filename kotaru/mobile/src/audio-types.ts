@@ -31,6 +31,11 @@ export interface AudioOutput {
    * nivel en el momento: no se guarda ni se analiza el contenido del audio.
    */
   level?(): number;
+  /**
+   * De donde viene la voz: -1 (izquierda) a 1 (derecha) y lejania 0-1 (el personaje se fue al
+   * otro lado del cuarto a por agua: errand.ts). Opcional; por defecto, delante y cerca.
+   */
+  place?(pan: number, far: number): void;
   /** true mientras quede voz en cola por sonar (aunque el turno ya haya terminado). */
   isPlaying?(): boolean;
   dispose(): void;

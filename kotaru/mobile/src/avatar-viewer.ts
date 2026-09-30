@@ -248,6 +248,17 @@ function animate(
   const hairWind = createHairWind(vrm, props().companion, reduce);
   const neck = vrm.humanoid.getNormalizedBoneNode('neck');
   const head = vrm.humanoid.getNormalizedBoneNode('head');
+  const ahead = new THREE.Vector3();
+  const aheadPoint = new THREE.Vector3();
+  const camRight = new THREE.Vector3();
+  let lastPan = 0;
+  let lastFar = 0;
+  // Hacia donde mira el modelo en reposo respecto a su eje +Z (hacia la camara o al reves).
+  const faceSign = (() => {
+    const d = vrm.scene.getWorldDirection(new THREE.Vector3());
+    const h = (head ?? vrm.scene).getWorldPosition(new THREE.Vector3());
+    return d.dot(camera.position.clone().sub(h)) >= 0 ? 1 : -1;
+  })();
 
   // Con fondo se dibuja mucho mas por cuadro: a 30 por segundo basta (lluvia, velas y boca
   // se ven igual de fluidas) y el telefono gasta la mitad. Y si el escenario no esta en
@@ -372,7 +383,22 @@ function animate(
     post?.setFocus(focusNow);
     // Captura de movimiento real encima del de codigo (postura, peso, gestos al hablar).
     motion?.update(dt, { speaking, still: reduce, arm: body.arm, busy: p.state === 'listening' || p.state === 'thinking', noActions: !!cue });
-    // Pruebas: ?act=drink (o hair) hace esa accion en cuanto se puede.
+    // Recado (ir a por agua): mira hacia donde anda, y su voz viene de donde esta.
+    const errand = motion?.errand ?? null;
+    if (errand && errand.lookAhead > 0) {
+      vrm.scene.getWorldDirection(ahead);
+      head?.getWorldPosition(aheadPoint);
+      aheadPoint.addScaledVector(ahead, 3 * faceSign);
+      gaze.position.lerp(aheadPoint, errand.lookAhead);
+    }
+    const pan = errand ? errand.pan * Math.sign(camRight.set(1, 0, 0).applyQuaternion(camera.quaternion).x || 1) : 0;
+    const far = errand?.far ?? 0;
+    if (Math.abs(pan - lastPan) > 0.02 || Math.abs(far - lastFar) > 0.02) {
+      lastPan = pan;
+      lastFar = far;
+      live.onPresence?.(pan, far);
+    }
+    // Pruebas: ?act=drink (o hair, errand) hace esa accion en cuanto se puede.
     if (motion && pendingAct && motion.ready && motion.act(pendingAct)) pendingAct = null;
     // Por ultimo: sacar los brazos de dentro de la ropa si hace falta.
     collider?.update();

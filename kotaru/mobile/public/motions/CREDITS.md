@@ -18,5 +18,6 @@ revender los datos, ni siquiera convertidos. Copia usada: https://github.com/una
 | act-drink-79_38(-m) | 79_38 | 0,5–4,5 s | Beber agua de un vaso (el vaso lo pone la app) |
 | act-hair-81_01(-m) | 81_01 | 0,5–6,4 s | Arreglarse el pelo con una mano |
 | act-adjust-79_24(-m) | 79_24 | 4,2–6,2 s | Abrocharse y alisar la camisa |
+| walk-16_15 | 16_15 | 0,37–3,5 s | Caminar tranquilo (dos pasos completos, en bucle; el avance lo pone la app) |
 
 `-m` = en espejo (izquierda por derecha).

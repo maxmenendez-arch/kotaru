@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import type { VRM, VRMHumanBoneName } from '@pixiv/three-vrm';
 import { parseClip, Retarget, type MotionClip, type MotionClipJson, type RigRest } from './mocap.ts';
 import { MotionPlayer } from './motion-player.ts';
+import { errandAt, planErrand, type ErrandFrame, type ErrandPlan } from './errand.ts';
 
 interface ClipSpec {
   readonly file: string;
@@ -22,12 +23,15 @@ interface ClipSpec {
 /** Que clips usa cada momento. De pie: reposo real con cambios de peso; hablando: gestos. */
 // Cada clip tiene su version en espejo (-m): el doble de variedad y el peso pasa de un pie
 // al otro. Solo tramos en los que la persona esta en su sitio (sin pasos ni giros grandes).
-export const LIBRARY: { idle: ClipSpec[]; talk: ClipSpec[]; actions: ActionSpec[] } = {
+export const LIBRARY: { idle: ClipSpec[]; talk: ClipSpec[]; walk: ClipSpec[]; actions: ActionSpec[] } = {
   // De pie esperando: peso en un pie, cambios de postura, manos que se acomodan (CMU 82_08, 40_11).
   idle: [{ file: 'idle-82_08' }, { file: 'idle-82_08-m' }, { file: 'idle-40_11' }, { file: 'idle-40_11-m' }],
   // Explicando algo con las manos en una conversacion (CMU 18_08).
   talk: [{ file: 'talk-18_08' }, { file: 'talk-18_08-m' }],
-  // Acciones sueltas de vez en cuando, estando tranquilo (CMU 79_38, 81_01, 79_24).
+  // Caminar tranquilo (CMU 16_15), en el sitio: el avance lo pone el recado (errand.ts).
+  walk: [{ file: 'walk-16_15' }],
+  // Acciones sueltas de vez en cuando, estando tranquilo (CMU 79_38, 81_01, 79_24). Beber no
+  // sale suelto (el vaso apareceria de la nada): solo dentro del recado de ir a por agua.
   actions: [
     { file: 'act-drink-79_38', prop: 'glass', hand: 'rightHand' },
     { file: 'act-drink-79_38-m', prop: 'glass', hand: 'leftHand' },
@@ -50,6 +54,26 @@ const GRIP = 0.95;
 
 /** Cada cuanto (s, estando tranquilo) hace una accion: al azar entre estos dos valores. */
 export const ACTION_EVERY: readonly [number, number] = [22, 45];
+/** Cada cuanto (s de calma acumulada) va a por un vaso de agua: es largo, asi que de tarde en tarde. */
+export const ERRAND_EVERY: readonly [number, number] = [110, 220];
+/**
+ * Llevar el vaso andando: el brazo derecho como en este instante del clip de beber (s), con el
+ * vaso a la altura de la cintura (comprobado con capturas).
+ */
+export let CARRY_T = 0.6;
+export function setCarryT(v: number): void {
+  CARRY_T = v;
+}
+/** Sentido del giro del personaje (comprobado con capturas: + = hacia +x de la escena). */
+export let YAW_SIGN = 1;
+export function setYawSign(v: number): void {
+  YAW_SIGN = v;
+}
+/**
+ * Gesto de «un momento» (indice arriba, mano a la altura del hombro), en rotaciones de los
+ * huesos normalizados del brazo derecho, como ARM_POSES de idle-body.
+ */
+export const WAIT_POSE = { upper: [0, 0.6, 1.25], lower: [0, -0.4, -2.35], hand: [0, 0, 0] } as { upper: number[]; lower: number[]; hand: number[] };
 
 const cache = new Map<string, Promise<MotionClip | null>>();
 
@@ -114,6 +138,17 @@ export class CharacterMotion {
   readonly #talk: Loaded[] = [];
   readonly #actions: (Loaded & { readonly spec: ActionSpec })[] = [];
   readonly #act = new MotionPlayer();
+  readonly #walkP = new MotionPlayer();
+  readonly #walk: Loaded[] = [];
+  #errand: { plan: ErrandPlan; t: number } | null = null;
+  #errandCalm = 0;
+  #nextErrand = ERRAND_EVERY[0] + Math.random() * (ERRAND_EVERY[1] - ERRAND_EVERY[0]);
+  #carry = 0;
+  readonly #carryPose = new Map<string, THREE.Quaternion>();
+  readonly #rootPos: THREE.Vector3;
+  readonly #rootYaw: number;
+  #frame: ErrandFrame | null = null;
+  readonly #eul = new THREE.Euler();
   #action: (Loaded & { readonly spec: ActionSpec }) | null = null;
   #calm = 0;
   #nextAction = ACTION_EVERY[0] + Math.random() * (ACTION_EVERY[1] - ACTION_EVERY[0]);
@@ -143,6 +178,8 @@ export class CharacterMotion {
     this.#armOut = [forward.clone().multiply(new THREE.Quaternion().setFromAxisAngle(fwd, -a)), forward.clone().multiply(new THREE.Quaternion().setFromAxisAngle(fwd, a))];
     const hips = vrm.humanoid.getNormalizedBoneNode('hips');
     this.#hipsBase = hips ? hips.position.clone() : null;
+    this.#rootPos = vrm.scene.position.clone();
+    this.#rootYaw = vrm.scene.rotation.y;
     const load = async (specs: readonly ClipSpec[], into: Loaded[]) => {
       for (const spec of specs) {
         const clip = await loadClip(spec.file);
@@ -153,7 +190,7 @@ export class CharacterMotion {
     this.#glass = glass.group;
     this.#glassMaterials = glass.materials;
     this.#glass.visible = false;
-    void Promise.all([load(LIBRARY.idle, this.#idle), load(LIBRARY.talk, this.#talk), load(LIBRARY.actions, this.#actions as Loaded[])]).then(() => {
+    void Promise.all([load(LIBRARY.idle, this.#idle), load(LIBRARY.talk, this.#talk), load(LIBRARY.walk, this.#walk), load(LIBRARY.actions, this.#actions as Loaded[])]).then(() => {
       this.#ready = this.#idle.length > 0;
     });
   }
@@ -182,10 +219,37 @@ export class CharacterMotion {
 
   /** Hacer una accion ya (pruebas y shorts); por nombre de archivo o la primera que empiece asi. */
   act(prefix: string): boolean {
+    if (prefix === 'errand' || prefix === 'errand-left') return this.#startErrand(prefix === 'errand-left' ? -1 : 1);
     const found = this.#actions.find((a) => a.spec.file.startsWith(prefix));
     if (!found) return false;
     this.#startAction(found);
     return true;
+  }
+
+  /** Recado de ir a por agua (errand.ts). Hace falta el clip de caminar y el de beber. */
+  #startErrand(dir?: 1 | -1): boolean {
+    const walk = this.#walk[0];
+    const drink = this.#actions.find((a) => a.spec.file === 'act-drink-79_38');
+    if (!walk?.clip.walkSpeed || !drink) return false;
+    const side = dir ?? (Math.random() < 0.5 ? 1 : -1);
+    const speed = walk.clip.walkSpeed * walk.retarget.legLength;
+    this.#errand = { plan: planErrand(side, speed, drink.clip.duration), t: 0 };
+    // Brazo de llevar el vaso: una pose del propio clip de beber.
+    const hipsTmp = new THREE.Vector3();
+    drink.retarget.pose(CARRY_T, this.#carryPose, hipsTmp);
+    const hand = this.#vrm.humanoid.getRawBoneNode('rightHand');
+    if (hand) placeGlass(this.#glass, hand, this.#vrm, 'rightHand');
+    if (this.#action) this.#act.stop(this.#action.spec.file);
+    this.#action = null;
+    return true;
+  }
+
+  /**
+   * Durante el recado: donde esta el personaje respecto a su sitio y hacia donde mira, para la
+   * voz (pan y lejania) y la mirada. null si esta en su sitio.
+   */
+  get errand(): ErrandFrame | null {
+    return this.#frame;
   }
 
   #startAction(a: Loaded & { readonly spec: ActionSpec }): void {
@@ -211,12 +275,21 @@ export class CharacterMotion {
     // Acciones de vez en cuando, solo con el personaje tranquilo; hablar o escuchar las corta.
     const calm = !input.speaking && !input.busy && !input.still && !input.noActions;
     this.#calm = calm ? this.#calm + dt : 0;
-    if (!calm && this.#action) {
+    if (calm) this.#errandCalm += dt;
+    // El recado sigue aunque le hablen o conteste (no interfiere con escuchar); solo lo cortan
+    // reducir movimiento y los shorts.
+    if (this.#errand && (input.still || input.noActions)) this.#endErrand();
+    if (calm && !this.#errand && !this.#action && this.#errandCalm > this.#nextErrand && this.#startErrand()) {
+      this.#errandCalm = 0;
+      this.#nextErrand = ERRAND_EVERY[0] + Math.random() * (ERRAND_EVERY[1] - ERRAND_EVERY[0]);
+    }
+    if (!calm && this.#action && !this.#errand) {
       this.#act.stop(this.#action.spec.file);
       this.#action = null;
     }
-    if (calm && !this.#action && this.#calm > this.#nextAction && this.#actions.length) {
-      this.#startAction(this.#actions[Math.floor(Math.random() * this.#actions.length)]!);
+    const loose = this.#actions.filter((a) => !a.spec.prop);
+    if (calm && !this.#action && !this.#errand && this.#calm > this.#nextAction && loose.length) {
+      this.#startAction(loose[Math.floor(Math.random() * loose.length)]!);
       this.#nextAction = ACTION_EVERY[0] + Math.random() * (ACTION_EVERY[1] - ACTION_EVERY[0]);
       this.#calm = 0;
     }
@@ -262,13 +335,14 @@ export class CharacterMotion {
       hips.position.lerp(new THREE.Vector3().copy(this.#hipsBase).add(this.#player.hips), W);
       if (A > 0.001) hips.position.lerp(new THREE.Vector3().copy(this.#hipsBase).add(this.#act.hips), A);
     }
+    const errandGlass = this.#errandFrame(dt, W);
     // El vaso: aparece y se va con la accion de beber; los dedos de esa mano lo rodean.
-    const holding = this.#action?.spec.prop === 'glass' ? this.#action.spec.hand : null;
+    const holding = errandGlass ? 'rightHand' : this.#action?.spec.prop === 'glass' ? this.#action.spec.hand : null;
     if (holding) this.#grip = holding;
     if (this.#grip) {
       const side = this.#grip === 'leftHand' ? 'left' : 'right';
       const sign = side === 'left' ? -1 : 1;
-      const g = holding ? A : 0;
+      const g = errandGlass ? 1 : holding ? A : 0;
       for (const f of ['Index', 'Middle', 'Ring', 'Little']) {
         for (const [seg, k] of [['Proximal', 1], ['Intermediate', 1.1], ['Distal', 0.7]] as const) {
           const node = this.#vrm.humanoid.getNormalizedBoneNode(`${side}${f}${seg}` as VRMHumanBoneName);
@@ -279,9 +353,100 @@ export class CharacterMotion {
       }
       if (!holding && A < 0.001) this.#grip = null;
     }
-    const showGlass = holding !== null && A > 0.02;
+    const showGlass = errandGlass || (holding !== null && A > 0.02);
     this.#glass.visible = showGlass;
-    if (showGlass) for (const m of this.#glassMaterials) m.opacity = (m.userData['base'] as number) * Math.min(1, A * 1.4);
+    if (showGlass) for (const m of this.#glassMaterials) m.opacity = (m.userData['base'] as number) * (errandGlass ? 1 : Math.min(1, A * 1.4));
+  }
+
+  #endErrand(): void {
+    this.#errand = null;
+    this.#frame = null;
+    this.#walkP.stop('walk');
+    this.#carry = 0;
+    this.#vrm.scene.position.copy(this.#rootPos);
+    this.#vrm.scene.rotation.y = this.#rootYaw;
+    if (this.#action?.spec.prop) {
+      this.#act.stop(this.#action.spec.file);
+      this.#action = null;
+    }
+  }
+
+  /** Un cuadro del recado (si hay): andar, llevar el vaso, beber, el gesto. true si lleva el vaso. */
+  #errandFrame(dt: number, W: number): boolean {
+    const e = this.#errand;
+    if (!e) return false;
+    e.t += dt;
+    const f = errandAt(e.plan, e.t);
+    if (f.step === 'done') {
+      this.#endErrand();
+      return false;
+    }
+    this.#frame = f;
+    const bone = (name: string) => this.#vrm.humanoid.getNormalizedBoneNode(name as VRMHumanBoneName);
+    // Andar: el clip de caminar (en el sitio) manda sobre todo el cuerpo, cabeza incluida (mira
+    // hacia donde va), segun cuanto anda.
+    const walk = this.#walk[0];
+    if (walk && f.walk > 0) this.#walkP.play('walk', walk.retarget, walk.clip.duration, { loop: true, fadeIn: 0.25, fadeOut: 0.4 });
+    if (f.walk <= 0) this.#walkP.stop('walk');
+    this.#walkP.update(dt);
+    const WW = f.walk * this.#walkP.weight * this.#weight;
+    if (WW > 0.001) {
+      for (const [name, q] of this.#walkP.pose) {
+        const node = bone(name);
+        if (node) node.quaternion.slerp(q, name === 'neck' || name === 'head' ? WW * 0.9 : WW);
+      }
+      const hips = bone('hips');
+      if (hips && this.#hipsBase) hips.position.lerp(new THREE.Vector3().copy(this.#hipsBase).add(this.#walkP.hips), WW);
+    }
+    // Beber: el clip de beber, ya con el vaso en la mano (lo trajo andando).
+    if (f.step === 'drink' && !this.#action) {
+      const drink = this.#actions.find((a) => a.spec.file === 'act-drink-79_38');
+      if (drink) {
+        this.#action = drink;
+        this.#act.play(drink.spec.file, drink.retarget, drink.clip.duration, { fadeIn: 0.6, fadeOut: 0.7 });
+      }
+    }
+    if (f.step !== 'drink' && this.#action?.spec.prop) {
+      this.#act.stop(this.#action.spec.file);
+      this.#action = null;
+    }
+    // Llevar el vaso: brazo derecho doblado, vaso a la altura de la cintura (mientras no bebe).
+    const carrying = f.glass === 'carry';
+    this.#carry += ((carrying ? 1 : 0) - this.#carry) * Math.min(1, dt * 5);
+    const C = this.#carry * (1 - this.#act.weight) * this.#weight;
+    if (C > 0.001) {
+      for (const name of ['rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand']) {
+        const q = this.#carryPose.get(name);
+        const node = bone(name);
+        if (q && node) node.quaternion.slerp(q, C);
+      }
+    }
+    // «Un momento»: indice arriba con la mano derecha, los demas dedos recogidos.
+    if (f.gesture > 0.001) {
+      const g = f.gesture * this.#weight;
+      const set = (name: string, r: number[]) => {
+        const node = bone(name);
+        if (!node) return;
+        this.#tmpQ.setFromEuler(this.#eul.set(r[0]!, r[1]!, r[2]!));
+        node.quaternion.slerp(this.#tmpQ, g);
+      };
+      set('rightUpperArm', WAIT_POSE.upper);
+      set('rightLowerArm', WAIT_POSE.lower);
+      set('rightHand', WAIT_POSE.hand);
+      for (const fg of ['Index', 'Middle', 'Ring', 'Little']) {
+        for (const [seg, k] of [['Proximal', 1], ['Intermediate', 1.1], ['Distal', 0.7]] as const) {
+          const node = bone(`right${fg}${seg}`);
+          if (node) node.rotation.z = node.rotation.z * (1 - g) + (fg === 'Index' ? 0 : 1.35 * k) * g;
+        }
+      }
+      const thumb = bone('rightThumbDistal');
+      if (thumb) thumb.rotation.y = thumb.rotation.y * (1 - g) + 0.6 * g;
+    }
+    // Donde esta: se mueve y se gira el personaje entero.
+    void W;
+    this.#vrm.scene.position.set(this.#rootPos.x + f.x, this.#rootPos.y, this.#rootPos.z + f.z);
+    this.#vrm.scene.rotation.y = this.#rootYaw + YAW_SIGN * f.yaw;
+    return f.glass !== 'none';
   }
 }
 

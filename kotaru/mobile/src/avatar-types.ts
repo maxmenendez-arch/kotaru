@@ -28,6 +28,11 @@ export interface AvatarProps {
   readonly onReelShot?: (index: number) => void;
   /** Short: volumen de una voz real que suena (la de presentacion); mientras hay, la boca la sigue. */
   readonly reelLevel?: () => number;
+  /**
+   * El personaje se ha movido por el cuarto (va a por agua: errand.ts): -1 izquierda a 1
+   * derecha de la pantalla, y lejania 0-1. Para que su voz venga de donde esta.
+   */
+  readonly onPresence?: (pan: number, far: number) => void;
   /** Estado de la conversacion (STATE de @kotaru/client): escucha, piensa, habla... */
   readonly state: string;
   /** Ultima emocion que mando el servidor, o null. */

@@ -22,6 +22,9 @@ import { Euler, Quaternion, Vector3, MathUtils } from 'three';
 const [src, out, fromArg, toArg, mirrorArg] = process.argv.slice(2);
 // 'mirror': en espejo (izquierda por derecha): el doble de variedad y el peso cambia de pie.
 const MIRROR = mirrorArg === 'mirror';
+// WALK=1: caminar. Se quita el avance (recta ajustada a la cadera en el suelo) y se guarda la
+// velocidad: el personaje avanza por codigo a esa misma velocidad (los pies no patinan).
+const WALK = process.env.WALK === '1';
 const swap = (n) => (!MIRROR ? n : n.replace(/^(Left|Right|L|R)(?=[A-Z])/, (m) => ({ Left: 'Right', Right: 'Left', L: 'R', R: 'L' })[m]));
 const mv = (v) => (MIRROR ? new Vector3(-v.x, v.y, v.z) : v);
 if (!src || !out) {
@@ -126,6 +129,7 @@ for (let f = first; f < last; f += step) frames.push(f);
 
 const q16 = new Int16Array(frames.length * MAP.length * 4);
 const p16 = new Int16Array(frames.length * 3);
+const hipsRel = [];
 const local = new Quaternion();
 let standY = 0;
 const euler = new Euler();
@@ -165,7 +169,31 @@ frames.forEach((f, fi) => {
   // Cadera en largos de pierna. La altura, respecto a la del primer cuadro (de pie): la
   // captura mide desde el suelo y el esqueleto de reposo desde la cadera.
   if (fi === 0) standY = hipsPos.y;
-  const rel = mv(new Vector3(hipsPos.x, hipsPos.y - standY, hipsPos.z)).divideScalar(legLength);
+  hipsRel.push(mv(new Vector3(hipsPos.x, hipsPos.y - standY, hipsPos.z)).divideScalar(legLength));
+});
+let speed = 0;
+if (WALK) {
+  // Recta de minimos cuadrados en x y z contra el tiempo: se resta; queda el balanceo.
+  const n = hipsRel.length;
+  const tm = (n - 1) / 2;
+  let sxx = 0;
+  const sx = { x: 0, z: 0 };
+  const mean = { x: 0, z: 0 };
+  hipsRel.forEach((p) => ((mean.x += p.x / n), (mean.z += p.z / n)));
+  hipsRel.forEach((p, k) => {
+    sxx += (k - tm) ** 2;
+    sx.x += (k - tm) * (p.x - mean.x);
+    sx.z += (k - tm) * (p.z - mean.z);
+  });
+  const bx = sx.x / sxx;
+  const bz = sx.z / sxx;
+  hipsRel.forEach((p, k) => {
+    p.x -= mean.x + bx * (k - tm);
+    p.z -= mean.z + bz * (k - tm);
+  });
+  speed = Math.hypot(bx, bz) * fps;
+}
+hipsRel.forEach((rel, fi) => {
   p16[fi * 3] = Math.round(rel.x * 10000);
   p16[fi * 3 + 1] = Math.round(rel.y * 10000);
   p16[fi * 3 + 2] = Math.round(rel.z * 10000);
@@ -177,6 +205,7 @@ const clip = {
   source: `CMU mocap ${src.split('/').pop()}${MIRROR ? ' (espejo)' : ''} ${fromArg ?? 0}-${toArg ?? 'fin'} s`,
   fps,
   frames: frames.length,
+  ...(WALK ? { walk: { speed: +speed.toFixed(4) } } : {}),
   bones: MAP.map(([vrm]) => vrm),
   rest: {
     dirs: Object.fromEntries(MAP.map(([vrm, a, b]) => [vrm, restDir(a, b).toArray().map((x) => +x.toFixed(5))])),

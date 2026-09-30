@@ -22,6 +22,7 @@ export interface MotionClipJson {
   readonly rest: { readonly dirs: Record<string, readonly number[]>; readonly thumbs?: Record<string, readonly number[]>; readonly up: readonly number[]; readonly left: readonly number[] };
   readonly q: string;
   readonly p: string;
+  readonly walk?: { readonly speed: number };
 }
 
 export interface MotionClip {
@@ -42,6 +43,8 @@ export interface MotionClip {
   /** Posicion media de la cadera en el suelo (x, z): se resta para que no se desplace. */
   readonly meanX: number;
   readonly meanZ: number;
+  /** Caminar: velocidad a la que avanzaba (largos de pierna por segundo; el avance se quito). */
+  readonly walkSpeed?: number;
 }
 
 function decode(b64: string): Int16Array {
@@ -73,6 +76,7 @@ export function parseClip(json: MotionClipJson): MotionClip {
     p,
     meanX: mx / Math.max(1, json.frames),
     meanZ: mz / Math.max(1, json.frames),
+    ...(json.walk ? { walkSpeed: json.walk.speed } : {}),
   };
 }
 
@@ -230,6 +234,11 @@ export class Retarget {
 
   readonly #face = new Quaternion();
   readonly #forearm: { left?: Vector3; right?: Vector3 } = {};
+
+  /** Largo de pierna del personaje (m): convierte la velocidad de un clip de caminar. */
+  get legLength(): number {
+    return this.#legLength;
+  }
 
   get bones(): readonly string[] {
     return this.#bones;
