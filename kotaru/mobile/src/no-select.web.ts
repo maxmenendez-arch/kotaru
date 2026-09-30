@@ -5,14 +5,16 @@
  * menu contextual y sin la "lupa" de iOS. Se instala una sola vez.
  */
 export const NO_SELECT_ATTR = 'kotaruNoSelect';
-const SELECTOR = '[data-kotaru-no-select]';
+// Tambien todos los botones de la app (el de Conectar seleccionaba su texto al mantenerlo).
+const SELECTOR = '[data-kotaru-no-select], [role="button"], [role="switch"], [role="radio"], [role="tab"]';
 let installed = false;
 
 export function installNoSelect(): void {
   if (installed || typeof document === 'undefined') return;
   installed = true;
   const style = document.createElement('style');
-  style.textContent = `${SELECTOR}, ${SELECTOR} * {
+  const all = SELECTOR.split(', ').map((sel) => `${sel}, ${sel} *`).join(', ');
+  style.textContent = `${all} {
   -webkit-user-select: none; user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;

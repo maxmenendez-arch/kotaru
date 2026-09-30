@@ -21,7 +21,7 @@ import { Body, Button, Card, Screen } from '../ui/kit';
 import { Icon, type IconName } from '../ui/icons';
 import { EdgeGlow } from '../ui/edge-glow';
 import { captionLine, charsForWidth } from '../captions';
-import { autoPip, openPip as openPipWindow, pipSupport, type PipHandle } from '../pip';
+import { autoPip, openPip as openPipWindow, pipSupport, preparePip, type PipHandle } from '../pip';
 
 /**
  * Conversacion por voz (pulsar para hablar).
@@ -136,6 +136,8 @@ export function Conversation({
   const startPlace = () => {
     // Los navegadores solo dejan sonar despues de un toque: se reintenta en cada uno.
     if (placeWanted) place.play(SCENE_OF[companionId]);
+    // iPhone: la ventana flotante necesita un video ya en marcha en el momento del toque.
+    if (backgrounds && typeof document !== 'undefined') preparePip(document.querySelector<HTMLCanvasElement>('#kotaru-stage canvas'));
   };
   useEffect(() => {
     if (placeWanted) place.play(SCENE_OF[companionId]);
@@ -261,6 +263,9 @@ export function Conversation({
     if (!connection) return false;
     setError(null);
     speaker.current.unlock?.();
+    // En el mismo toque: micro abierto en silencio (iPhone en modo llamada, volumen bueno
+    // desde el principio). No se oye ni se envia nada hasta pulsar para hablar.
+    if (voiceOn) void mic.current.warm?.();
     client.current?.close();
     const who = companionId;
     const next = createConversation(connection, lang, onEvent, {

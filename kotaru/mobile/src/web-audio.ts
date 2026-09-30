@@ -37,3 +37,33 @@ export function sharedOutput(): { context: AudioContext; bus: AudioNode } | null
   shared = { context, bus: limiter };
   return shared;
 }
+
+/**
+ * Voz y fondo dentro de la ventana flotante de video (iPhone): una salida de la mezcla como
+ * pista de audio. Al pasar a la ventana, la mezcla deja de sonar por la pagina y suena solo
+ * por el video (asi no se oye doble y sigue sonando fuera de Safari).
+ */
+let pipDestination: MediaStreamAudioDestinationNode | null = null;
+
+export function pipVoiceTrack(): MediaStreamTrack | null {
+  const out = sharedOutput();
+  if (!out) return null;
+  pipDestination ??= out.context.createMediaStreamDestination();
+  return pipDestination.stream.getAudioTracks()[0] ?? null;
+}
+
+export function routeVoiceToPip(on: boolean): void {
+  const out = sharedOutput();
+  if (!out || !pipDestination) return;
+  try {
+    if (on) {
+      out.bus.connect(pipDestination);
+      out.bus.disconnect(out.context.destination);
+    } else {
+      out.bus.connect(out.context.destination);
+      out.bus.disconnect(pipDestination);
+    }
+  } catch {
+    // Ya estaba asi.
+  }
+}

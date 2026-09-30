@@ -2,6 +2,20 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — Ventana flotante en iPhone, volumen bueno desde el principio y botones sin selección de texto
+
+- **Ventana flotante tipo videollamada en iPhone:** no se abría. Tres causas y sus arreglos (`pip.web.ts`):
+  1. iOS solo concede la ventana si se pide en el mismo instante del toque, y antes se esperaba a que el video arrancara. Ahora `preparePip` deja el video listo y reproduciéndose con cada toque en la conversación, y la ventana se pide sin esperas (`webkitSetPresentationMode`).
+  2. El video era de 1 px e invisible. Ahora es de 48 px, casi transparente y sin tapar nada.
+  3. Al salir de Safari la voz se callaba. Ahora el video lleva también la mezcla (voz y fondo) como pista de audio; mientras la ventana está abierta, la mezcla suena solo por el video (`routeVoiceToPip`), sin oírse doble.
+  - Verificado en Chromium en modo video: el video preparado se reproduce con pistas de audio y video, la ventana se abre, el video suena y al cerrarla vuelve todo.
+- **Volumen bueno desde el principio:**
+  - Antes, el fondo empezaba bajo hasta el primer «hablar».
+  - Ahora, al tocar «Conectar», el micrófono se abre en silencio en ese mismo toque (`warm()`), así que el iPhone entra en modo llamada desde el inicio. No se oye ni se envía nada hasta pulsar para hablar.
+  - Si se pulsa hablar mientras aún se abre, se usa un solo micrófono (carrera cubierta y probada).
+- **Botones:** mantener pulsado «Conectar» seleccionaba su texto. La protección que ya tenía el botón de hablar se aplica ahora a todos los botones, interruptores, pestañas y opciones (`no-select.web.ts`).
+- **Verificación:** `mobile`, 71; `vitest`, 475; `tsc --build`; `lint:arch`; pruebas en navegador del micrófono (warm, turno y carrera) y de la ventana flotante.
+
 ## 2026-09-30 — iPhone: el micrófono queda abierto y en silencio entre turnos, como en una llamada
 
 - **Problema:** el dueño seguía oyendo el volumen correcto (alto) solo con el micrófono abierto; al terminar de hablar el personaje, el fondo casi no se oía.

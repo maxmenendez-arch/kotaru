@@ -7,12 +7,16 @@
  *   personaje a la ventana flotante, con el nombre, "Inteligencia artificial", el estado,
  *   "Mantén para hablar" y "Volver". Al cerrarla, el lienzo vuelve a su sitio.
  *   Si el navegador lo permite, se abre sola al cambiar de pestaña (mediaSession).
- * - Safari y otros (video Picture-in-Picture): el personaje se ve en la ventanita de video
- *   del sistema; para hablar hay que volver a la app.
+ * - Safari (iPhone y Mac) y otros (video Picture-in-Picture): el personaje se ve en la
+ *   ventanita de video del sistema, con su voz dentro del video para que siga sonando al
+ *   salir de Safari; para hablar hay que volver a la app. El video se prepara antes del toque
+ *   (preparePip): iOS solo abre la ventana si se pide en el mismo toque.
  *
  * Solo se abre por un gesto de la persona (icono) o por el mecanismo automatico del propio
  * navegador; nunca graba ni envia la imagen: el lienzo se muestra, nada mas.
  */
+
+import { pipVoiceTrack, routeVoiceToPip } from './web-audio';
 
 export type PipMode = 'document' | 'video' | null;
 
@@ -170,42 +174,84 @@ async function openDocumentPip(api: DocumentPipApi, o: PipOptions): Promise<PipH
   };
 }
 
-async function openVideoPip(o: PipOptions): Promise<PipHandle | null> {
-  const stream = o.canvas.captureStream(30);
-  const video = document.createElement('video') as HTMLVideoElement & {
-    webkitSetPresentationMode?: (m: string) => void;
-    autoPictureInPicture?: boolean;
-  };
+type PipVideo = HTMLVideoElement & {
+  webkitSetPresentationMode?: (m: string) => void;
+  webkitPresentationMode?: string;
+  autoPictureInPicture?: boolean;
+};
+
+/** Video preparado de antemano (iPhone): el lienzo del personaje y la voz, ya reproduciendose. */
+let prepared: { canvas: HTMLCanvasElement; video: PipVideo; stream: MediaStream } | null = null;
+
+/**
+ * Prepara la ventana de video ANTES del toque. En iPhone la ventana flotante solo se abre si
+ * se pide en el mismo instante del toque y con un video que ya se esta reproduciendo; si hay
+ * que esperar a que arranque, Safari ya no la concede. Se llama con cada toque en la
+ * conversacion (barato: si ya esta preparado para ese lienzo, no hace nada).
+ */
+export function preparePip(canvas: HTMLCanvasElement | null): void {
+  if (!canvas || documentPip() || pipSupport() !== 'video') return;
+  if (prepared?.canvas === canvas) return;
+  disposePrepared();
+  const stream = canvas.captureStream(30);
+  const voice = pipVoiceTrack();
+  if (voice) stream.addTrack(voice);
+  const video = document.createElement('video') as PipVideo;
   video.muted = true;
   video.playsInline = true;
-  video.autoPictureInPicture = true;
+  video.setAttribute('playsinline', '');
   video.srcObject = stream;
-  // Tiene que estar en la pagina (fuera de la vista) para que el sistema la muestre.
-  Object.assign(video.style, { position: 'fixed', width: '1px', height: '1px', opacity: '0', pointerEvents: 'none', bottom: '0', right: '0' });
+  // Visible (iOS no deja flotar un video que no se ve), diminuto y sin tapar nada.
+  Object.assign(video.style, { position: 'fixed', width: '48px', height: '48px', opacity: '0.01', pointerEvents: 'none', left: '0', bottom: '0', zIndex: '0' });
   document.body.append(video);
-  await video.play().catch(() => undefined);
+  void video.play().catch(() => undefined);
+  prepared = { canvas, video, stream };
+}
+
+function disposePrepared(): void {
+  if (!prepared) return;
+  prepared.stream.getVideoTracks().forEach((t) => t.stop());
+  prepared.video.remove();
+  prepared = null;
+}
+
+function openVideoPip(o: PipOptions): PipHandle | null {
+  // Sin esperas antes de pedir la ventana: el toque todavia cuenta.
+  preparePip(o.canvas);
+  if (!prepared) return null;
+  const { video } = prepared;
+  void video.play().catch(() => undefined);
   let closed = false;
   const cleanup = () => {
     if (closed) return;
     closed = true;
-    stream.getTracks().forEach((t) => t.stop());
-    video.remove();
+    // La voz vuelve a sonar por la pagina y el video queda preparado para la proxima vez.
+    video.muted = true;
+    routeVoiceToPip(false);
     o.onClosed();
   };
-  video.addEventListener('leavepictureinpicture', cleanup);
+  video.addEventListener('leavepictureinpicture', cleanup, { once: true });
+  video.addEventListener('webkitpresentationmodechanged', () => {
+    if (video.webkitPresentationMode === 'inline') cleanup();
+  });
   try {
-    if (video.requestPictureInPicture) await video.requestPictureInPicture();
-    else video.webkitSetPresentationMode?.('picture-in-picture');
+    if (video.webkitSetPresentationMode) video.webkitSetPresentationMode('picture-in-picture');
+    else if (video.requestPictureInPicture) void video.requestPictureInPicture().catch(() => cleanup());
+    else return null;
   } catch {
     cleanup();
     return null;
   }
+  // En la ventana flotante la voz sale por el video: asi sigue sonando fuera de Safari.
+  video.muted = false;
+  routeVoiceToPip(true);
   return {
     update() {
       // La ventana de video del sistema no admite botones propios.
     },
     close() {
-      if (document.pictureInPictureElement === video) void document.exitPictureInPicture().catch(() => undefined);
+      if (video.webkitSetPresentationMode) video.webkitSetPresentationMode('inline');
+      else if (document.pictureInPictureElement === video) void document.exitPictureInPicture().catch(() => undefined);
       cleanup();
     },
   };

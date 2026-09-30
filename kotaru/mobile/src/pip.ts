@@ -30,6 +30,8 @@ export async function openPip(_options: PipOptions): Promise<PipHandle | null> {
   return null;
 }
 
+export function preparePip(_canvas: unknown): void {}
+
 export function autoPip(_open: () => void): () => void {
   return () => undefined;
 }

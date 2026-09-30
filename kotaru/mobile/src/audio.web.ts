@@ -64,6 +64,11 @@ class WebMicrophone implements AudioInput {
       } catch {
         return false;
       }
+      // Mientras se abria, el micro de "conectar" (warm) quedo listo: se usa ese y sobra este.
+      if (this.#stream && this.#stream.getTracks().some((t) => t.readyState === 'live')) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = this.#stream;
+      }
     }
     if (generation !== this.#generation) {
       if (stream !== this.#stream) stream.getTracks().forEach((t) => t.stop());
@@ -131,6 +136,27 @@ class WebMicrophone implements AudioInput {
     this.#nodes = [];
     this.#clearIdle();
     if (this.#stream) this.#idle = setTimeout(() => this.release(), MIC_IDLE_MS);
+  }
+
+  async warm(): Promise<boolean> {
+    if (this.#stream && this.#stream.getTracks().some((t) => t.readyState === 'live')) return true;
+    if (!navigator.mediaDevices?.getUserMedia) return false;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      });
+      // Si mientras tanto empezo un turno, ese turno ya tiene su micro: este sobra.
+      if (this.#stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        return true;
+      }
+      this.#stream = stream;
+      this.#clearIdle();
+      this.#idle = setTimeout(() => this.release(), MIC_IDLE_MS);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   release(): void {

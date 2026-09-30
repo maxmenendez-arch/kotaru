@@ -11,6 +11,11 @@ export interface AudioInput {
   stop(): void;
   /** Cierra el micro de verdad (salir de la conversacion). */
   release?(): void;
+  /**
+   * Abre el micro en silencio (sin procesar ni enviar nada) si aun no lo esta: al conectar,
+   * para que el telefono entre en modo llamada y el volumen sea el bueno desde el principio.
+   */
+  warm?(): Promise<boolean>;
   /** Volumen de lo que entra ahora (0 a 1), solo para efectos visuales; no se guarda. */
   level?(): number;
 }
