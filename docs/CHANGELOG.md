@@ -2,6 +2,31 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — Sonido: música en los shorts y ambiente de cada lugar en la conversación
+
+- **`mobile/src/scene-sounds.ts`:** todo sintetizado con Web Audio, sin archivos ni licencias.
+  - **Ambiente de cada lugar:**
+    - oficina de Luna: tono de sala, brisa y pájaros tras la ventana;
+    - cuarto de Nova: lluvia contra el cristal, rumor de ciudad y coches por el asfalto mojado;
+    - claro de Rio: fogata, dos grillos y el lago.
+  - **Música original de cada short:**
+    - Luna: lo-fi lento, sin batería;
+    - Nova: R&B nocturno, con bombo suave y charles;
+    - Rio: arpegio de guitarra alegre con shaker.
+    - Acordes y ritmos genéricos, con eco suave.
+- **Motor:** `ambient-engine.ts` pasa a `EngineSound<K>` (un sonido a la vez, fundidos, volumen y `duck`). `EngineAmbient` queda como caso particular. Las fábricas `createSoundscape` existen para web y nativo.
+- **Conversación:**
+  - el lugar suena bajo, siempre de fondo, y baja más cuando habla el personaje;
+  - queda a la mitad si hay un sonido relajante elegido;
+  - se para al ir a otra pantalla (`active`);
+  - interruptor «Sonido del lugar» en el panel de sonidos, guardado en `kotaru.placeSound`;
+  - los navegadores solo dejan sonar tras un toque, así que arranca con el primero.
+- **Elegir personaje:** música y lugar del personaje (el lugar más bajo), botón de altavoz para silenciar (`kotaru.reelSound`); al elegir, la música se va y el lugar lo retoma la conversación.
+- **Verificación:**
+  - `mobile`: 64 pruebas (2 nuevas); `vitest`: 470; `tsc --build`; `lint:arch`.
+  - Grabación de 20 s de cada sonido en Chromium: nivel, picos sin saturar, sin silencios y sin NaN; espectrogramas.
+  - En la app, el audio arranca con el primer toque y el botón de silencio se guarda.
+
 ## 2026-09-30 — Acabado por personaje: ojos con brillo, pelo con volumen, contraluz del escenario
 
 - **`mobile/src/looks.ts` (puro) y `avatar-look.ts`:** acabado sobre los materiales MToon de VRoid, sin tocar los modelos.

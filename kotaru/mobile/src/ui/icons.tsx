@@ -16,7 +16,9 @@ export type IconName =
   | 'close'
   | 'pip'
   | 'send'
-  | 'mic';
+  | 'mic'
+  | 'speaker'
+  | 'speakerOff';
 
 const GLYPH: Record<IconName, string> = {
   settings: '⚙',
@@ -31,6 +33,8 @@ const GLYPH: Record<IconName, string> = {
   pip: '▣',
   send: '➤',
   mic: '●',
+  speaker: '🔊',
+  speakerOff: '🔇',
 };
 
 export function Icon({ name, size = 22, color = '#F5F7FC' }: { name: IconName; size?: number; color?: string }) {

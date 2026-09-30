@@ -13,12 +13,16 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { createSoundscape } from '../ambient';
 import { Avatar } from '../avatar';
 import { PROFILES } from '../character-profiles';
 import { COMPANIONS, companionById, type CompanionId } from '../companions';
 import type { Lang } from '../i18n';
 import { t } from '../i18n';
 import { color, radius, space, type } from '../theme';
+import { readFlag, writeFlag } from '../prefs';
+import { MUSIC_BUILDERS, MUSIC_OF, SCENE_BUILDERS, SCENE_OF } from '../scene-sounds';
+import { Icon } from '../ui/icons';
 import { Scrim } from '../ui/scrim';
 
 /**
@@ -41,6 +45,7 @@ const FACE: Record<CompanionId, number> = {
 };
 const STRIP_HEIGHT = 92;
 const CONNECT_MS = 1100;
+const SOUND_KEY = 'kotaru.reelSound';
 
 export function Characters({
   lang,
@@ -60,6 +65,37 @@ export function Characters({
   const [scrolled, setScrolled] = useState(0);
   const [connecting, setConnecting] = useState<CompanionId | null>(null);
   const scroll = useRef<ScrollView>(null);
+  // Sonido del short: musica propia de cada personaje y, debajo, el sonido de su lugar.
+  const music = useRef(createSoundscape(MUSIC_BUILDERS, 0.65)).current;
+  const place = useRef(createSoundscape(SCENE_BUILDERS, 0.18)).current;
+  const [soundOn, setSoundOnState] = useState(() => readFlag(SOUND_KEY, true));
+  const playSound = (id: CompanionId, on = soundOn) => {
+    if (!on || connecting) return;
+    music.play(MUSIC_OF[id]);
+    place.play(SCENE_OF[id]);
+  };
+  const setSoundOn = (on: boolean) => {
+    setSoundOnState(on);
+    writeFlag(SOUND_KEY, on);
+    if (on) playSound(selected, true);
+    else {
+      music.stop();
+      place.stop();
+    }
+  };
+  // Intenta sonar al entrar y al cambiar de personaje (si el navegador aun no deja, sonara
+  // con el primer toque: ver onStartShouldSetResponderCapture).
+  useEffect(() => {
+    playSound(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+  useEffect(
+    () => () => {
+      music.dispose();
+      place.dispose();
+    },
+    [music, place],
+  );
   const { width, height } = useWindowDimensions();
   const companion = companionById(selected);
   const profile = PROFILES[selected];
@@ -73,6 +109,9 @@ export function Characters({
   const choose = (id: CompanionId) => {
     if (connecting) return;
     setConnecting(id);
+    // La musica se va; el lugar lo retoma la conversacion.
+    music.stop();
+    place.stop();
     setTimeout(() => onChoose(id), CONNECT_MS);
   };
   const switchTo = (id: CompanionId) => {
@@ -99,7 +138,13 @@ export function Characters({
   const topSpace = Math.max(0, height - STRIP_HEIGHT - heroHeight);
 
   return (
-    <View style={[styles.screen, wide && { backgroundColor: companion.tint }]}>
+    <View
+      style={[styles.screen, wide && { backgroundColor: companion.tint }]}
+      onStartShouldSetResponderCapture={() => {
+        playSound(selected);
+        return false;
+      }}
+    >
       {/* El short, de fondo. */}
       <View
         style={[styles.stage, { width: stageWidth, left: stageLeft }]}
@@ -135,6 +180,14 @@ export function Characters({
       >
         <View style={{ height: topSpace }} />
         <View onLayout={(e) => setHeroHeight(e.nativeEvent.layout.height)} style={styles.hero}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={soundOn ? s.reelSoundOn : s.reelSoundOff}
+            onPress={() => setSoundOn(!soundOn)}
+            style={styles.soundButton}
+          >
+            <Icon name={soundOn ? 'speaker' : 'speakerOff'} size={18} color={color.cloud} />
+          </Pressable>
           <View style={styles.tags}>
             {profile.tags[lang].map((tag, i) => (
               <View key={tag} style={[styles.tag, { backgroundColor: CHIP_COLORS[(i + COMPANIONS.indexOf(companion)) % CHIP_COLORS.length] }]}>
@@ -305,6 +358,7 @@ const styles = StyleSheet.create({
   scroller: { position: 'absolute', top: 0, left: 0, right: 0 },
   scrollContent: { alignSelf: 'center' },
   hero: { paddingHorizontal: space.l, paddingBottom: space.s, gap: space.s },
+  soundButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(11,16,32,0.55)', marginBottom: space.xs },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: space.xs },
   tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   tagText: { fontSize: 12, lineHeight: 16, fontWeight: '800', color: '#0B1020', letterSpacing: 0.6, textTransform: 'uppercase' },

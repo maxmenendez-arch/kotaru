@@ -121,6 +121,7 @@ export default function App() {
             voiceChoice={voiceChoice}
             backgrounds={backgrounds}
             requestedCompanion={requested}
+            active={tab === 'talk'}
             onNavigate={(to) => setTab(to === 'memory' ? 'memory' : to === 'settings' ? 'settings' : 'characters')}
           />
         </View>

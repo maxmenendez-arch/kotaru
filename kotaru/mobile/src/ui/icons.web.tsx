@@ -17,7 +17,9 @@ export type IconName =
   | 'close'
   | 'pip'
   | 'send'
-  | 'mic';
+  | 'mic'
+  | 'speaker'
+  | 'speakerOff';
 
 const PATHS: Record<IconName, ReactElement> = {
   settings: (
@@ -51,6 +53,18 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M3.5 9h10a3 3 0 1 0-3-3" />
       <path d="M3.5 13h14a3 3 0 1 1-3 3" />
       <path d="M3.5 17h6" />
+    </>
+  ),
+  speaker: (
+    <>
+      <path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3z" />
+      <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+    </>
+  ),
+  speakerOff: (
+    <>
+      <path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3z" />
+      <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" />
     </>
   ),
   heart: <path d="M12 19.5s-7-4.3-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7 2.2c0 5-7 9.3-7 9.3z" />,

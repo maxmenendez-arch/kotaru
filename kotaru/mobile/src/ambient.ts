@@ -1,6 +1,6 @@
 import { AudioContext as NativeAudioContext } from 'react-native-audio-api';
-import type { Ambient } from './ambient-types';
-import { EngineAmbient } from './ambient-engine';
+import { silentSoundscape, type Ambient, type Soundscape } from './ambient-types';
+import { EngineAmbient, EngineSound, type Builder } from './ambient-engine';
 import { activateAudioSession } from './audio-session';
 
 export * from './ambient-types';
@@ -20,5 +20,14 @@ export function createAmbient(): Ambient {
     );
   } catch {
     return { available: false, playing: null, volume: 0, play() {}, stop() {}, setVolume() {}, duck() {}, dispose() {} };
+  }
+}
+
+/** Ambiente de un lugar o musica de un short (scene-sounds.ts). */
+export function createSoundscape<K extends string>(builders: Readonly<Record<K, Builder>>, volume: number): Soundscape<K> {
+  try {
+    return new EngineSound<K>(builders, () => new NativeAudioContext() as unknown as AudioContext, () => void activateAudioSession(), {}, volume);
+  } catch {
+    return silentSoundscape<K>();
   }
 }

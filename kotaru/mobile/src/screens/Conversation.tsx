@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
-import { createAmbient, type AmbientKind } from '../ambient';
+import { createAmbient, createSoundscape, type AmbientKind } from '../ambient';
+import { readFlag, writeFlag } from '../prefs';
+import { SCENE_BUILDERS, SCENE_OF } from '../scene-sounds';
 import { createAudio } from '../audio';
 import { Avatar } from '../avatar';
 import type { AffectState } from '../avatar-motion';
@@ -59,6 +61,9 @@ const RING: Record<ConversationState, string> = {
   closed: color.inkLine,
 };
 
+const PLACE_KEY = 'kotaru.placeSound';
+const PLACE_VOLUME = 0.45;
+
 export type VoiceChoice = 'auto' | 'gemini' | 'chirp' | 'cartesia';
 const VOICE_NAMES: Readonly<Record<string, string>> = { gemini: 'Gemini', chirp: 'Chirp', cartesia: 'Cartesia', kokoro: 'Kokoro' };
 
@@ -69,6 +74,7 @@ export function Conversation({
   backgrounds = true,
   onNavigate,
   requestedCompanion,
+  active = true,
 }: {
   lang: Lang;
   connection: Connection | null;
@@ -79,6 +85,8 @@ export function Conversation({
   onNavigate?: (to: 'settings' | 'memory' | 'characters') => void;
   /** Personaje elegido en la pantalla de seleccion. */
   requestedCompanion?: CompanionId;
+  /** false mientras se ve otra pantalla (la conversacion sigue viva, pero el lugar no suena). */
+  active?: boolean;
 }) {
   const s = t(lang);
   const [state, setState] = useState<ConversationState>('closed');
@@ -108,6 +116,25 @@ export function Conversation({
   const ambient = useRef(createAmbient()).current;
   const [ambientKind, setAmbientKind] = useState<AmbientKind | null>(null);
   const [ambientVolume, setAmbientVolume] = useState(ambient.volume);
+  // Sonido del lugar (lluvia y coches en el cuarto de Nova, pajaros en la oficina de Luna,
+  // fogata y grillos en el claro de Rio): bajo, siempre de fondo, y baja mas cuando hablan.
+  const place = useRef(createSoundscape(SCENE_BUILDERS, PLACE_VOLUME)).current;
+  const [placeOn, setPlaceOnState] = useState(() => readFlag(PLACE_KEY, true));
+  const setPlaceOn = (on: boolean) => {
+    setPlaceOnState(on);
+    writeFlag(PLACE_KEY, on);
+  };
+  const placeWanted = active && backgrounds && placeOn;
+  const startPlace = () => {
+    // Los navegadores solo dejan sonar despues de un toque: se reintenta en cada uno.
+    if (placeWanted) place.play(SCENE_OF[companionId]);
+  };
+  useEffect(() => {
+    if (placeWanted) place.play(SCENE_OF[companionId]);
+    else place.stop();
+  }, [placeWanted, companionId, place]);
+  // Con un sonido relajante elegido (lluvia, olas...), el lugar queda mas bajo debajo.
+  useEffect(() => place.setVolume(ambientKind ? PLACE_VOLUME * 0.5 : PLACE_VOLUME), [ambientKind, place]);
   const [breathing, setBreathing] = useState(false);
   // Pantalla inmersiva: panel abierto desde un icono y si se esta escribiendo.
   const [sheet, setSheet] = useState<null | 'history' | 'sounds' | 'mode'>(null);
@@ -131,10 +158,11 @@ export function Conversation({
     const timer = setInterval(() => {
       const playing = speaker.current.isPlaying?.() === true;
       ambient.duck(speakingState.current || playing);
+      place.duck(speakingState.current || playing);
       setVoiceTail((was) => (was === playing ? was : playing));
     }, 100);
     return () => clearInterval(timer);
-  }, [ambient]);
+  }, [ambient, place]);
 
   useEffect(
     () => () => {
@@ -142,8 +170,9 @@ export function Conversation({
       audio.input.stop();
       audio.output.dispose();
       ambient.dispose();
+      place.dispose();
     },
-    [audio, ambient],
+    [audio, ambient, place],
   );
 
   /** Pasa el intercambio que se ve ahora al historial antes de empezar uno nuevo. */
@@ -536,6 +565,10 @@ export function Conversation({
     return (
       <View
         style={[styles.immersive, { backgroundColor: companion.tint }]}
+        onStartShouldSetResponderCapture={() => {
+          startPlace();
+          return false;
+        }}
         onLayout={(e) => {
           const { width, height } = e.nativeEvent.layout;
           if (!area || Math.abs(area.width - width) > 1 || Math.abs(area.height - height) > 1) setArea({ width, height });
@@ -583,7 +616,7 @@ export function Conversation({
           <IconButton icon="memory" label={s.iconMemory} onPress={() => onNavigate?.('memory')} color={iconColor} />
           <IconButton icon="history" label={s.iconHistory} onPress={() => setSheet(sheet === 'history' ? null : 'history')} on={sheet === 'history'} color={iconColor} />
           {ambient.available ? (
-            <IconButton icon="sounds" label={s.sounds} onPress={() => setSheet(sheet === 'sounds' ? null : 'sounds')} on={sheet === 'sounds' || ambientKind !== null} color={iconColor} />
+            <IconButton icon="sounds" label={s.sounds} onPress={() => setSheet(sheet === 'sounds' ? null : 'sounds')} on={sheet === 'sounds' || ambientKind !== null || (placeOn && place.available)} color={iconColor} />
           ) : null}
           <IconButton icon="breathe" label={s.iconBreathe} onPress={() => setBreathing(true)} color={iconColor} />
           {companion.flirts ? (
@@ -595,6 +628,15 @@ export function Conversation({
         {/* Paneles pequeños que abren los iconos. */}
         {sheet === 'sounds' ? (
           <View style={styles.popover}>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: placeOn }}
+              onPress={() => setPlaceOn(!placeOn)}
+              style={styles.placeRow}
+            >
+              <Text style={styles.placeText}>{s.placeSound}</Text>
+              <Text style={[styles.placeValue, placeOn && { color: companion.accent }]}>{placeOn ? s.on : s.off}</Text>
+            </Pressable>
             <CalmBar
               lang={lang}
               soundsAvailable={ambient.available}
@@ -866,6 +908,9 @@ function connectMessage(err: unknown, s: ReturnType<typeof t>): string {
 }
 
 const styles = StyleSheet.create({
+  placeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 44, paddingHorizontal: space.s, marginBottom: space.s, borderBottomWidth: 1, borderBottomColor: color.inkLine },
+  placeText: { ...type.body, color: color.cloud },
+  placeValue: { ...type.body, color: color.mist, fontWeight: '600' },
   picker: { flexDirection: 'row', justifyContent: 'center', gap: space.s, marginBottom: space.l },
   chip: {
     flexDirection: 'row',

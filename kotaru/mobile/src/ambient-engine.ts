@@ -24,18 +24,27 @@ export interface EngineOptions {
 }
 
 /** Un sonido en marcha: sus nodos y sus temporizadores, para pararlo limpio. */
-interface Voice {
+export interface Voice {
   readonly out: GainNode;
   readonly stop: () => void;
 }
 
-export class EngineAmbient implements Ambient {
+export type Noises = { white: AudioBuffer; pink: AudioBuffer; brown: AudioBuffer };
+export type Builder = (ctx: AudioContext, n: Noises) => Voice;
+
+/**
+ * Reproductor de un sonido a la vez (con fundido entre uno y otro), volumen maestro y
+ * `duck`. Sirve para los sonidos relajantes (EngineAmbient), el ambiente de cada escenario
+ * y la musica de los shorts (scene-sounds.ts): cambia solo el catalogo de sonidos.
+ */
+export class EngineSound<K extends string> {
   readonly available = true;
   #context: AudioContext | null = null;
   #master: GainNode | null = null;
-  #noise: { white: AudioBuffer; pink: AudioBuffer; brown: AudioBuffer } | null = null;
-  #current: { kind: AmbientKind; voice: Voice } | null = null;
+  #noise: Noises | null = null;
+  #current: { kind: K; voice: Voice } | null = null;
   #volume = 0.6;
+  readonly #builders: Readonly<Record<K, Builder>>;
   #ducked = false;
   readonly #makeContext: () => AudioContext | null;
   readonly #beforePlay: () => void;
@@ -46,24 +55,26 @@ export class EngineAmbient implements Ambient {
    *   react-native-audio-api en iOS/Android: tienen los mismos nodos).
    * @param beforePlay se llama antes de sonar (en el movil activa la sesion de audio).
    */
-  constructor(makeContext: () => AudioContext | null, beforePlay: () => void = () => undefined, options: EngineOptions = {}) {
+  constructor(builders: Readonly<Record<K, Builder>>, makeContext: () => AudioContext | null, beforePlay: () => void = () => undefined, options: EngineOptions = {}, volume = 0.6) {
+    this.#builders = builders;
+    this.#volume = volume;
     this.#makeContext = makeContext;
     this.#beforePlay = beforePlay;
     this.#options = options;
   }
 
-  get playing(): AmbientKind | null {
+  get playing(): K | null {
     return this.#current?.kind ?? null;
   }
 
-  play(kind: AmbientKind): void {
+  play(kind: K): void {
     this.#beforePlay();
     const ctx = this.#ensure();
     if (!ctx || !this.#master) return;
     void ctx.resume();
     if (this.#current?.kind === kind) return;
     this.#fadeOutCurrent();
-    const voice = BUILDERS[kind](ctx, this.#noise!);
+    const voice = this.#builders[kind](ctx, this.#noise!);
     voice.out.gain.setValueAtTime(0, ctx.currentTime);
     voice.out.gain.linearRampToValueAtTime(1, ctx.currentTime + FADE_S);
     voice.out.connect(this.#master);
@@ -132,6 +143,13 @@ export class EngineAmbient implements Ambient {
   }
 }
 
+/** Los sonidos relajantes (lluvia, fuego, cascada, viento, olas). */
+export class EngineAmbient extends EngineSound<AmbientKind> implements Ambient {
+  constructor(makeContext: () => AudioContext | null, beforePlay: () => void = () => undefined, options: EngineOptions = {}) {
+    super(BUILDERS, makeContext, beforePlay, options);
+  }
+}
+
 // ---- Ruido base ----------------------------------------------------------------------
 
 /** 6 s de ruido en bucle. Rosa y marron con los filtros clasicos (Kellet / integrador). */
@@ -163,7 +181,7 @@ function noise(ctx: AudioContext, color: 'white' | 'pink' | 'brown'): AudioBuffe
   return buffer;
 }
 
-function loop(ctx: AudioContext, buffer: AudioBuffer): AudioBufferSourceNode {
+export function loop(ctx: AudioContext, buffer: AudioBuffer): AudioBufferSourceNode {
   const src = ctx.createBufferSource();
   src.buffer = buffer;
   src.loop = true;
@@ -172,7 +190,7 @@ function loop(ctx: AudioContext, buffer: AudioBuffer): AudioBufferSourceNode {
   return src;
 }
 
-function filter(ctx: AudioContext, type: BiquadFilterType, frequency: number, q = 0.7): BiquadFilterNode {
+export function filter(ctx: AudioContext, type: BiquadFilterType, frequency: number, q = 0.7): BiquadFilterNode {
   const f = ctx.createBiquadFilter();
   f.type = type;
   f.frequency.value = frequency;
@@ -180,14 +198,14 @@ function filter(ctx: AudioContext, type: BiquadFilterType, frequency: number, q 
   return f;
 }
 
-function gain(ctx: AudioContext, value: number): GainNode {
+export function gain(ctx: AudioContext, value: number): GainNode {
   const g = ctx.createGain();
   g.gain.value = value;
   return g;
 }
 
 /** Oscilador lento que mueve un parametro entre `min` y `max`. */
-function lfo(ctx: AudioContext, param: AudioParam, hz: number, min: number, max: number): OscillatorNode {
+export function lfo(ctx: AudioContext, param: AudioParam, hz: number, min: number, max: number): OscillatorNode {
   const osc = ctx.createOscillator();
   osc.frequency.value = hz;
   const depth = gain(ctx, (max - min) / 2);
@@ -201,7 +219,7 @@ function lfo(ctx: AudioContext, param: AudioParam, hz: number, min: number, max:
  * Eventos cortos al azar (gotas, chasquidos): cada 100 ms se programan los del siguiente
  * tramo, con `rate` eventos por segundo de media.
  */
-function scatter(
+export function scatter(
   ctx: AudioContext,
   out: AudioNode,
   noiseBuffer: AudioBuffer,
@@ -232,9 +250,8 @@ function scatter(
 
 // ---- Los cinco sonidos ---------------------------------------------------------------
 
-type Noises = { white: AudioBuffer; pink: AudioBuffer; brown: AudioBuffer };
 
-function rain(ctx: AudioContext, n: Noises): Voice {
+export function rain(ctx: AudioContext, n: Noises): Voice {
   const out = gain(ctx, 0);
   const bed = loop(ctx, n.pink);
   bed.connect(filter(ctx, 'highpass', 500)).connect(filter(ctx, 'lowpass', 7000)).connect(gain(ctx, 0.55)).connect(out);
@@ -242,7 +259,7 @@ function rain(ctx: AudioContext, n: Noises): Voice {
   return { out, stop: () => { stopDrops(); bed.stop(); out.disconnect(); } };
 }
 
-function fire(ctx: AudioContext, n: Noises): Voice {
+export function fire(ctx: AudioContext, n: Noises): Voice {
   const out = gain(ctx, 0);
   const rumble = loop(ctx, n.brown);
   const rumbleGain = gain(ctx, 0.35);
@@ -264,7 +281,7 @@ function waterfall(ctx: AudioContext, n: Noises): Voice {
   return { out, stop: () => { shimmer.stop(); body.stop(); hiss.stop(); out.disconnect(); } };
 }
 
-function wind(ctx: AudioContext, n: Noises): Voice {
+export function wind(ctx: AudioContext, n: Noises): Voice {
   const out = gain(ctx, 0);
   const src = loop(ctx, n.brown);
   const bp = filter(ctx, 'bandpass', 600, 1.2);
@@ -280,7 +297,7 @@ function wind(ctx: AudioContext, n: Noises): Voice {
   return { out, stop: () => { sweep.stop(); gust.stop(); wsweep.stop(); src.stop(); whistle.stop(); out.disconnect(); } };
 }
 
-function waves(ctx: AudioContext, n: Noises): Voice {
+export function waves(ctx: AudioContext, n: Noises): Voice {
   const out = gain(ctx, 0);
   const src = loop(ctx, n.brown);
   const lp = filter(ctx, 'lowpass', 700);

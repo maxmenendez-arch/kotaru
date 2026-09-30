@@ -15,3 +15,18 @@ export interface Ambient {
   duck(on: boolean): void;
   dispose(): void;
 }
+
+/** Un reproductor de un sonido a la vez con volumen y `duck` (ambiente de lugar, musica). */
+export interface Soundscape<K extends string> {
+  readonly available: boolean;
+  readonly playing: K | null;
+  play(kind: K): void;
+  stop(): void;
+  setVolume(volume: number): void;
+  duck(on: boolean): void;
+  dispose(): void;
+}
+
+export function silentSoundscape<K extends string>(): Soundscape<K> {
+  return { available: false, playing: null, play() {}, stop() {}, setVolume() {}, duck() {}, dispose() {} };
+}
