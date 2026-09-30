@@ -7,10 +7,28 @@
  */
 export class SentenceBuffer {
   #buffer = '';
+  /** Oraciones cortas completas que esperan a la siguiente para ir juntas. */
+  #pending = '';
   readonly #maxChars: number;
+  readonly #minChars: number;
 
-  constructor(maxChars = 160) {
+  /**
+   * @param minChars una oracion mas corta ("¡Hola!", "Mmm.") se une a la siguiente: sola, el
+   *   TTS la entona como palabra suelta y suena rara (lo noto el dueño el 2026-09-29).
+   */
+  constructor(maxChars = 160, minChars = 24) {
     this.#maxChars = maxChars;
+    this.#minChars = minChars;
+  }
+
+  #emit(sentence: string, out: string[]): void {
+    const joined = this.#pending ? `${this.#pending} ${sentence}` : sentence;
+    if (joined.length < this.#minChars) {
+      this.#pending = joined;
+      return;
+    }
+    this.#pending = '';
+    out.push(joined);
   }
 
   /** Devuelve las oraciones que quedaron completas al anadir este token. */
@@ -21,7 +39,8 @@ export class SentenceBuffer {
     for (;;) {
       const boundary = findBoundary(this.#buffer);
       if (boundary === -1) break;
-      out.push(this.#buffer.slice(0, boundary + 1).trim());
+      const sentence = this.#buffer.slice(0, boundary + 1).trim();
+      if (sentence) this.#emit(sentence, out);
       this.#buffer = this.#buffer.slice(boundary + 1);
     }
 
@@ -29,6 +48,9 @@ export class SentenceBuffer {
     while (this.#buffer.length > this.#maxChars) {
       const cut = this.#buffer.lastIndexOf(' ', this.#maxChars);
       const at = cut > 0 ? cut : this.#maxChars;
+      // Corte por longitud: va sola (unida superaria el maximo), despues de lo pendiente.
+      if (this.#pending) out.push(this.#pending);
+      this.#pending = '';
       out.push(this.#buffer.slice(0, at).trim());
       this.#buffer = this.#buffer.slice(at);
     }
@@ -38,8 +60,9 @@ export class SentenceBuffer {
 
   /** Lo que quede sin puntuacion final al terminar la generacion. */
   flush(): string | null {
-    const rest = this.#buffer.trim();
+    const rest = [this.#pending, this.#buffer.trim()].filter(Boolean).join(' ');
     this.#buffer = '';
+    this.#pending = '';
     return rest.length > 0 ? rest : null;
   }
 }

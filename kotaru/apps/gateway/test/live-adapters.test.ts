@@ -130,10 +130,11 @@ describe('gateway con adaptadores reales (contra servidores falsos)', () => {
 
     const metric = sink.turns[0]!;
     expect(metric).toMatchObject({ sttProvider: 'assemblyai-stt', llmProvider: 'gemini-3.1-flash-lite', ttsProvider: 'polly-neural', costBasis: 'verified' });
-    // 3 s de sesion STT + 400/20 tokens + 24 caracteres hablados ('Qué bonito.' y 'Cuéntame más.').
+    // 3 s de sesion STT + 400/20 tokens + 25 caracteres hablados: 'Qué bonito.' es corta y va
+    // unida a 'Cuéntame más.' en una sola frase para la voz (SentenceBuffer, minChars).
     expect(metric.sttCostUsd).toBeCloseTo((3 / 3600) * 0.15, 6);
     expect(metric.llmCostUsd).toBeCloseTo((400 * 0.25 + 20 * 1.5) / 1e6, 6);
-    expect(metric.ttsCostUsd).toBeCloseTo((24 * 16) / 1e6, 6);
+    expect(metric.ttsCostUsd).toBeCloseTo((25 * 16) / 1e6, 6);
     socket.close();
   });
 });

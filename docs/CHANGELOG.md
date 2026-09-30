@@ -2,6 +2,23 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — Volumen estable en iPhone, «hola» natural, brazos visibles, viento en el pelo y enfoque de retrato
+
+- **Volumen a la mitad cuando habla el personaje** (el dueño lo notó dos veces):
+  - Causa: Safari en iPhone cambia el modo de audio al abrir y cerrar el micrófono. Con el micro abierto suena en modo llamada y al cerrarlo vuelve al modo normal, con otro volumen; y todo (voz y fondo) bajaba justo al hablar el personaje.
+  - Arreglo: `call-audio.web.ts` fija `navigator.audioSession.type = 'play-and-record'` mientras la conversación está en pantalla (Safari 17+; en otros navegadores no hace nada) y lo devuelve a `auto` al salir. No abre el micrófono.
+- **«Hola» que sonaba raro:**
+  - Causa: cada oración se sintetizaba aparte, y una muy corta («¡Hola!») salía con entonación de palabra suelta.
+  - Arreglo: `SentenceBuffer` une las oraciones de menos de 24 caracteres a la siguiente (`minChars`). Los cortes de emergencia por longitud siguen yendo solos.
+  - Pruebas: 2 nuevas; el costo de TTS de una prueba pasa de 24 a 25 caracteres por el espacio de la unión.
+- **Gestos con el brazo visible:**
+  - Luna, mano al pecho: el antebrazo quedaba escondido dentro de la manga de su chaqueta y la mano parecía suelta. Ahora el codo va adelante y la mano cruza en diagonal.
+  - Nova, barbilla: con la pose buscada en el modelo de Rio, en Nova la mano le tapaba la cara. Ahora es un dedo en la barbilla.
+  - Ambas poses se buscaron con un plano fijo (`pose.cjs`, sin depender del tiempo del short).
+- **Viento en el pelo** (`hair-wind.ts`): rachas que empujan la gravedad de los spring bones; fuertes en Rio (aire libre), suaves en Luna (ventana) y casi nada en Nova (cuarto).
+- **Enfoque de retrato** (`StagePost.setFocus`): cuanto más cerca la cámara, más desenfocado el fondo (primeros planos del short).
+- **Verificación:** `mobile`, 67; `vitest`, 475; `tsc --build`; `lint:arch`; capturas de las poses y del desenfoque.
+
 ## 2026-09-30 — Luna habla con Chirp (Despina) por defecto: tono femenino estable
 
 - **La medición con `deploy/voz-tono.py`** (8 frases, mediana de F0):

@@ -17,6 +17,7 @@ import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
 import { IdleBody, armEnvelope, armForGesture, emotionEnergy } from './idle-body';
 import { applyLook, type LookHandle } from './avatar-look';
+import { createHairWind } from './hair-wind';
 import { REELS, reelCamera, reelCue, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
 import { frameCamera, pixelRatio, type Framing } from './framing';
@@ -224,8 +225,11 @@ function animate(
   let frame = 0;
   let running = true;
   let lastShot = -1;
+  let focusNow = 0;
+  const focusPoint = new THREE.Vector3();
 
   const body = new IdleBody((name) => vrm.humanoid.getNormalizedBoneNode(name), styleFor(props().companion));
+  const hairWind = createHairWind(vrm, props().companion, reduce);
   const neck = vrm.humanoid.getNormalizedBoneNode('neck');
   const head = vrm.humanoid.getNormalizedBoneNode('head');
 
@@ -330,7 +334,12 @@ function animate(
       camera.position.z,
     );
 
+    hairWind.update(t);
     easeShot(reduce ? 1 : dt);
+    // Retrato: cuanto mas cerca la camara, mas desenfocado el fondo (primeros planos del short).
+    const closeness = Math.min(1, Math.max(0, (2.2 - camera.position.distanceTo(focusPoint.set(0, anchors.headY, anchors.z))) / 1.6));
+    focusNow += (closeness - focusNow) * Math.min(1, dt * 3);
+    post?.setFocus(focusNow);
     if (cue) {
       const cam = reelCamera(REELS[live.companion], t, anchors, camera.aspect);
       camera.fov = cam.fov;

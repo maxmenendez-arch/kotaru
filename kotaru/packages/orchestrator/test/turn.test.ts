@@ -72,7 +72,7 @@ class FailingTts implements TextToSpeechProvider {
 
 function harness(options: { brokenTts?: boolean; crisis?: boolean } = {}) {
   const stt = new MockSttProvider('hoy me fue bien en el trabajo');
-  const llm = new MockLlmProvider('Me alegra mucho. Cuentame que fue lo mejor.');
+  const llm = new MockLlmProvider('Me alegra muchisimo escucharlo. Cuentame que fue lo mejor.');
   const tts = new MockTtsProvider();
   const broken = new FailingTts();
 

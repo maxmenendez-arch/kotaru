@@ -68,9 +68,9 @@ export const ARM_POSES: Record<ArmAction, ArmPose> = {
   // Señalar el horizonte (Rio), con la izquierda: hacia donde mira.
   point: { side: 'left', upper: [0, 0.35, -0.95], lower: [0, 0.15, 0], hand: [0, 0, 0], shake: 0 },
   // Mano en la barbilla (Nova, con la izquierda: la derecha esta en la cadera).
-  chin: { side: 'left', upper: [-0.5, 1.3, 1.2], lower: [0, 2.4, -0.85], hand: [0, 0, 0], shake: 0 },
+  chin: { side: 'left', upper: [-0.35, 1.2, 1.15], lower: [0, 2.2, -0.6], hand: [0, 0, 0], shake: 0 },
   // Mano al pecho (Luna).
-  chest: { side: 'right', upper: [0, 0.8, 1.3], lower: [0, 2.6, 0], hand: [0, 0, 0], shake: 0 },
+  chest: { side: 'right', upper: [-0.3, 1.0, 1.0], lower: [0, 1.9, -0.35], hand: [0, 0, 0], shake: 0 },
 };
 
 /** Gesto de brazo para un gesto del servidor en la conversacion (GESTURES de ai-contracts), si lo hay. */

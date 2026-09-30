@@ -20,6 +20,11 @@ export const CHARACTER_LAYER = 1;
 
 export interface StagePost {
   setSize(width: number, height: number): void;
+  /**
+   * Enfoque de retrato: 0 normal; 1 primer plano (el fondo mas desenfocado y mas lejos, como
+   * con un objetivo abierto). Se puede cambiar cada cuadro.
+   */
+  setFocus(closeness: number): void;
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera, t: number): void;
   dispose(): void;
 }
@@ -179,16 +184,22 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
   // En lienzos pequeños (tarjetas) el halo y el desenfoque se acortan: medidos en pixeles de
   // una imagen chica, cubririan media pantalla y la dejarian lechosa.
   let spread = 1;
+  let dof = 0;
   let bloomAmountBase = grade.bloom;
   const blurPass = (from: THREE.WebGLRenderTarget, into: THREE.WebGLRenderTarget, dx: number, dy: number) => {
     blur.uniforms['src']!.value = from.texture;
-    (blur.uniforms['dir']!.value as THREE.Vector2).set((dx * spread) / from.width, (dy * spread) / from.height);
+    const reach = spread * (1 + dof * 1.6);
+    (blur.uniforms['dir']!.value as THREE.Vector2).set((dx * reach) / from.width, (dy * reach) / from.height);
     pass(blur, into);
   };
 
   const clearColor = new THREE.Color();
 
   return {
+    setFocus(closeness) {
+      dof = Math.min(1, Math.max(0, closeness));
+      composite.uniforms['blurAmount']!.value = Math.min(1, grade.blur + (1 - grade.blur) * dof * 0.8);
+    },
     setSize(width, height) {
       // Tamaños en pixeles reales del lienzo.
       const w = Math.max(1, Math.round(width));

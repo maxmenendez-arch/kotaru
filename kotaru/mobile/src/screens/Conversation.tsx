@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAmbient, createSoundscape, type AmbientKind } from '../ambient';
+import { keepCallAudio } from '../call-audio';
 import { readFlag, writeFlag } from '../prefs';
 import { SCENE_BUILDERS, SCENE_OF } from '../scene-sounds';
 import { createAudio } from '../audio';
@@ -138,6 +139,12 @@ export function Conversation({
     if (placeWanted) place.play(SCENE_OF[companionId]);
     else place.stop();
   }, [placeWanted, companionId, place]);
+  // Un solo modo de audio (llamada) mientras la conversacion esta en pantalla: asi el volumen
+  // no cambia al abrir y cerrar el microfono en cada turno (call-audio.web.ts).
+  useEffect(() => {
+    keepCallAudio(active);
+    return () => keepCallAudio(false);
+  }, [active]);
   // Con un sonido relajante elegido (lluvia, olas...), el lugar queda mas bajo debajo.
   useEffect(() => place.setVolume(ambientKind ? PLACE_VOLUME * 0.5 : PLACE_VOLUME), [ambientKind, place]);
   const [breathing, setBreathing] = useState(false);
