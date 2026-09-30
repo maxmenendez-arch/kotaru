@@ -2,6 +2,22 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — Acabado por personaje: ojos con brillo, pelo con volumen, contraluz del escenario
+
+- **`mobile/src/looks.ts` (puro) y `avatar-look.ts`:** acabado sobre los materiales MToon de VRoid, sin tocar los modelos.
+  - Luz de borde del color del escenario (antes, gris para todos): azul suave en Luna, rosa en Nova, naranja en Rio.
+  - Pelo con menos brillo propio: los presets de VRoid lo traen casi autoiluminado y se veía plano.
+  - Sombra de la piel más cálida.
+- **Brillo en los ojos de Luna.** Su modelo no trae capa de brillo (Nova y Rio sí).
+  - Dos puntos de borde suave por ojo, colocados midiendo el iris en su geometría: en VRoid el hueso del ojo no está donde se dibuja el iris.
+  - Van pegados al hueso del ojo, así siguen la mirada.
+  - Se apagan al parpadear o al cerrar los ojos al sonreír.
+  - Dos arreglos: se dibujan después de las capas del ojo (VRoid las pinta como transparentes) y sin recorte de cámara (por su tamaño, three.js los descartaba).
+- **Comparar:** `?look=0` apaga el acabado.
+- **Verificación:**
+  - `mobile`: 62 pruebas (3 nuevas en `test/looks.test.ts`); `vitest`: 470; `tsc --build`; `lint:arch`.
+  - Capturas antes y después de los tres en su escenario, y primer plano de los ojos de Luna.
+
 ## 2026-09-29 — Elegir personaje, como un perfil con su short en 3D
 
 - **Short en vivo** (`mobile/src/reel.ts`): cada personaje tiene un guion de ~14 s con cortes.

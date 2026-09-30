@@ -16,6 +16,7 @@ import { buildStage, type Stage } from './scene3d';
 import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
 import { IdleBody, emotionEnergy } from './idle-body';
+import { applyLook, type LookHandle } from './avatar-look';
 import { REELS, reelCamera, reelCue, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
 import { frameCamera, pixelRatio, type Framing } from './framing';
@@ -120,6 +121,8 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   const bone = (name: VRMHumanBoneName) => vrm.humanoid.getNormalizedBoneNode(name);
   relaxPose(bone);
   vrm.update(0);
+  // Acabado por personaje: luz de borde de su escenario, pelo con sombra, brillo en los ojos.
+  const look: LookHandle = flagOn('look') ? applyLook(vrm, props().companion) : { update: () => {}, dispose: () => {} };
 
   // Encuadre segun la altura de la cabeza de este modelo (framing.ts).
   const head = bone('head');
@@ -157,7 +160,8 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   scene.add(gaze);
   if (vrm.lookAt) vrm.lookAt.target = gaze;
 
-  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, easeShot, anchors, () => {
+  return animate(renderer, scene, camera, vrm, gaze, props, stage, post, easeShot, anchors, look, () => {
+    look.dispose();
     canvas.removeEventListener('kotaru-resize', resize);
     post?.dispose();
     stage?.dispose();
@@ -170,8 +174,13 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
 
 /** El acabado se puede apagar para comparar (o si un navegador lo dibuja mal): ?post=0. */
 function postAllowed(): boolean {
+  return flagOn('post');
+}
+
+/** Interruptores de depuracion por URL (?post=0, ?look=0): apagan el acabado para comparar. */
+function flagOn(name: string): boolean {
   try {
-    return new URLSearchParams(window.location.search).get('post') !== '0';
+    return new URLSearchParams(window.location.search).get(name) !== '0';
   } catch {
     return true;
   }
@@ -199,6 +208,7 @@ function animate(
   post: StagePost | null,
   easeShot: (dt: number) => boolean,
   anchors: Anchors,
+  look: LookHandle,
   cleanup: () => void,
 ): () => void {
   const timer = new THREE.Timer();
@@ -272,7 +282,10 @@ function animate(
       face[name] = approach(face[name] ?? 0, Math.min(1, target[name] + extra), dt, 4);
       expressions?.setValue(name, face[name]!);
     }
-    expressions?.setValue('blink', blinker.weight(t) * (1 - (face['happy'] ?? 0) * 0.6));
+    const blink = blinker.weight(t) * (1 - (face['happy'] ?? 0) * 0.6);
+    expressions?.setValue('blink', blink);
+    // Con los ojos cerrados (parpadeo o sonrisa de ojos cerrados) el brillo se apaga.
+    look.update(Math.max(blink, (face['happy'] ?? 0) * 0.9, (face['relaxed'] ?? 0) * 0.4));
 
     // Boca: solo mientras suena su voz.
     const speaking = p.state === 'speaking';
