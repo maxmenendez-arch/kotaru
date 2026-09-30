@@ -18,6 +18,12 @@ export interface GatewayConfig {
   /** Proveedores de IA habilitados: mock, assemblyai, gemini, polly. */
   readonly providers: readonly string[];
   readonly providerSettings: ProviderSettings;
+  /**
+   * Voz preferida de cada personaje si la persona no elige una en Ajustes
+   * (KOTARU_COMPANION_VOICE=luna:chirp,nova:gemini). Por defecto Luna con Chirp: su voz
+   * mantiene alli un tono femenino estable (deploy/voz-tono.py, 2026-09-29).
+   */
+  readonly companionVoice: Readonly<Partial<Record<string, 'gemini' | 'chirp' | 'cartesia'>>>;
   /** Origenes web con acceso a la API (CORS). Vacio salvo para la version web. */
   readonly corsOrigins: readonly string[];
   /** Login con Apple/Google. Ausente si no esta configurado: la API responde 501. */
@@ -307,6 +313,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): G
     infraCostUsdPerTurn: decimal('KOTARU_INFRA_COST_USD_PER_TURN', 0.0003, 0),
     providers,
     providerSettings,
+    companionVoice: parseCompanionVoice(env.KOTARU_COMPANION_VOICE, problems),
     corsOrigins: (env.KOTARU_CORS_ORIGINS ?? '')
       .split(',')
       .map((o) => o.trim())
@@ -344,4 +351,19 @@ function parseKeys(name: string, raw: string, problems: string[]): SigningKey[] 
   }
   if (new Set(keys.map((k) => k.kid)).size !== keys.length) problems.push(`${name}: hay kids repetidos`);
   return keys;
+}
+
+/** `luna:chirp,nova:gemini` → { luna: 'chirp', nova: 'gemini' }. Sin valor: Luna con Chirp. */
+export function parseCompanionVoice(raw: string | undefined, problems: string[]): Partial<Record<string, 'gemini' | 'chirp' | 'cartesia'>> {
+  if (raw === undefined) return { luna: 'chirp' };
+  const out: Partial<Record<string, 'gemini' | 'chirp' | 'cartesia'>> = {};
+  for (const pair of raw.split(',').map((p) => p.trim()).filter(Boolean)) {
+    const [slug, family] = pair.split(':').map((p) => p.trim());
+    if (!slug || !['luna', 'nova', 'rio'].includes(slug) || !family || !['gemini', 'chirp', 'cartesia'].includes(family)) {
+      problems.push(`KOTARU_COMPANION_VOICE: "${pair}" debe ser personaje:voz (luna|nova|rio : gemini|chirp|cartesia)`);
+      continue;
+    }
+    out[slug] = family as 'gemini' | 'chirp' | 'cartesia';
+  }
+  return out;
 }

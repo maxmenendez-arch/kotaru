@@ -126,3 +126,30 @@ describe('prueba de voces (Ajustes)', () => {
     expect(used[0]).toMatchObject({ type: 'voice_used', turnId: 't1', voice: 'other' });
   });
 });
+
+describe('voz por personaje', () => {
+  it('sin voz elegida en Ajustes, el personaje usa su voz preferida (Luna con Chirp)', async () => {
+    const { deps } = buildDeps('hola');
+    const ttsRequests: RouteRequest[] = [];
+    const router = {
+      select: (req: RouteRequest) => {
+        if (req.capability === 'tts') ttsRequests.push(req);
+        return deps.router.select(req);
+      },
+      report: deps.router.report.bind(deps.router),
+    };
+    server = await startGatewayServer({
+      port: 0, keys: [key], audience: AUDIENCE,
+      deps: { ...deps, router, voiceChoices: { chirp: 'mock-tts' }, companionVoice: { luna: 'chirp' } },
+    });
+    const { socket, collected } = await connect(server.port);
+    socket.send(JSON.stringify({ type: 'hello', grant: signGrant({ ...claims, companionId: 'luna' }, key, { nowSeconds: Math.floor(Date.now() / 1000) }), protocolVersion: PROTOCOL_VERSION }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'ready'));
+    socket.send(JSON.stringify({ type: 'turn_start', turnId: 't1' }));
+    for (let i = 0; i < 8; i += 1) socket.send(Buffer.alloc(24000 * 2 * 0.02), { binary: true });
+    socket.send(JSON.stringify({ type: 'turn_end', turnId: 't1' }));
+    await waitFor(collected, (m) => m.some((x) => x.type === 'turn_done'));
+    socket.close();
+    expect(ttsRequests[0]?.prefer).toEqual(['mock-tts']);
+  });
+});

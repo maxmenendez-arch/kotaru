@@ -92,6 +92,12 @@ export interface SessionDeps {
   readonly voiceUnavailable?: boolean;
   /** Proveedor de cada voz elegible en Ajustes; sin entrada, esa eleccion no hace nada. */
   readonly voiceChoices?: Readonly<Partial<Record<'gemini' | 'chirp' | 'cartesia', string>>>;
+  /**
+   * Voz preferida por personaje cuando la persona no eligio una en Ajustes. Luna va con
+   * Chirp: su voz (Despina) mantiene alli un tono femenino estable; en Gemini a veces bajaba
+   * (medido con deploy/voz-tono.py el 2026-09-29).
+   */
+  readonly companionVoice?: Readonly<Partial<Record<string, 'gemini' | 'chirp' | 'cartesia'>>>;
 }
 
 export interface SessionTransport {
@@ -554,10 +560,11 @@ export class GatewaySession {
     }
   }
 
-  /** La voz elegida en Ajustes como preferencia del turno (vacio con 'auto' o si no esta activa). */
+  /** La voz elegida en Ajustes (o la del personaje con 'auto') como preferencia del turno; vacio si no esta activa. */
   #ttsPrefer(): { ttsPrefer?: readonly string[] } {
-    if (this.#voiceChoice === 'auto') return {};
-    const id = this.#deps.voiceChoices?.[this.#voiceChoice];
+    const family = this.#voiceChoice === 'auto' ? this.#deps.companionVoice?.[this.#persona.slug] : this.#voiceChoice;
+    if (!family) return {};
+    const id = this.#deps.voiceChoices?.[family];
     return id ? { ttsPrefer: [id] } : {};
   }
 

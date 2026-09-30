@@ -2,6 +2,16 @@
 
 Formato: fecha, fase, qué cambió, archivos afectados, cómo se verificó.
 
+## 2026-09-30 — Luna habla con Chirp (Despina) por defecto: tono femenino estable
+
+- **La medición con `deploy/voz-tono.py`** (8 frases, mediana de F0):
+  - Despina en Gemini variaba de 160 a 222 Hz incluso pidiéndole «tono medio-agudo, nunca grave»: 7 de 8 tomas bajaban por momentos;
+  - en Chirp se mantuvo entre 190 y 216 Hz.
+- **Cambio:** con `KOTARU_COMPANION_VOICE` cada personaje tiene su voz preferida cuando la persona no elige una en Ajustes. Por defecto, `luna:chirp`, así que Luna usa Chirp primero y Gemini queda de respaldo.
+  - Nova y Rio siguen con Gemini primero (actúan mejor ahí).
+  - La voz elegida en Ajustes manda sobre esta preferencia.
+- **Pruebas:** gateway con 108 (2 nuevas: el parser y que el turno de Luna pide Chirp).
+
 ## 2026-09-30 — Volumen: la voz del personaje por encima del sonido del lugar
 
 - **Qué notó el dueño:** al tocar para hablar, el volumen subía «a como debería», y cuando hablaba el personaje se oía bajo.

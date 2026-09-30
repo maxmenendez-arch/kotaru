@@ -117,3 +117,16 @@ describe('configuracion', () => {
     expect(problems({ ...env, GOOGLE_TTS_CREDENTIALS_FILE: join(dir, 'no-existe.json') })).toHaveLength(1);
   });
 });
+
+describe('voz por personaje (KOTARU_COMPANION_VOICE)', () => {
+  it('por defecto Luna con Chirp; se puede cambiar y los errores se avisan', async () => {
+    const { parseCompanionVoice } = await import('../src/config.js');
+    const problems: string[] = [];
+    expect(parseCompanionVoice(undefined, problems)).toEqual({ luna: 'chirp' });
+    expect(parseCompanionVoice('luna:gemini,nova:chirp', problems)).toEqual({ luna: 'gemini', nova: 'chirp' });
+    expect(parseCompanionVoice('', problems)).toEqual({});
+    expect(problems).toEqual([]);
+    parseCompanionVoice('yuki:chirp,luna:robot', problems);
+    expect(problems).toHaveLength(2);
+  });
+});
