@@ -43,3 +43,13 @@ test('acabado de camara: cada escena tiene valores razonables', () => {
     assert.ok(g.bloomThreshold > 0.2);
   }
 });
+
+test('exposicion del personaje: solo se baja (nunca se quema mas) y sin oscurecerlo de mas', () => {
+  for (const [id, p] of Object.entries(PALETTES)) {
+    const e = p.grade.exposure ?? 1;
+    assert.ok(e >= 0.6 && e <= 1, `${id}: ${e}`);
+  }
+  // Donde las luces se sumaban y la cara salia quemada (fogata, neon), se baja.
+  assert.ok((PALETTES['rio-outdoors'].grade.exposure ?? 1) < 1);
+  assert.ok((PALETTES['nova-room'].grade.exposure ?? 1) < 1);
+});

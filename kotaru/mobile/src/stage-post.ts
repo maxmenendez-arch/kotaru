@@ -75,6 +75,7 @@ uniform float saturation;
 uniform float contrast;
 uniform float warmth;
 uniform float vignette;
+uniform float exposure;
 uniform float time;
 uniform vec2 aspect;
 uniform vec2 texel;
@@ -100,7 +101,7 @@ void main() {
   vec3 bg = mix(texture2D(sharpBg, vUv).rgb, texture2D(blurBg, vUv).rgb, blurAmount);
   vec4 ch = texture2D(character, vUv);
   // El personaje llega premultiplicado (se dibujo sobre transparente).
-  vec3 c = ch.rgb + bg * (1.0 - ch.a);
+  vec3 c = ch.rgb * exposure + bg * (1.0 - ch.a);
   // Luz envolvente: en el borde del personaje se cuela un poco la luz del fondo (como en
   // una foto real), y deja de parecer recortado y pegado encima.
   vec2 o = texel * 3.0;
@@ -169,6 +170,7 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
     contrast: { value: grade.contrast },
     warmth: { value: grade.warmth },
     vignette: { value: grade.vignette },
+    exposure: { value: grade.exposure ?? 1 },
     time: { value: 0 },
     aspect: { value: new THREE.Vector2(1, 1) },
     texel: { value: new THREE.Vector2(1, 1) },

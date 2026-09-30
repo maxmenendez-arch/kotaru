@@ -54,6 +54,12 @@ export interface SceneGrade {
   readonly warmth: number;
   /** Oscurecimiento de las esquinas, 0-1. */
   readonly vignette: number;
+  /**
+   * Exposicion del personaje (solo el, no el fondo): 1 = como sale del render. Donde las
+   * luces del lugar se suman (neon, fogata, contraluz) la cara se quemaba y quedaba plana;
+   * bajarla un poco devuelve el sombreado sin oscurecer el escenario.
+   */
+  readonly exposure?: number;
 }
 
 export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
@@ -81,7 +87,7 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
     rimIntensity: 1.3,
     key: 0xfff2ea,
     keyIntensity: 1.6,
-    grade: { blur: 0.8, bloom: 1.0, bloomThreshold: 0.45, saturation: 1.12, contrast: 1.08, warmth: 0.0, vignette: 0.45 },
+    grade: { blur: 0.8, bloom: 1.0, bloomThreshold: 0.45, saturation: 1.12, contrast: 1.08, warmth: 0.0, vignette: 0.45, exposure: 0.85 },
   },
   'rio-outdoors': {
     fog: 0xf0b98a,
@@ -94,7 +100,7 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
     rimIntensity: 3.0,
     key: 0xfff0dc,
     keyIntensity: 1.8,
-    grade: { blur: 0.6, bloom: 0.6, bloomThreshold: 0.7, saturation: 1.08, contrast: 1.05, warmth: 0.03, vignette: 0.3 },
+    grade: { blur: 0.6, bloom: 0.6, bloomThreshold: 0.7, saturation: 1.08, contrast: 1.05, warmth: 0.03, vignette: 0.3, exposure: 0.7 },
   },
 };
 
