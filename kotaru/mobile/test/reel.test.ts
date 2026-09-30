@@ -99,3 +99,17 @@ test('gestos de brazo del short: cada personaje el suyo, con un brazo libre', ()
   for (const a of arms('nova')) assert.equal(ARM_POSES[a!].side, 'left');
   for (const pose of Object.values(ARM_POSES)) for (const v of [...pose.upper, ...pose.lower, ...pose.hand]) assert.ok(Math.abs(v) < Math.PI, 'rotacion imposible');
 });
+
+test('fundido solo al volver a empezar el bucle: los cortes de dentro siguen secos', async () => {
+  const { reelFade, reelDuration, REELS } = await import('../src/reel.ts');
+  for (const shots of Object.values(REELS)) {
+    const total = reelDuration(shots);
+    assert.ok(reelFade(shots, 0) < 0.2);
+    assert.ok(reelFade(shots, total - 0.01) < 0.25);
+    assert.equal(reelFade(shots, total / 2), 1);
+    // En el primer corte interno no hay fundido.
+    assert.equal(reelFade(shots, shots[0]!.dur), 1);
+    assert.ok(reelFade(shots, 0.2) > reelFade(shots, 0.05));
+    assert.equal(reelFade(shots, 0.5), 1);
+  }
+});

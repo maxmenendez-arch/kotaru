@@ -25,6 +25,8 @@ export interface StagePost {
    * con un objetivo abierto). Se puede cambiar cada cuadro.
    */
   setFocus(closeness: number): void;
+  /** Brillo general (1 = normal), para fundidos del short. */
+  setFade(level: number): void;
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera, t: number): void;
   dispose(): void;
 }
@@ -76,6 +78,7 @@ uniform float contrast;
 uniform float warmth;
 uniform float vignette;
 uniform float exposure;
+uniform float fade;
 uniform float time;
 uniform vec2 aspect;
 uniform vec2 texel;
@@ -120,6 +123,7 @@ void main() {
   s += vec3(warmth, warmth * 0.3, -warmth);
   vec2 d = (vUv - 0.5) * aspect;
   s *= 1.0 - vignette * smoothstep(0.35, 0.95, length(d));
+  s *= fade;
   s += (hash(vUv * 997.0 + time) - 0.5) / 255.0 * 1.5;
   gl_FragColor = vec4(clamp(s, 0.0, 1.0), 1.0);
 }`;
@@ -171,6 +175,7 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
     warmth: { value: grade.warmth },
     vignette: { value: grade.vignette },
     exposure: { value: grade.exposure ?? 1 },
+    fade: { value: 1 },
     time: { value: 0 },
     aspect: { value: new THREE.Vector2(1, 1) },
     texel: { value: new THREE.Vector2(1, 1) },
@@ -198,6 +203,9 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
   const clearColor = new THREE.Color();
 
   return {
+    setFade(level) {
+      composite.uniforms['fade']!.value = Math.min(1, Math.max(0, level));
+    },
     setFocus(closeness) {
       dof = Math.min(1, Math.max(0, closeness));
       composite.uniforms['blurAmount']!.value = Math.min(1, grade.blur + (1 - grade.blur) * dof * 0.8);

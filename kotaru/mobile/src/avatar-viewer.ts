@@ -18,7 +18,7 @@ import { assignLayers, createStagePost, type StagePost } from './stage-post';
 import { IdleBody, armEnvelope, armForEmotion, armForGesture, emotionEnergy } from './idle-body';
 import { applyLook, type LookHandle } from './avatar-look';
 import { createHairWind } from './hair-wind';
-import { REELS, reelCamera, reelCue, reelVoice, type Anchors } from './reel';
+import { REELS, reelCamera, reelCue, reelFade, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
 import { frameCamera, pixelRatio, type Framing } from './framing';
 
@@ -267,8 +267,10 @@ function animate(
     const live = props();
     // Short de presentacion: el guion manda sobre cara, boca, gestos y camara (reel.ts).
     const cue = live.reel && !reduce ? reelCue(REELS[live.companion], t) : null;
+    let cut = false;
     if (cue && cue.index !== lastShot) {
       lastShot = cue.index;
+      cut = true;
       live.onReelShot?.(cue.index);
     }
     // Si suena la voz de presentacion, la boca sigue esa voz; si no, la voz simulada del guion.
@@ -339,17 +341,19 @@ function animate(
 
     hairWind.update(t);
     easeShot(reduce ? 1 : dt);
-    // Retrato: cuanto mas cerca la camara, mas desenfocado el fondo (primeros planos del short).
-    const closeness = Math.min(1, Math.max(0, (2.2 - camera.position.distanceTo(focusPoint.set(0, anchors.headY, anchors.z))) / 1.6));
-    focusNow += (closeness - focusNow) * Math.min(1, dt * 3);
-    post?.setFocus(focusNow);
     if (cue) {
       const cam = reelCamera(REELS[live.companion], t, anchors, camera.aspect);
+      post?.setFade(reelFade(REELS[live.companion], t));
       camera.fov = cam.fov;
       camera.position.set(...cam.position);
       camera.lookAt(...cam.target);
       camera.updateProjectionMatrix();
-    }
+    } else post?.setFade(1);
+    // Retrato: cuanto mas cerca la camara, mas desenfocado el fondo (primeros planos del short).
+    // En un corte del short el enfoque salta con la camara (antes tardaba medio segundo en llegar).
+    const closeness = Math.min(1, Math.max(0, (2.2 - camera.position.distanceTo(focusPoint.set(0, anchors.headY, anchors.z))) / 1.6));
+    focusNow = cut ? closeness : focusNow + (closeness - focusNow) * Math.min(1, dt * 3);
+    post?.setFocus(focusNow);
     stage?.update(t, reduce);
     vrm.update(dt);
     if (post) post.render(scene, camera, t);

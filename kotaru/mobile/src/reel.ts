@@ -135,6 +135,20 @@ export function reelCue(shots: readonly Shot[], t: number): ReelCue {
 }
 
 /**
+ * Brillo del short en el segundo `t` (1 = normal). Solo al volver a empezar el bucle (del
+ * ultimo plano al primero) pasa un instante por casi negro, como un fundido de trailer: ese
+ * salto, de cuerpo entero a un primer plano de los ojos, era el unico corte que se notaba
+ * brusco. Tambien hace de fundido de entrada al abrir el perfil. Los cortes de dentro siguen
+ * secos.
+ */
+export function reelFade(shots: readonly Shot[], t: number, width = 0.35): number {
+  const total = reelDuration(shots);
+  const at = ((t % total) + total) % total;
+  const d = Math.min(at, total - at);
+  return d >= width ? 1 : 0.15 + 0.85 * smooth(d / width);
+}
+
+/**
  * Camara en el segundo `t`: dentro de cada plano se desliza despacio de `from` a `to`
  * (suavizado); entre planos, corte seco, como en un trailer. La distancia y la altura se
  * interpolan en el espacio del plano para que el movimiento sea un arco alrededor del

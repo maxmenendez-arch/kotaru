@@ -57,9 +57,11 @@ export function applyLook(vrm: VRM, companion: CompanionId): LookHandle {
       if (!bone) continue;
       const r = iris.radius;
       // Un brillo grande arriba, hacia la luz, y uno pequeño abajo, del otro lado (como en la ilustracion anime).
+      // Algo por debajo del centro: el parpado tapa la parte de arriba del iris y, en el
+      // centro de su caja, el brillo quedaba pegado a las pestañas (como una pegatina).
       for (const [dx, dy, size] of [
-        [-0.12, 0.02, 0.2],
-        [0.1, -0.2, 0.08],
+        [-0.15, -0.16, 0.16],
+        [0.12, -0.38, 0.07],
       ] as const) {
         const world = new THREE.Vector3(iris.center.x + r * dx, iris.center.y + r * dy, iris.front + 0.004);
         const dot = new THREE.Mesh(geometry, material);
