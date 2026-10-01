@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { ApiError, STATE_LABELS, type ClientEvent, type ConversationClient, type ConversationState } from '@kotaru/client';
 import { createAmbient, createSoundscape, type AmbientKind } from '../ambient';
 import { keepCallAudio } from '../call-audio';
-import { readFlag, writeFlag } from '../prefs';
+import { CINEMATIC_KEY, readFlag, writeFlag } from '../prefs';
 import { classifyReaction, reactionFor, type Particles } from '../reactions';
 import { ReactionBurst } from '../ui/reaction-burst';
 import { SCENE_BUILDERS, SCENE_OF } from '../scene-sounds';
@@ -555,6 +555,7 @@ export function Conversation({
       size={size}
       {...(width !== undefined ? { width, background: true, immersive: true, freeBottom: panelTop } : {})}
       {...(companion.flirts && mode !== 'ask' ? { mood: mode } : {})}
+      cinematic={readFlag(CINEMATIC_KEY, true)}
       state={shown}
       affect={affect}
       level={() => speaker.current.level?.() ?? 0}

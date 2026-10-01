@@ -76,8 +76,8 @@ export function pixelRatio(framing: Framing, width: number, height: number, devi
  */
 export function cameraDrift(t: number): { x: number; y: number; z: number; tx: number; ty: number } {
   const s = (period: number, phase: number): number => Math.sin((t / period) * 2 * Math.PI + phase);
-  const x = 0.006 * s(7.3, 0.4) + 0.003 * s(3.1, 1.7);
-  const y = 0.004 * s(5.9, 2.1) + 0.002 * s(2.3, 0.3);
+  const x = 0.007 * s(7.3, 0.4) + 0.0025 * s(3.1, 1.7);
+  const y = 0.0045 * s(5.9, 2.1) + 0.002 * s(2.3, 0.3);
   // Reencuadre: campana suave de 4 s cada 16 s (adelante 2,5 cm y vuelve).
   const cycle = ((t % 16) + 16) % 16;
   const refocus = cycle < 4 ? 0.5 - 0.5 * Math.cos((cycle / 4) * 2 * Math.PI) : 0;

@@ -99,51 +99,68 @@ export const TORSO_KEEP = 0.3;
 /** Minimo entre dos reacciones (ms): no encadena gestos. */
 const REACTION_COOLDOWN_MS = 6000;
 
-/**
- * Que animacion de reaccion corresponde a lo que pasa en la conversacion: primero el gesto que
- * pide el servidor; si no hay, a veces la emocion (con intensidad alta). Puro (se prueba).
- */
-export function reactionFor(companion: string, emotion: string | undefined, gesture: string | undefined, intensity: number, roll: number): string | null {
+/** Reacciones posibles para lo que pasa en la conversacion (gesto del servidor o emocion). */
+export function reactionOptions(companion: string, emotion: string | undefined, gesture: string | undefined): string[] {
+  const nova = companion === 'nova';
+  const girl = companion === 'luna' || nova;
+  const laugh = 'mx-laughing-standing';
+  const nod = 'mx-thoughtfully-nodding-head-yes';
+  const think = 'mx-thinking-while-standing';
+  const shrug = 'mx-shoulder-shrug';
+  const shy = 'mx-being-bashful-while-standing';
+  const hip = 'mx-right-hand-on-hip';
   switch (gesture) {
     case 'small_wave':
-      return 'mx-greeting-while-standing';
+      return ['mx-greeting-while-standing'];
     case 'nod':
-      return 'mx-thoughtfully-nodding-head-yes';
+      return [nod];
     case 'shrug':
-      return 'mx-shoulder-shrug';
+      return [shrug];
     case 'laugh_soft':
-      return 'mx-laughing-standing';
+      return [laugh];
     case 'think_pose':
-      return 'mx-thinking-while-standing';
+      return [think];
     default:
       break;
   }
-  // El modelo marca una emocion al empezar cada respuesta (casi siempre con intensidad 0,7 y
-  // sin gesto): de ahi sale la reaccion, la mayoria de las veces (antes rara vez pasaba nada).
-  if (intensity < 0.5) return null;
-  const pick = (...options: (string | null)[]): string | null => options[Math.min(options.length - 1, Math.floor(roll * options.length))] ?? null;
-  const girl = companion === 'luna' || companion === 'nova';
   switch (emotion) {
     case 'happy':
-      return pick('mx-laughing-standing', 'mx-thoughtfully-nodding-head-yes', 'mx-laughing-standing', null);
+      return [laugh, nod, ...(girl ? [shy] : [hip])];
     case 'warm':
-      return girl ? pick('mx-being-bashful-while-standing', 'mx-thoughtfully-nodding-head-yes', null) : pick('mx-thoughtfully-nodding-head-yes', null);
+      // Un piropo cae aqui (o en playful): varias respuestas para no repetir la misma.
+      return girl ? [shy, nod, laugh, ...(nova ? ['mx-blowing-a-kiss', hip] : [])] : [nod, laugh, hip];
     case 'curious':
-      return pick('mx-thinking-while-standing', 'mx-thinking-while-standing', null);
+      return [think, 'mx-looking-off-into-the-distance', nod];
     case 'thoughtful':
-      return pick('mx-thoughtfully-nodding-head-yes', 'mx-thinking-while-standing', null);
+      return [nod, think];
     case 'concerned':
-      return pick('mx-thoughtfully-nodding-head-yes', null);
+      return [nod];
     case 'surprised':
-      return pick('mx-shoulder-shrug', 'mx-laughing-standing', null);
+      return [shrug, laugh];
     case 'playful':
-      if (companion === 'nova') return pick('mx-blowing-a-kiss', 'mx-hands-on-hips-looking-over-shoulder', 'mx-right-hand-on-hip', 'mx-laughing-standing');
-      if (companion === 'rio') return pick('mx-right-hand-on-hip', 'mx-laughing-standing', null);
-      return pick('mx-being-bashful-while-standing', 'mx-laughing-standing', null);
+      if (nova) return ['mx-blowing-a-kiss', 'mx-hands-on-hips-looking-over-shoulder', hip, laugh, shy];
+      if (companion === 'rio') return [hip, laugh, shrug];
+      return [shy, laugh, shrug];
     default:
-      // Neutral: de vez en cuando asiente o se encoge de hombros.
-      return pick('mx-thoughtfully-nodding-head-yes', 'mx-shoulder-shrug', null, null, null);
+      return [nod, shrug];
   }
+}
+
+/** Cuantas reacciones recientes no se repiten (ni la ultima ni la anterior). */
+export const REACTION_MEMORY = 2;
+
+/**
+ * Elige la reaccion: nunca una de las ultimas `REACTION_MEMORY` (repetir la misma seguida se ve
+ * falso). Si todas las posibles se acaban de hacer, mejor ninguna. `roll` 0-1. Puro (se prueba).
+ */
+export function reactionFor(companion: string, emotion: string | undefined, gesture: string | undefined, intensity: number, roll: number, recent: readonly string[] = []): string | null {
+  if (intensity < 0.5 && (!gesture || gesture === 'none')) return null;
+  // Neutral: solo a veces (la mayoria de respuestas normales no piden gesto).
+  if ((!emotion || emotion === 'neutral') && (!gesture || gesture === 'none') && roll > 0.35) return null;
+  const avoid = new Set(recent.slice(-REACTION_MEMORY));
+  const options = reactionOptions(companion, emotion, gesture).filter((f) => !avoid.has(f));
+  if (!options.length) return null;
+  return options[Math.min(options.length - 1, Math.floor(roll * options.length))]!;
 }
 
 /** Todas las animaciones que se pueden ver en el modo muestrario (?muestrario=1). */
@@ -339,6 +356,18 @@ export class CharacterMotion {
   }
 
   /** Cuanto manda una pose de Nova (0-1): el choque de brazos la deja estar. */
+  /**
+   * Cuantas reacciones (o animaciones del muestrario) han empezado: el visor lo mira para
+   * mandar al camarografo a un primer plano. `actionLength`: lo que dura la actual (s).
+   */
+  get reactions(): number {
+    return this.#reactions;
+  }
+
+  get actionLength(): number {
+    return this.#action?.clip.duration ?? 0;
+  }
+
   /** Hay una accion o un recado en curso (la cabeza no se endereza del todo). */
   get acting(): boolean {
     return this.#act.weight > 0.05 || this.#errand !== null;
@@ -352,6 +381,8 @@ export class CharacterMotion {
   #companion = '';
   #lastAffectAt = -1;
   #lastReaction = -1e9;
+  readonly #recentReactions: string[] = [];
+  #reactions = 0;
   #wasSpeaking = false;
   #talkTurn = false;
 
@@ -362,11 +393,14 @@ export class CharacterMotion {
     this.#lastAffectAt = a.at;
     const now = performance.now();
     if (this.#errand || this.#action || now - this.#lastReaction < REACTION_COOLDOWN_MS) return;
-    const file = reactionFor(this.#companion, a.emotion, a.gesture, a.intensity ?? 0, Math.random());
+    const file = reactionFor(this.#companion, a.emotion, a.gesture, a.intensity ?? 0, Math.random(), this.#recentReactions);
     const clip = file && this.#actions.find((x) => x.spec.file === file);
     if (!clip) return;
     this.#lastReaction = now;
+    this.#recentReactions.push(clip.spec.file);
+    if (this.#recentReactions.length > 4) this.#recentReactions.shift();
     this.#reacting = true;
+    this.#reactions += 1;
     this.#startAction(clip);
   }
 
@@ -379,6 +413,7 @@ export class CharacterMotion {
     if (!found) return false;
     if (this.#action) this.#act.stop(this.#action.spec.file);
     this.#startAction(found);
+    this.#reactions += 1;
     return true;
   }
 

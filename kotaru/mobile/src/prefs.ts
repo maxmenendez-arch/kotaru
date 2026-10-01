@@ -15,3 +15,6 @@ export function writeFlag(key: string, on: boolean): void {
     // Sin almacenamiento (privado, bloqueado): se usa solo mientras la app esta abierta.
   }
 }
+
+/** Modo cinematico (Ajustes): primeros planos de camara en las reacciones. Encendido por defecto. */
+export const CINEMATIC_KEY = 'kotaru.cinematic';

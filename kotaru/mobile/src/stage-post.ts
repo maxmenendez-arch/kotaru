@@ -27,6 +27,8 @@ export interface StagePost {
   setFocus(closeness: number): void;
   /** Brillo general (1 = normal), para fundidos del short. */
   setFade(level: number): void;
+  /** Cambio de foco del personaje (0 nitido, 1 blando): el foco se pierde y vuelve. */
+  setSoft(level: number): void;
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera, t: number): void;
   dispose(): void;
 }
@@ -72,6 +74,7 @@ uniform sampler2D blurBg;
 uniform sampler2D bloom;
 uniform sampler2D character;
 uniform float blurAmount;
+uniform float soft;
 uniform float bloomAmount;
 uniform float saturation;
 uniform float contrast;
@@ -103,6 +106,16 @@ float hash(vec2 p) {
 void main() {
   vec3 bg = mix(texture2D(sharpBg, vUv).rgb, texture2D(blurBg, vUv).rgb, blurAmount);
   vec4 ch = texture2D(character, vUv);
+  if (soft > 0.001) {
+    // Desenfoque del personaje (9 muestras en dos anillos): solo durante el cambio de foco.
+    vec2 r = texel * soft * 5.0;
+    vec4 acc = ch;
+    acc += texture2D(character, vUv + vec2(r.x, 0.0)) + texture2D(character, vUv - vec2(r.x, 0.0));
+    acc += texture2D(character, vUv + vec2(0.0, r.y)) + texture2D(character, vUv - vec2(0.0, r.y));
+    acc += texture2D(character, vUv + r * 0.7) + texture2D(character, vUv - r * 0.7);
+    acc += texture2D(character, vUv + vec2(r.x, -r.y) * 0.7) + texture2D(character, vUv + vec2(-r.x, r.y) * 0.7);
+    ch = acc / 9.0;
+  }
   // El personaje llega premultiplicado (se dibujo sobre transparente).
   vec3 c = ch.rgb * exposure + bg * (1.0 - ch.a);
   // Luz envolvente: en el borde del personaje se cuela un poco la luz del fondo (como en
@@ -169,6 +182,7 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
     bloom: { value: bloomA.texture },
     character: { value: character.texture },
     blurAmount: { value: grade.blur },
+    soft: { value: 0 },
     bloomAmount: { value: grade.bloom },
     saturation: { value: grade.saturation },
     contrast: { value: grade.contrast },
@@ -205,6 +219,9 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
   return {
     setFade(level) {
       composite.uniforms['fade']!.value = Math.min(1, Math.max(0, level));
+    },
+    setSoft(level) {
+      composite.uniforms['soft']!.value = Math.min(1, Math.max(0, level));
     },
     setFocus(closeness) {
       dof = Math.min(1, Math.max(0, closeness));

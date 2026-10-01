@@ -6,6 +6,7 @@ import { t } from '../i18n';
 import { color, radius, space, type } from '../theme';
 import { Body, Button, Card, Screen, Title } from '../ui/kit';
 import type { AddressForm, VoiceChoice } from './Conversation';
+import { CINEMATIC_KEY, readFlag, writeFlag } from '../prefs';
 
 const ADDRESS_FORMS: readonly AddressForm[] = ['masculine', 'feminine', 'neutral'];
 
@@ -47,6 +48,11 @@ export function Settings({
   const [confirmSensual, setConfirmSensual] = useState(false);
   const [sensualNote, setSensualNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cinematic, setCinematicState] = useState(() => readFlag(CINEMATIC_KEY, true));
+  const setCinematic = (on: boolean) => {
+    setCinematicState(on);
+    writeFlag(CINEMATIC_KEY, on);
+  };
   const account = connection?.kind === 'account' ? connection : null;
 
   // Al cerrar sesion o borrar la cuenta, `AuthApi` avisa y la app vuelve al login.
@@ -156,6 +162,17 @@ export function Settings({
             <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={s.backgroundsTitle}>
               <Button label={s.backgroundsOn} kind={backgrounds ? 'primary' : 'quiet'} onPress={() => onBackgrounds(true)} />
               <Button label={s.backgroundsOff} kind={backgrounds ? 'quiet' : 'primary'} onPress={() => onBackgrounds(false)} />
+            </View>
+          </Card>
+        ) : null}
+
+        {onBackgrounds && Platform.OS === 'web' && backgrounds ? (
+          <Card>
+            <Text style={styles.label}>{s.cinematicTitle}</Text>
+            <Body muted>{s.cinematicBody}</Body>
+            <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={s.cinematicTitle}>
+              <Button label={s.cinematicOn} kind={cinematic ? 'primary' : 'quiet'} onPress={() => setCinematic(true)} />
+              <Button label={s.cinematicOff} kind={cinematic ? 'quiet' : 'primary'} onPress={() => setCinematic(false)} />
             </View>
           </Card>
         ) : null}

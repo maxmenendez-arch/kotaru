@@ -23,7 +23,11 @@ import { applyLook, type LookHandle } from './avatar-look';
 import { createHairWind } from './hair-wind';
 import { REELS, reelCamera, reelCue, reelFade, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
+import { CloseUpDirector, zoomFov } from './close-ups';
 import { cameraDrift, frameCamera, pixelRatio, type Framing } from './framing';
+
+/** Primer plano del modo cinematico: punto mirado, alto visible (zoom), deslizamiento y peso. */
+type CloseShot = { target: [number, number, number]; span: number; slide: number; w: number };
 
 /**
  * Motor del avatar 3D de la web (three.js + three-vrm). Solo lo importa avatar.web.tsx, con
@@ -56,17 +60,40 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   // Camara viva solo en el escenario (no en el retrato redondo); ?drift=0 la apaga.
   const drifts = withBackground && new URLSearchParams(globalThis.location?.search ?? '').get('drift') !== '0';
   let drift = { x: 0, y: 0, z: 0, tx: 0, ty: 0 };
+  // Primer plano del camarografo (close-ups.ts), mezclado con el encuadre normal segun `w`.
+  let close: CloseShot | null = null;
   const applyShot = () => {
     if (!shot) return;
-    camera.fov = shot.fov;
-    camera.position.set(drift.x, shot.y + drift.y, shot.z + drift.z);
-    camera.lookAt(drift.tx, shot.targetY + drift.ty, 0);
+    const px = drift.x;
+    const py = shot.y + drift.y;
+    const pz = shot.z + drift.z;
+    const tx = drift.tx;
+    const ty = shot.targetY + drift.ty;
+    if (!close || close.w <= 0) {
+      camera.fov = shot.fov;
+      camera.position.set(px, py, pz);
+      camera.lookAt(tx, ty, 0);
+    } else {
+      // Zoom del camarografo: la camara apenas se mueve (un paso de lado); lo que cambia es el
+      // angulo del objetivo, del plano normal al encuadre pedido.
+      const w = close.w;
+      camera.position.set(px + close.slide * w, py, pz);
+      const [cx, cy, cz] = close.target;
+      const lx = tx + (cx - tx) * w;
+      const ly = ty + (cy - ty) * w;
+      const lz = cz * w;
+      camera.lookAt(lx, ly, lz);
+      const d = Math.hypot(camera.position.x - lx, camera.position.y - ly, camera.position.z - lz);
+      const baseSpan = 2 * d * Math.tan((shot.fov * Math.PI) / 360);
+      camera.fov = zoomFov(baseSpan + (close.span - baseSpan) * w, d);
+    }
     camera.updateProjectionMatrix();
   };
   /** Acerca la camara al encuadre pedido (suave, ~0,4 s). Devuelve si se movio. */
-  const easeShot = (dt: number, d?: typeof drift): boolean => {
-    if (d && drifts) {
-      drift = d;
+  const easeShot = (dt: number, d?: typeof drift, c?: CloseShot | null): boolean => {
+    if (d) {
+      if (drifts) drift = d;
+      close = c ?? null;
       applyShot();
       return true;
     }
@@ -225,7 +252,7 @@ function animate(
   props: () => AvatarProps,
   stage: Stage | null,
   post: StagePost | null,
-  easeShot: (dt: number, d?: { x: number; y: number; z: number; tx: number; ty: number }) => boolean,
+  easeShot: (dt: number, d?: { x: number; y: number; z: number; tx: number; ty: number }, c?: CloseShot | null) => boolean,
   anchors: Anchors,
   look: LookHandle,
   motion: CharacterMotion | null,
@@ -265,6 +292,10 @@ function animate(
   let lastPan = 0;
   let lastFar = 0;
   // Hacia donde mira el modelo en reposo respecto a su eje +Z (hacia la camara o al reves).
+  const director = new CloseUpDirector();
+  let seenReactions = 0;
+  // Modo cinematico (Ajustes): encendido salvo que la persona lo apague.
+  const cinematic = () => props().cinematic !== false;
   const showcase = (() => {
     if (typeof document === 'undefined' || new URLSearchParams(globalThis.location?.search ?? '').get('muestrario') !== '1') return null;
     const label = document.createElement('div');
@@ -410,6 +441,7 @@ function animate(
     if (cue) {
       const cam = reelCamera(REELS[live.companion], t, anchors, camera.aspect);
       post?.setFade(reelFade(REELS[live.companion], t));
+      post?.setSoft(0);
       camera.fov = cam.fov;
       camera.position.set(...cam.position);
       camera.lookAt(...cam.target);
@@ -417,7 +449,22 @@ function animate(
     } else {
       post?.setFade(1);
       // Camara viva (framing.ts): solo en el escenario, nunca con «reducir movimiento».
-      if (!reduce) easeShot(0, cameraDrift(t));
+      // Camarografo: cuando empieza una reaccion, primer plano de cara o torso desde un angulo
+      // que no se repite; el foco se pierde al acercarse y vuelve (close-ups.ts).
+      if (motion && motion.reactions !== seenReactions) {
+        seenReactions = motion.reactions;
+        if (!reduce && stage && cinematic()) director.start(t, motion.actionLength, Math.random());
+      }
+      if (!cinematic()) director.stop();
+      const cf = director.frame(t);
+      let shotNow: CloseShot | null = null;
+      if (cf) {
+        const f = cf.framing;
+        // + a la izquierda de la pantalla = -x en el mundo (la camara mira hacia -z).
+        shotNow = { target: [anchors.x - f.dx, anchors.headY + f.dy, (anchors.z + anchors.eyeZ) / 2], span: f.span, slide: cf.slide, w: cf.weight };
+      }
+      post?.setSoft(cf ? cf.soft * 0.8 : 0);
+      if (!reduce) easeShot(0, cameraDrift(t), shotNow);
     }
     // Retrato: cuanto mas cerca la camara, mas desenfocado el fondo (primeros planos del short).
     // En un corte del short el enfoque salta con la camara (antes tardaba medio segundo en llegar).

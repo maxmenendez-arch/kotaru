@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { reactionFor, MIXAMO } from '../src/character-motion.ts';
+import { reactionFor, reactionOptions, MIXAMO } from '../src/character-motion.ts';
+const require_ = () => ({ reactionOptions });
 
 test('los gestos de la conversacion se convierten en animaciones que existen', () => {
   const files = new Set(MIXAMO.actions.map((a) => a.file));
@@ -10,24 +11,30 @@ test('los gestos de la conversacion se convierten en animaciones que existen', (
   }
 });
 
-test('cada emocion del modelo suele dar una reaccion; las de Nova solo para Nova', () => {
-  const files = new Set(MIXAMO.actions.map((a) => a.file));
-  let hits = 0;
+test('cada emocion da reacciones que existen; las de Nova solo para Nova', () => {
+  const { reactionOptions } = require_();
   for (const c of ['luna', 'nova', 'rio']) {
     for (const e of ['happy', 'warm', 'curious', 'thoughtful', 'playful', 'concerned', 'surprised', 'neutral']) {
-      for (const roll of [0, 0.3, 0.6, 0.9]) {
-        const f = reactionFor(c, e, undefined, 0.7, roll);
-        if (!f) continue;
-        hits += 1;
-        assert.ok(files.has(f), f);
-        const only = MIXAMO.actions.find((a) => a.file === f)!.only;
-        assert.ok(!only || only.includes(c), `${c} no puede ${f}`);
+      for (const f of reactionOptions(c, e, undefined)) {
+        const spec = MIXAMO.actions.find((a) => a.file === f);
+        assert.ok(spec, f);
+        assert.ok(!spec!.only || spec!.only.includes(c), `${c} no puede ${f}`);
       }
     }
   }
-  assert.ok(hits > 50, `reacciones: ${hits} de 96`);
-  assert.equal(reactionFor('luna', 'happy', 'none', 0.3, 0), null);
-  assert.equal(reactionFor('nova', 'playful', undefined, 0.7, 0), 'mx-blowing-a-kiss');
+});
+
+test('un piropo tras otro no repite la misma reaccion', () => {
+  for (const c of ['luna', 'nova', 'rio']) {
+    const recent: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      const f = reactionFor(c, 'warm', undefined, 0.7, (i * 0.618) % 1, recent);
+      if (!f) continue;
+      assert.ok(!recent.slice(-2).includes(f), `${c} repitio ${f}`);
+      recent.push(f);
+    }
+    assert.ok(recent.length >= 15, `${c} reacciono ${recent.length} de 30`);
+  }
 });
 
 test('el muestrario incluye todas las de cada personaje y ninguna ajena', async () => {

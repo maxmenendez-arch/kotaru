@@ -15,6 +15,11 @@ export interface AvatarProps {
   /** Inmersivo: donde empieza el panel de abajo (fraccion del alto, 0-1). */
   readonly freeBottom?: number;
   /**
+   * Modo cinematico (Ajustes, encendido por defecto): en cada reaccion la camara hace zoom a
+   * un primer plano (close-ups.ts). false lo apaga.
+   */
+  readonly cinematic?: boolean;
+  /**
    * Intensidad del caracter en el cuerpo: 'flirt' (modo Coqueteo elegido), 'friend'
    * (modo Amigo) o sin valor (normal). Nova coqueta ondula mas y entorna los ojos.
    */
