@@ -22,7 +22,8 @@ export interface FabricDetail {
 
 /** Que personaje lleva que detalle. Los demas, nada. */
 export const FABRIC: Partial<Record<string, FabricDetail>> = {
-  nova: { nipple: { radius: 0.008, strength: 0.6 }, fold: 0.5 },
+  // 1-oct: al 10 % de lo que era (0,6), casi imperceptible, a peticion del dueño.
+  nova: { nipple: { radius: 0.008, strength: 0.06 }, fold: 0.5 },
 };
 
 interface Apex {
