@@ -15,7 +15,7 @@ import {
 import { buildStage, type Stage } from './scene3d';
 import { PALETTES } from './scenes';
 import { assignLayers, createStagePost, type StagePost } from './stage-post';
-import { CharacterMotion, rigRest } from './character-motion';
+import { CharacterMotion, rigRest, showcaseList } from './character-motion';
 import { applyFabricDetail } from './fabric-detail';
 import { ArmCollider, measureBody } from './arm-collision';
 import { IdleBody, armEnvelope, armForEmotion, armForGesture, emotionEnergy } from './idle-body';
@@ -265,6 +265,27 @@ function animate(
   let lastPan = 0;
   let lastFar = 0;
   // Hacia donde mira el modelo en reposo respecto a su eje +Z (hacia la camara o al reves).
+  const showcase = (() => {
+    if (typeof document === 'undefined' || new URLSearchParams(globalThis.location?.search ?? '').get('muestrario') !== '1') return null;
+    const label = document.createElement('div');
+    label.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;padding:6px 12px;border-radius:8px;background:rgba(0,0,0,.65);color:#fff;font:14px system-ui;pointer-events:none';
+    document.body.appendChild(label);
+    return { list: showcaseList(props().companion), i: 0, next: 0, label };
+  })();
+  const armNodes = ['leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand']
+    .map((n) => vrm.humanoid.getNormalizedBoneNode(n as Parameters<typeof vrm.humanoid.getNormalizedBoneNode>[0]))
+    .filter((n): n is THREE.Object3D => !!n);
+  const armPrev = armNodes.map((n) => n.quaternion.clone());
+  const smoothArms = (dt: number) => {
+    const k = 1 - Math.exp(-dt / 0.07);
+    armNodes.forEach((n, i) => {
+      const prev = armPrev[i]!;
+      // Un salto grande es un corte de verdad (cambio de clip, short): se acepta sin filtrar.
+      if (prev.angleTo(n.quaternion) > 0.6) prev.copy(n.quaternion);
+      else prev.slerp(n.quaternion, k);
+      n.quaternion.copy(prev);
+    });
+  };
   const faceSign = (() => {
     const d = vrm.scene.getWorldDirection(new THREE.Vector3());
     const h = (head ?? vrm.scene).getWorldPosition(new THREE.Vector3());
@@ -422,12 +443,24 @@ function animate(
     }
     // Pruebas: ?act=drink (o hair, errand) hace esa accion en cuanto se puede.
     if (motion && pendingAct && motion.ready && motion.act(pendingAct)) pendingAct = null;
+    // Muestrario (?muestrario=1): todas las animaciones de este personaje, una cada 7 s, con
+    // su nombre en pantalla. Para revisarlas; nunca se activa solo.
+    if (motion?.ready && showcase && t > showcase.next) {
+      const name = showcase.list[showcase.i % showcase.list.length]!;
+      showcase.i += 1;
+      showcase.next = t + 7;
+      if (motion.act(name)) showcase.label.textContent = `${showcase.i}/${showcase.list.length} · ${name.replace(/^mx-/, '').replace(/-/g, ' ')}`;
+    }
     // Cabeza erguida: la postura de las animaciones (pecho y cuello) no la deja caer. Se mide
     // hacia donde apunta la cara y se corrige en el cuello hasta quedar casi horizontal (solo
     // la leve inclinacion de escuchar); en una accion (reir, beber) se corrige poco.
     if (motion?.ready && head && neck && !cue) levelHead(neck, head, faceSign, pose.x * 0.5, motion.acting ? 0.3 : 0.9);
     // Por ultimo: sacar los brazos de dentro de la ropa si hace falta.
     collider?.update(0, motion?.posed ?? 0);
+    // Filtro de temblores: la correccion de la ropa puede saltar de un cuadro a otro cuando la
+    // mano roza el limite (la izquierda de Rio temblaba). Brazo, antebrazo y mano siguen a su
+    // pose con unos 70 ms de suavizado: el temblor desaparece y el gesto se ve igual.
+    if (!reduce) smoothArms(dt);
     stage?.update(t, reduce);
     vrm.update(dt);
     if (post) post.render(scene, camera, t);

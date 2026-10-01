@@ -10,13 +10,31 @@ test('los gestos de la conversacion se convierten en animaciones que existen', (
   }
 });
 
-test('sin gesto, solo con emocion intensa y a veces; las de Nova solo para Nova', () => {
-  assert.equal(reactionFor('luna', 'happy', 'none', 0.5, 0), null);
-  assert.equal(reactionFor('luna', 'happy', 'none', 0.9, 0.9), null);
-  assert.equal(reactionFor('luna', 'happy', 'none', 0.9, 0.1), 'mx-laughing-standing');
-  assert.equal(reactionFor('nova', 'playful', undefined, 0.9, 0.1), 'mx-blowing-a-kiss');
-  assert.notEqual(reactionFor('rio', 'playful', undefined, 0.9, 0.1), 'mx-blowing-a-kiss');
-  assert.equal(reactionFor('rio', 'warm', undefined, 0.9, 0.1), null);
+test('cada emocion del modelo suele dar una reaccion; las de Nova solo para Nova', () => {
+  const files = new Set(MIXAMO.actions.map((a) => a.file));
+  let hits = 0;
+  for (const c of ['luna', 'nova', 'rio']) {
+    for (const e of ['happy', 'warm', 'curious', 'thoughtful', 'playful', 'concerned', 'surprised', 'neutral']) {
+      for (const roll of [0, 0.3, 0.6, 0.9]) {
+        const f = reactionFor(c, e, undefined, 0.7, roll);
+        if (!f) continue;
+        hits += 1;
+        assert.ok(files.has(f), f);
+        const only = MIXAMO.actions.find((a) => a.file === f)!.only;
+        assert.ok(!only || only.includes(c), `${c} no puede ${f}`);
+      }
+    }
+  }
+  assert.ok(hits > 50, `reacciones: ${hits} de 96`);
+  assert.equal(reactionFor('luna', 'happy', 'none', 0.3, 0), null);
+  assert.equal(reactionFor('nova', 'playful', undefined, 0.7, 0), 'mx-blowing-a-kiss');
+});
+
+test('el muestrario incluye todas las de cada personaje y ninguna ajena', async () => {
+  const { showcaseList } = await import('../src/character-motion.ts');
+  assert.ok(showcaseList('nova').includes('mx-blowing-a-kiss'));
+  assert.ok(!showcaseList('rio').includes('mx-blowing-a-kiss'));
+  assert.ok(showcaseList('luna').length >= 14);
 });
 
 test('los reposos son solo los tranquilos', () => {

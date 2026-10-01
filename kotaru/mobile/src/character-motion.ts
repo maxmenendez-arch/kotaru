@@ -97,7 +97,7 @@ const TALK_GESTURE_SHARE = 0.15;
 export const TORSO = new Set(['hips', 'spine', 'chest', 'upperChest']);
 export const TORSO_KEEP = 0.3;
 /** Minimo entre dos reacciones (ms): no encadena gestos. */
-const REACTION_COOLDOWN_MS = 9000;
+const REACTION_COOLDOWN_MS = 6000;
 
 /**
  * Que animacion de reaccion corresponde a lo que pasa en la conversacion: primero el gesto que
@@ -118,21 +118,38 @@ export function reactionFor(companion: string, emotion: string | undefined, gest
     default:
       break;
   }
-  if (intensity < 0.7) return null;
+  // El modelo marca una emocion al empezar cada respuesta (casi siempre con intensidad 0,7 y
+  // sin gesto): de ahi sale la reaccion, la mayoria de las veces (antes rara vez pasaba nada).
+  if (intensity < 0.5) return null;
+  const pick = (...options: (string | null)[]): string | null => options[Math.min(options.length - 1, Math.floor(roll * options.length))] ?? null;
+  const girl = companion === 'luna' || companion === 'nova';
   switch (emotion) {
     case 'happy':
-      return roll < 0.35 ? 'mx-laughing-standing' : null;
-    case 'thoughtful':
-    case 'curious':
-      return roll < 0.3 ? 'mx-thinking-while-standing' : null;
+      return pick('mx-laughing-standing', 'mx-thoughtfully-nodding-head-yes', 'mx-laughing-standing', null);
     case 'warm':
-      return companion !== 'rio' && roll < 0.25 ? 'mx-being-bashful-while-standing' : null;
+      return girl ? pick('mx-being-bashful-while-standing', 'mx-thoughtfully-nodding-head-yes', null) : pick('mx-thoughtfully-nodding-head-yes', null);
+    case 'curious':
+      return pick('mx-thinking-while-standing', 'mx-thinking-while-standing', null);
+    case 'thoughtful':
+      return pick('mx-thoughtfully-nodding-head-yes', 'mx-thinking-while-standing', null);
+    case 'concerned':
+      return pick('mx-thoughtfully-nodding-head-yes', null);
+    case 'surprised':
+      return pick('mx-shoulder-shrug', 'mx-laughing-standing', null);
     case 'playful':
-      if (companion === 'nova') return roll < 0.2 ? 'mx-blowing-a-kiss' : roll < 0.4 ? 'mx-hands-on-hips-looking-over-shoulder' : null;
-      return roll < 0.25 ? 'mx-right-hand-on-hip' : null;
+      if (companion === 'nova') return pick('mx-blowing-a-kiss', 'mx-hands-on-hips-looking-over-shoulder', 'mx-right-hand-on-hip', 'mx-laughing-standing');
+      if (companion === 'rio') return pick('mx-right-hand-on-hip', 'mx-laughing-standing', null);
+      return pick('mx-being-bashful-while-standing', 'mx-laughing-standing', null);
     default:
-      return null;
+      // Neutral: de vez en cuando asiente o se encoge de hombros.
+      return pick('mx-thoughtfully-nodding-head-yes', 'mx-shoulder-shrug', null, null, null);
   }
+}
+
+/** Todas las animaciones que se pueden ver en el modo muestrario (?muestrario=1). */
+export function showcaseList(companion: string): string[] {
+  const ok = (a: ActionSpec) => !a.only || a.only.includes(companion);
+  return [...MIXAMO.idle.map((c) => c.file), ...MIXAMO.talk.map((c) => c.file), ...MIXAMO.actions.filter(ok).map((a) => a.file)];
 }
 
 function flagParam(name: string): boolean {
@@ -358,8 +375,9 @@ export class CharacterMotion {
     if (this.#poses && prefix.startsWith('pose-')) return this.#poses.force(prefix.slice(5));
     if (this.#poses && prefix.startsWith('gesture-')) return this.#poses.force(prefix.slice(8));
     if (prefix === 'errand' || prefix === 'errand-left') return this.#startErrand(prefix === 'errand-left' ? -1 : 1);
-    const found = this.#actions.find((a) => a.spec.file.startsWith(prefix));
+    const found = [...this.#actions, ...this.#talk, ...this.#idle].find((a) => a.spec.file.startsWith(prefix)) as (Loaded & { readonly spec: ActionSpec }) | undefined;
     if (!found) return false;
+    if (this.#action) this.#act.stop(this.#action.spec.file);
     this.#startAction(found);
     return true;
   }
