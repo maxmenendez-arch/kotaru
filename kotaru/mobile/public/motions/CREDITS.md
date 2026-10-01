@@ -21,3 +21,11 @@ revender los datos, ni siquiera convertidos. Copia usada: https://github.com/una
 | walk-16_15 | 16_15 | 0,37–3,5 s | Caminar tranquilo (dos pasos completos, en bucle; el avance lo pone la app) |
 
 `-m` = en espejo (izquierda por derecha).
+
+## Mixamo (Adobe)
+
+Animaciones de https://www.mixamo.com descargadas con la cuenta Adobe del dueño (uso libre de
+regalías en proyectos comerciales, según la FAQ de Adobe). Se convierten con
+`scripts/fbx-convert.mjs` (FBX «Without Skin», 30 fps → clip a 15 fps) y no se guardan en el
+repositorio: viven en el servidor (`/var/lib/kotaru/mixamo-json`) y `deploy/web.sh` las publica
+en `/motions/mx-*.json`. Lista en `MIXAMO` de `src/character-motion.ts`.

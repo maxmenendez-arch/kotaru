@@ -44,10 +44,50 @@ export const LIBRARY: { idle: ClipSpec[]; talk: ClipSpec[]; walk: ClipSpec[]; ac
   ],
 };
 
+/**
+ * Animaciones profesionales de Mixamo (Adobe; uso comercial libre de regalias), descargadas con
+ * la cuenta del dueño y convertidas en el servidor (scripts/fbx-convert.mjs). No estan en el
+ * repositorio: la publicacion (deploy/web.sh) las copia desde /var/lib/kotaru/mixamo-json. Si
+ * no estan (en desarrollo), se usan las capturas de CMU de LIBRARY.
+ */
+export const MIXAMO: { idle: ClipSpec[]; talk: ClipSpec[]; actions: ActionSpec[] } = {
+  idle: [
+    { file: 'mx-breathing-idle' },
+    { file: 'mx-standing-idle' },
+    { file: 'mx-weight-shift-idle' },
+    { file: 'mx-neutral-idle' },
+    { file: 'mx-happy-idle-variation-1' },
+    { file: 'mx-happy-idle-variation-2' },
+    { file: 'mx-shifting-weight-from-side-to-side' },
+  ],
+  talk: [
+    { file: 'mx-general-conversation' },
+    { file: 'mx-asking-a-question-with-one-hand' },
+    { file: 'mx-asking-a-question-with-two-hands' },
+    { file: 'mx-talking-finding-something-funny' },
+    { file: 'mx-having-a-chat-at-the-watercooler' },
+  ],
+  actions: [
+    { file: 'mx-thinking-while-standing' },
+    { file: 'mx-being-bashful-while-standing', only: ['luna', 'nova'] },
+    { file: 'mx-laughing-standing' },
+    { file: 'mx-thoughtfully-nodding-head-yes' },
+    { file: 'mx-shoulder-shrug' },
+    { file: 'mx-looking-off-into-the-distance' },
+    { file: 'mx-big-yawn-while-standing' },
+    { file: 'mx-greeting-while-standing' },
+    { file: 'mx-blowing-a-kiss', only: ['nova'] },
+    { file: 'mx-hands-on-hips-looking-over-shoulder', only: ['nova'] },
+    { file: 'mx-right-hand-on-hip', only: ['nova', 'rio'] },
+  ],
+};
+
 /** Una accion: su clip y, si lleva algo en la mano (el vaso), en cual. */
 export interface ActionSpec extends ClipSpec {
   readonly prop?: 'glass';
   readonly hand?: 'leftHand' | 'rightHand';
+  /** Solo estos personajes (si no, todos). */
+  readonly only?: readonly string[];
 }
 
 /** Cuanto se cierran los dedos alrededor del vaso (rad por falange). */
@@ -194,7 +234,14 @@ export class CharacterMotion {
     this.#glass = glass.group;
     this.#glassMaterials = glass.materials;
     this.#glass.visible = false;
-    void Promise.all([load(LIBRARY.idle, this.#idle), load(LIBRARY.talk, this.#talk), load(LIBRARY.walk, this.#walk), load(LIBRARY.actions, this.#actions as Loaded[])]).then(() => {
+    const mine = (list: readonly ActionSpec[]) => list.filter((a) => !a.only || a.only.includes(companion));
+    // Primero las de Mixamo; si no estan publicadas, las capturas de CMU de siempre.
+    void Promise.all([load(MIXAMO.idle, this.#idle), load(MIXAMO.talk, this.#talk), load(mine(MIXAMO.actions), this.#actions as Loaded[])])
+      .then(async (): Promise<void> => {
+        if (this.#idle.length) await Promise.all([load(LIBRARY.walk, this.#walk), load(LIBRARY.actions.filter((x) => x.prop), this.#actions as Loaded[])]);
+        else await Promise.all([load(LIBRARY.idle, this.#idle), load(LIBRARY.talk, this.#talk), load(LIBRARY.walk, this.#walk), load(LIBRARY.actions, this.#actions as Loaded[])]);
+      })
+      .then(() => {
       this.#ready = this.#idle.length > 0;
     });
   }

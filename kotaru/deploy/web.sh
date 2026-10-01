@@ -132,6 +132,13 @@ if [ -d /var/lib/kotaru/intro ]; then
   cp -r /var/lib/kotaru/intro "$TARGET.new/intro"
   echo "Voz de presentación: $(ls /var/lib/kotaru/intro | wc -l) archivos"
 fi
+# Animaciones de Mixamo (Adobe), descargadas con la cuenta del dueño y convertidas con
+# mobile/scripts/fbx-convert.mjs; se guardan fuera del repositorio, como la voz de presentacion.
+if [ -d /var/lib/kotaru/mixamo-json ]; then
+  mkdir -p "$TARGET.new/motions"
+  cp /var/lib/kotaru/mixamo-json/*.json "$TARGET.new/motions/"
+  echo "Animaciones Mixamo: $(ls /var/lib/kotaru/mixamo-json | wc -l) archivos"
+fi
 chmod -R a+rX "$TARGET.new"
 if [ -d "$TARGET" ]; then mv "$TARGET" "$TARGET.old"; fi
 mv "$TARGET.new" "$TARGET"
