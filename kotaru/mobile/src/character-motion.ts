@@ -51,15 +51,8 @@ export const LIBRARY: { idle: ClipSpec[]; talk: ClipSpec[]; walk: ClipSpec[]; ac
  * no estan (en desarrollo), se usan las capturas de CMU de LIBRARY.
  */
 export const MIXAMO: { idle: ClipSpec[]; talk: ClipSpec[]; actions: ActionSpec[] } = {
-  idle: [
-    { file: 'mx-breathing-idle' },
-    { file: 'mx-standing-idle' },
-    { file: 'mx-weight-shift-idle' },
-    { file: 'mx-neutral-idle' },
-    { file: 'mx-happy-idle-variation-1' },
-    { file: 'mx-happy-idle-variation-2' },
-    { file: 'mx-shifting-weight-from-side-to-side' },
-  ],
+  // Tranquilos: solo los reposos suaves (los «contentos» y el balanceo de lado a lado se movian demasiado).
+  idle: [{ file: 'mx-breathing-idle' }, { file: 'mx-standing-idle' }, { file: 'mx-weight-shift-idle' }, { file: 'mx-neutral-idle' }],
   talk: [
     { file: 'mx-general-conversation' },
     { file: 'mx-asking-a-question-with-one-hand' },
@@ -95,6 +88,56 @@ const GRIP = 0.95;
 
 /** Cada cuanto (s, estando tranquilo) hace una accion: al azar entre estos dos valores. */
 export const ACTION_EVERY: readonly [number, number] = [22, 45];
+/** Acciones sueltas al azar y el recado del agua: apagados (solo reacciones a la conversacion). */
+const AUTO_EXTRAS = false;
+/** Hablando, en cuantos turnos gesticula (en el resto habla tranquila). */
+const TALK_GESTURE_SHARE = 0.35;
+/** Minimo entre dos reacciones (ms): no encadena gestos. */
+const REACTION_COOLDOWN_MS = 9000;
+
+/**
+ * Que animacion de reaccion corresponde a lo que pasa en la conversacion: primero el gesto que
+ * pide el servidor; si no hay, a veces la emocion (con intensidad alta). Puro (se prueba).
+ */
+export function reactionFor(companion: string, emotion: string | undefined, gesture: string | undefined, intensity: number, roll: number): string | null {
+  switch (gesture) {
+    case 'small_wave':
+      return 'mx-greeting-while-standing';
+    case 'nod':
+      return 'mx-thoughtfully-nodding-head-yes';
+    case 'shrug':
+      return 'mx-shoulder-shrug';
+    case 'laugh_soft':
+      return 'mx-laughing-standing';
+    case 'think_pose':
+      return 'mx-thinking-while-standing';
+    default:
+      break;
+  }
+  if (intensity < 0.7) return null;
+  switch (emotion) {
+    case 'happy':
+      return roll < 0.35 ? 'mx-laughing-standing' : null;
+    case 'thoughtful':
+    case 'curious':
+      return roll < 0.3 ? 'mx-thinking-while-standing' : null;
+    case 'warm':
+      return companion !== 'rio' && roll < 0.25 ? 'mx-being-bashful-while-standing' : null;
+    case 'playful':
+      if (companion === 'nova') return roll < 0.2 ? 'mx-blowing-a-kiss' : roll < 0.4 ? 'mx-hands-on-hips-looking-over-shoulder' : null;
+      return roll < 0.25 ? 'mx-right-hand-on-hip' : null;
+    default:
+      return null;
+  }
+}
+
+function flagParam(name: string): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get(name) === '1';
+  } catch {
+    return false;
+  }
+}
 /** Cada cuanto (s de calma acumulada) va a por un vaso de agua: es largo, asi que de tarde en tarde. */
 export const ERRAND_EVERY: readonly [number, number] = [110, 220];
 /**
@@ -214,9 +257,14 @@ export class CharacterMotion {
     const up = rest.positions.get('spine')!.clone().sub(rest.positions.get('hips')!).normalize();
     const left = rest.positions.get('leftUpperLeg')!.clone().sub(rest.positions.get('rightUpperLeg')!).normalize();
     const fwd = new THREE.Vector3().crossVectors(left, up).normalize();
-    this.#poses = companion === 'nova' ? new NovaPoses(vrm, { up, left, fwd }) : null;
-    const a = ARM_OUT[companion] ?? 0.1;
-    const f = ARM_FWD[companion] ?? 0.1;
+    // Sin poses de codigo ni desvios de brazo: solo las animaciones de Mixamo (pedido del dueño,
+    // 30-sep 23:18). Las poses de Nova (nova-poses.ts) quedan para pruebas.
+    this.#poses = companion === 'nova' && flagParam('poses') ? new NovaPoses(vrm, { up, left, fwd }) : null;
+    this.#companion = companion;
+    const a = 0;
+    const f = 0;
+    void ARM_OUT;
+    void ARM_FWD;
     // Hacia delante: giro sobre el eje lateral (el mismo sentido para los dos brazos).
     const forward = new THREE.Quaternion().setFromAxisAngle(left, FWD_SIGN * f);
     this.#armOut = [forward.clone().multiply(new THREE.Quaternion().setFromAxisAngle(fwd, -a)), forward.clone().multiply(new THREE.Quaternion().setFromAxisAngle(fwd, a))];
@@ -273,6 +321,28 @@ export class CharacterMotion {
     return this.#poses?.weight ?? 0;
   }
 
+  #reacting = false;
+  #companion = '';
+  #lastAffectAt = -1;
+  #lastReaction = -1e9;
+  #wasSpeaking = false;
+  #talkTurn = false;
+
+  /** Reacciona a la conversacion con una animacion (si toca y no hay otra en curso). */
+  #react(input: { still: boolean; noActions?: boolean; affect?: { emotion?: string; gesture?: string; intensity?: number; at: number } | null }): void {
+    const a = input.affect;
+    if (!a || a.at === this.#lastAffectAt || input.still || input.noActions) return;
+    this.#lastAffectAt = a.at;
+    const now = performance.now();
+    if (this.#errand || this.#action || now - this.#lastReaction < REACTION_COOLDOWN_MS) return;
+    const file = reactionFor(this.#companion, a.emotion, a.gesture, a.intensity ?? 0, Math.random());
+    const clip = file && this.#actions.find((x) => x.spec.file === file);
+    if (!clip) return;
+    this.#lastReaction = now;
+    this.#reacting = true;
+    this.#startAction(clip);
+  }
+
   /** Hacer una accion ya (pruebas y shorts); por nombre de archivo o la primera que empiece asi. */
   act(prefix: string): boolean {
     if (this.#poses && prefix.startsWith('pose-')) return this.#poses.force(prefix.slice(5));
@@ -327,7 +397,15 @@ export class CharacterMotion {
    */
   update(
     dt: number,
-    input: { speaking: boolean; still: boolean; arm: { side: 'left' | 'right' | null; weight: number }; busy?: boolean; noActions?: boolean },
+    input: {
+      speaking: boolean;
+      still: boolean;
+      arm: { side: 'left' | 'right' | null; weight: number };
+      busy?: boolean;
+      noActions?: boolean;
+      /** Ultima emocion o gesto de la conversacion: dispara una reaccion (reactionFor). */
+      affect?: { emotion?: string; gesture?: string; intensity?: number; at: number } | null;
+    },
   ): void {
     if (!this.#ready) return;
     // Acciones de vez en cuando, solo con el personaje tranquilo; hablar o escuchar las corta.
@@ -337,24 +415,31 @@ export class CharacterMotion {
     // El recado sigue aunque le hablen o conteste (no interfiere con escuchar); solo lo cortan
     // reducir movimiento y los shorts.
     if (this.#errand && (input.still || input.noActions)) this.#endErrand();
-    if (calm && !this.#errand && !this.#action && this.#errandCalm > this.#nextErrand && this.#startErrand()) {
+    if (AUTO_EXTRAS && calm && !this.#errand && !this.#action && this.#errandCalm > this.#nextErrand && this.#startErrand()) {
       this.#errandCalm = 0;
       this.#nextErrand = ERRAND_EVERY[0] + Math.random() * (ERRAND_EVERY[1] - ERRAND_EVERY[0]);
     }
-    if (!calm && this.#action && !this.#errand) {
+    this.#react(input);
+    if (!calm && this.#action && !this.#errand && !this.#reacting) {
       this.#act.stop(this.#action.spec.file);
       this.#action = null;
     }
     const loose = this.#actions.filter((a) => !a.spec.prop);
-    if (calm && !this.#action && !this.#errand && this.#calm > this.#nextAction && loose.length) {
+    if (AUTO_EXTRAS && calm && !this.#action && !this.#errand && this.#calm > this.#nextAction && loose.length) {
       this.#startAction(loose[Math.floor(Math.random() * loose.length)]!);
       this.#nextAction = ACTION_EVERY[0] + Math.random() * (ACTION_EVERY[1] - ACTION_EVERY[0]);
       this.#calm = 0;
     }
-    if (this.#action && !this.#act.isPlaying(this.#action.spec.file) && this.#act.weight < 0.001) this.#action = null;
+    if (this.#action && !this.#act.isPlaying(this.#action.spec.file) && this.#act.weight < 0.001) {
+      this.#action = null;
+      this.#reacting = false;
+    }
     this.#weight += ((input.still ? 0 : 1) - this.#weight) * Math.min(1, dt * 2);
     if (this.#weight < 0.001) return;
-    const want = input.speaking && this.#talk.length ? 'talk' : 'idle';
+    // Hablando: casi siempre tranquila (reposo); de vez en cuando con gestos de conversacion.
+    if (input.speaking && !this.#wasSpeaking) this.#talkTurn = Math.random() < TALK_GESTURE_SHARE;
+    this.#wasSpeaking = input.speaking;
+    const want = input.speaking && this.#talkTurn && this.#talk.length ? 'talk' : 'idle';
     // Un clip tras otro (al azar, nunca el mismo dos veces seguidas), con fundido entre ellos.
     const ending = this.#current !== null && this.#player.remaining(this.#current) < 1.2;
     if (want !== this.#mode || ending) {

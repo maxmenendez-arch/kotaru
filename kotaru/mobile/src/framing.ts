@@ -44,7 +44,8 @@ export function frameCamera(framing: Framing, aspect: number, headY: number, fre
   // La barbilla queda unos 23 cm por debajo de lo alto de la cabeza; con 5 % de margen
   // sobre el panel. Nunca mas lejos de lo que muestra medio cuerpo (1,6 m).
   const room = Math.max(0.08, Math.min(1, freeBottom) - 0.05 - 0.17);
-  const span = Math.min(1.6, Math.max(1.0 - k * 0.24, 0.23 / room));
+  // Algo mas abierto (30-sep): se ve mas cuerpo y respira el plano.
+  const span = Math.min(1.6, Math.max(1.2 - k * 0.24, 0.23 / room));
   // Arriba quedan el selector y la linea del nombre: la cabeza empieza por debajo.
   const top = headTop + span * 0.17;
   const center = top - span / 2;
@@ -63,4 +64,22 @@ export function pixelRatio(framing: Framing, width: number, height: number, devi
   const cap = Math.min(dpr, 1.5);
   const budget = Math.sqrt(1_600_000 / Math.max(1, width * height));
   return Math.max(Math.min(1, dpr), Math.min(cap, budget));
+}
+
+/**
+ * Camara viva: un operador que sostiene el plano y de vez en cuando reajusta el foco.
+ * Suma de senos lentos de periodos que no coinciden (no se nota el ciclo) y, cada ~16 s,
+ * un leve acercamiento y vuelta, como quien vuelve a encuadrar a la persona. Milimetros:
+ * se siente, no marea. Devuelve el desplazamiento de la camara y del punto al que mira.
+ */
+export function cameraDrift(t: number): { x: number; y: number; z: number; tx: number; ty: number } {
+  const s = (period: number, phase: number): number => Math.sin((t / period) * 2 * Math.PI + phase);
+  const x = 0.006 * s(7.3, 0.4) + 0.003 * s(3.1, 1.7);
+  const y = 0.004 * s(5.9, 2.1) + 0.002 * s(2.3, 0.3);
+  // Reencuadre: campana suave de 4 s cada 16 s (adelante 2,5 cm y vuelve).
+  const cycle = ((t % 16) + 16) % 16;
+  const refocus = cycle < 4 ? 0.5 - 0.5 * Math.cos((cycle / 4) * 2 * Math.PI) : 0;
+  const z = -0.025 * refocus + 0.004 * s(9.7, 1.1);
+  // El punto de mira se mueve menos que la camara: el personaje queda en su sitio.
+  return { x, y, z, tx: x * 0.4, ty: y * 0.4 };
 }

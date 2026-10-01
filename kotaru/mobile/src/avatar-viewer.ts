@@ -23,7 +23,7 @@ import { applyLook, type LookHandle } from './avatar-look';
 import { createHairWind } from './hair-wind';
 import { REELS, reelCamera, reelCue, reelFade, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
-import { frameCamera, pixelRatio, type Framing } from './framing';
+import { cameraDrift, frameCamera, pixelRatio, type Framing } from './framing';
 
 /**
  * Motor del avatar 3D de la web (three.js + three-vrm). Solo lo importa avatar.web.tsx, con
@@ -53,15 +53,23 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   const drawingSize = new THREE.Vector2();
   let shot: { fov: number; y: number; z: number; targetY: number } | null = null;
   let goal: { fov: number; y: number; z: number; targetY: number } | null = null;
+  // Camara viva solo en el escenario (no en el retrato redondo); ?drift=0 la apaga.
+  const drifts = withBackground && new URLSearchParams(globalThis.location?.search ?? '').get('drift') !== '0';
+  let drift = { x: 0, y: 0, z: 0, tx: 0, ty: 0 };
   const applyShot = () => {
     if (!shot) return;
     camera.fov = shot.fov;
-    camera.position.set(0, shot.y, shot.z);
-    camera.lookAt(0, shot.targetY, 0);
+    camera.position.set(drift.x, shot.y + drift.y, shot.z + drift.z);
+    camera.lookAt(drift.tx, shot.targetY + drift.ty, 0);
     camera.updateProjectionMatrix();
   };
   /** Acerca la camara al encuadre pedido (suave, ~0,4 s). Devuelve si se movio. */
-  const easeShot = (dt: number): boolean => {
+  const easeShot = (dt: number, d?: typeof drift): boolean => {
+    if (d && drifts) {
+      drift = d;
+      applyShot();
+      return true;
+    }
     if (!shot || !goal) return false;
     const k = Math.min(1, dt * 6);
     let moved = false;
@@ -217,7 +225,7 @@ function animate(
   props: () => AvatarProps,
   stage: Stage | null,
   post: StagePost | null,
-  easeShot: (dt: number) => boolean,
+  easeShot: (dt: number, d?: { x: number; y: number; z: number; tx: number; ty: number }) => boolean,
   anchors: Anchors,
   look: LookHandle,
   motion: CharacterMotion | null,
@@ -318,7 +326,11 @@ function animate(
     // Si no, de vez en cuando uno propio de su emocion (mano al pecho, señalar, barbilla).
     const armAction = cue
       ? (cue.shot.arm ?? (cue.shot.wave ? 'wave' : null))
-      : (armForGesture(p.affect?.gesture) ?? (p.affect ? armForEmotion(p.companion, p.affect.emotion, p.affect.intensity ?? 0, p.affect.at) : null));
+      : // En la conversacion los gestos son animaciones de Mixamo (character-motion: reactionFor);
+        // las poses de brazo de codigo solo quedan para el short y si no hay animaciones.
+        motion?.ready
+        ? null
+        : (armForGesture(p.affect?.gesture) ?? (p.affect ? armForEmotion(p.companion, p.affect.emotion, p.affect.intensity ?? 0, p.affect.at) : null));
     const armOn = !armAction || reduce ? 0 : cue ? armEnvelope(cue.age, cue.shot.dur - 0.65) : armEnvelope(p.affect ? (now - p.affect.at) / 1000 : -1);
     const lookAway = cue?.shot.look === 'away' ? Math.min(1, cue.age / 0.6) * Math.min(1, Math.max(0, (cue.shot.dur - cue.age) / 0.8)) : 0;
 
@@ -346,11 +358,14 @@ function animate(
 
     // Cabeza: postura del estado + gesto + un balanceo muy leve.
     const pose = stateOffset(p.state);
-    const gesture = reduce || !p.affect ? { x: 0, y: 0, z: 0 } : gestureOffset(p.affect.gesture, (now - p.affect.at) / 1000);
-    const sway = reduce ? 0 : 1;
-    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x, dt, 6);
-    headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway + body.head.y + lookAway * 0.45, dt, 6);
-    headZ = approach(headZ, pose.z + gesture.z + Math.sin(t * 0.6) * 0.02 * sway + body.head.z, dt, 6);
+    // Con animaciones, la cabeza no añade gestos ni balanceos propios: tranquila.
+    const calmHead = !!motion?.ready && !cue;
+    const gesture = reduce || !p.affect || calmHead ? { x: 0, y: 0, z: 0 } : gestureOffset(p.affect.gesture, (now - p.affect.at) / 1000);
+    const sway = reduce ? 0 : calmHead ? 0.35 : 1;
+    const headLife = calmHead ? 0.3 : 1;
+    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x * headLife, dt, 6);
+    headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway + body.head.y * headLife + lookAway * 0.45, dt, 6);
+    headZ = approach(headZ, pose.z + gesture.z + Math.sin(t * 0.6) * 0.02 * sway + body.head.z * headLife, dt, 6);
     if (neck) neck.rotation.set(headX * 0.4, headY * 0.4, headZ * 0.4);
     if (head) head.rotation.set(headX * 0.6, headY * 0.6, headZ * 0.6);
 
@@ -378,14 +393,18 @@ function animate(
       camera.position.set(...cam.position);
       camera.lookAt(...cam.target);
       camera.updateProjectionMatrix();
-    } else post?.setFade(1);
+    } else {
+      post?.setFade(1);
+      // Camara viva (framing.ts): solo en el escenario, nunca con «reducir movimiento».
+      if (!reduce) easeShot(0, cameraDrift(t));
+    }
     // Retrato: cuanto mas cerca la camara, mas desenfocado el fondo (primeros planos del short).
     // En un corte del short el enfoque salta con la camara (antes tardaba medio segundo en llegar).
     const closeness = Math.min(1, Math.max(0, (2.2 - camera.position.distanceTo(focusPoint.set(0, anchors.headY, anchors.z))) / 1.6));
     focusNow = cut ? closeness : focusNow + (closeness - focusNow) * Math.min(1, dt * 3);
     post?.setFocus(focusNow);
     // Captura de movimiento real encima del de codigo (postura, peso, gestos al hablar).
-    motion?.update(dt, { speaking, still: reduce, arm: body.arm, busy: p.state === 'listening' || p.state === 'thinking', noActions: !!cue });
+    motion?.update(dt, { speaking, still: reduce, arm: body.arm, busy: p.state === 'listening' || p.state === 'thinking', noActions: !!cue, affect: cue ? null : p.affect });
     // Recado (ir a por agua): mira hacia donde anda, y su voz viene de donde esta.
     const errand = motion?.errand ?? null;
     if (errand && errand.lookAhead > 0) {

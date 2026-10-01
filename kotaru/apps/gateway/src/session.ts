@@ -145,6 +145,12 @@ export class GatewaySession {
    * terminarlo: ahi es donde puede haber cambiado (otro dispositivo, el turno recien
    * cobrado). Los chequeos intermedios, como los plazos, leen esta copia y no la base.
    */
+  /**
+   * Lo gastado por la persona al empezar esta sesion. El tope por sesion (grant.budget) se
+   * compara con lo gastado DESDE aqui: antes se restaba todo su historico y, pasado el primer
+   * dolar de su vida, el modelo dejaba de contestar sin aviso (30-sep).
+   */
+  #costAtStart: number | null = null;
   #usage: { subject: MeterSnapshot; totalCostUsd: number; freeCostUsd: number } = {
     subject: { voiceSeconds: 0, costUsd: 0, turns: 0 },
     totalCostUsd: 0,
@@ -598,6 +604,7 @@ export class GatewaySession {
       this.#grant.plan === 'free' ? this.#deps.usage.freeCostUsd() : Promise.resolve(0),
     ]);
     this.#usage = { subject, totalCostUsd, freeCostUsd };
+    if (this.#costAtStart === null) this.#costAtStart = subject.costUsd;
   }
 
   #context(signal: AbortSignal): ProviderContext {
@@ -609,7 +616,7 @@ export class GatewaySession {
       locale: this.#grant.locale,
       sensitivity: this.#grant.sensitivity,
       budget: {
-        sessionRemainingUsd: Math.max(0, this.#grant.budget.sessionRemainingUsd - used.costUsd),
+        sessionRemainingUsd: Math.max(0, this.#grant.budget.sessionRemainingUsd - (used.costUsd - (this.#costAtStart ?? used.costUsd))),
         monthlyRemainingUsd: Math.max(
           0,
           this.#deps.budget.hardCapUsd - this.#usage.totalCostUsd,
