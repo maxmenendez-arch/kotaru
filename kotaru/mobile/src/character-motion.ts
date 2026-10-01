@@ -51,8 +51,9 @@ export const LIBRARY: { idle: ClipSpec[]; talk: ClipSpec[]; walk: ClipSpec[]; ac
  * no estan (en desarrollo), se usan las capturas de CMU de LIBRARY.
  */
 export const MIXAMO: { idle: ClipSpec[]; talk: ClipSpec[]; actions: ActionSpec[] } = {
-  // Tranquilos: solo los reposos suaves (los «contentos» y el balanceo de lado a lado se movian demasiado).
-  idle: [{ file: 'mx-breathing-idle' }, { file: 'mx-standing-idle' }, { file: 'mx-weight-shift-idle' }, { file: 'mx-neutral-idle' }],
+  // Tranquilos: solo el reposo mas quieto. Medidos (30-sep): «breathing» y «neutral» cabecean
+  // 15 grados y mecen la cadera hasta 14 cm; «weight shift» 8 cm. «Standing» apenas 1 cm y 3 grados.
+  idle: [{ file: 'mx-standing-idle' }],
   talk: [
     { file: 'mx-general-conversation' },
     { file: 'mx-asking-a-question-with-one-hand' },
@@ -91,7 +92,7 @@ export const ACTION_EVERY: readonly [number, number] = [22, 45];
 /** Acciones sueltas al azar y el recado del agua: apagados (solo reacciones a la conversacion). */
 const AUTO_EXTRAS = false;
 /** Hablando, en cuantos turnos gesticula (en el resto habla tranquila). */
-const TALK_GESTURE_SHARE = 0.35;
+const TALK_GESTURE_SHARE = 0.15;
 /** Minimo entre dos reacciones (ms): no encadena gestos. */
 const REACTION_COOLDOWN_MS = 9000;
 
@@ -306,7 +307,8 @@ export class CharacterMotion {
     if (this.#current && this.#current !== key) this.#player.stop(this.#current);
     this.#current = key;
     this.#player.play(key, pick.retarget, pick.clip.duration, {
-      loop,
+      // Un solo clip en la lista: en bucle, sin fundirse a nada entre vuelta y vuelta.
+      loop: loop || list.length === 1,
       fadeIn: 1.1,
       fadeOut: 1.1,
       randomStart: true,
@@ -317,6 +319,11 @@ export class CharacterMotion {
   }
 
   /** Cuanto manda una pose de Nova (0-1): el choque de brazos la deja estar. */
+  /** Hay una accion o un recado en curso (la cabeza no se endereza del todo). */
+  get acting(): boolean {
+    return this.#act.weight > 0.05 || this.#errand !== null;
+  }
+
   get posed(): number {
     return this.#poses?.weight ?? 0;
   }

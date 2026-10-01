@@ -50,7 +50,9 @@ export function frameCamera(framing: Framing, aspect: number, headY: number, fre
   const top = headTop + span * 0.17;
   const center = top - span / 2;
   const z = span / 2 / halfSpan(fov);
-  return { fov, y: center + 0.04, z, targetY: center };
+  // Camara a la altura de los ojos, inclinada hacia el encuadre: si quedara a la altura del
+  // pecho, el personaje (que mira a la camara) bajaria la vista y pareceria cabizbajo.
+  return { fov, y: Math.max(center + 0.04, headY - 0.04), z, targetY: center };
 }
 
 /**

@@ -422,6 +422,10 @@ function animate(
     }
     // Pruebas: ?act=drink (o hair, errand) hace esa accion en cuanto se puede.
     if (motion && pendingAct && motion.ready && motion.act(pendingAct)) pendingAct = null;
+    // Cabeza erguida: la postura de las animaciones (pecho y cuello) no la deja caer. Se mide
+    // hacia donde apunta la cara y se corrige en el cuello hasta quedar casi horizontal (solo
+    // la leve inclinacion de escuchar); en una accion (reir, beber) se corrige poco.
+    if (motion?.ready && head && neck && !cue) levelHead(neck, head, faceSign, pose.x * 0.5, motion.acting ? 0.3 : 0.9);
     // Por ultimo: sacar los brazos de dentro de la ropa si hace falta.
     collider?.update(0, motion?.posed ?? 0);
     stage?.update(t, reduce);
@@ -439,3 +443,28 @@ function animate(
     cleanup();
   };
 }
+
+const levelTmp = { f: new THREE.Vector3(), want: new THREE.Vector3(), q: new THREE.Quaternion(), pw: new THREE.Quaternion(), hw: new THREE.Quaternion() };
+/**
+ * Lleva la mirada de la cabeza a `pitch` radianes (positivo: hacia abajo) girando el cuello,
+ * con fuerza `amount` (0-1). Corrige como mucho 20 grados: es un ajuste, no una pose.
+ */
+function levelHead(neck: THREE.Object3D, head: THREE.Object3D, faceSign: number, pitch: number, amount: number): void {
+  const { f, want, q, pw, hw } = levelTmp;
+  neck.parent?.updateWorldMatrix(true, false);
+  neck.updateMatrixWorld(true);
+  head.getWorldQuaternion(hw);
+  f.set(0, 0, faceSign).applyQuaternion(hw);
+  const flat = Math.hypot(f.x, f.z);
+  if (flat < 1e-3) return;
+  const now = Math.atan2(-f.y, flat);
+  const fix = Math.max(-0.35, Math.min(0.35, now - pitch)) * amount;
+  if (Math.abs(fix) < 1e-3) return;
+  const target = now - fix;
+  want.set((f.x / flat) * Math.cos(target), -Math.sin(target), (f.z / flat) * Math.cos(target));
+  q.setFromUnitVectors(f.normalize(), want);
+  // Giro en el mundo pasado al espacio local del cuello: q_local' = P^-1 * q * P * q_local.
+  neck.parent?.getWorldQuaternion(pw) ?? pw.identity();
+  neck.quaternion.premultiply(pw.clone().invert().multiply(q).multiply(pw));
+}
+
