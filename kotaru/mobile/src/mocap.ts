@@ -110,6 +110,21 @@ const CHILD: Record<string, readonly string[]> = {
   rightLowerLeg: ['rightFoot'],
   rightFoot: ['rightToes'],
 };
+// Dedos (las capturas de Mixamo los traen): cada falange apunta a la siguiente.
+for (const side of ['left', 'right']) {
+  for (const f of ['Index', 'Middle', 'Ring', 'Little']) {
+    CHILD[`${side}${f}Proximal`] = [`${side}${f}Intermediate`];
+    CHILD[`${side}${f}Intermediate`] = [`${side}${f}Distal`];
+  }
+  CHILD[`${side}ThumbMetacarpal`] = [`${side}ThumbProximal`];
+  CHILD[`${side}ThumbProximal`] = [`${side}ThumbDistal`];
+}
+/** Huesos sin hijo propio (la ultima falange): apuntan como su padre. */
+const LAST: Record<string, string> = {};
+for (const side of ['left', 'right']) {
+  for (const f of ['Index', 'Middle', 'Ring', 'Little']) LAST[`${side}${f}Distal`] = `${side}${f}Intermediate`;
+  LAST[`${side}ThumbDistal`] = `${side}ThumbProximal`;
+}
 
 /**
  * Huesos que mueve la captura. El cuello y la cabeza solo se usan en las acciones (beber,
@@ -136,6 +151,12 @@ export const DRIVEN = [
   'rightUpperLeg',
   'rightLowerLeg',
   'rightFoot',
+  ...(['left', 'right'] as const).flatMap((s) => [
+    ...(['Index', 'Middle', 'Ring', 'Little'] as const).flatMap((f) => [`${s}${f}Proximal`, `${s}${f}Intermediate`, `${s}${f}Distal`] as const),
+    `${s}ThumbMetacarpal` as const,
+    `${s}ThumbProximal` as const,
+    `${s}ThumbDistal` as const,
+  ]),
 ] as const;
 
 /** Marco ortonormal a partir de una direccion principal y otra de apoyo. */
@@ -186,7 +207,12 @@ export class Retarget {
     this.#bones = DRIVEN.filter((b) => rig.positions.has(b) && this.#index.has(b));
     for (const b of this.#bones) {
       const child = (CHILD[b] ?? []).find((c) => rig.positions.has(c));
-      const from = child ? pos(child)!.clone().sub(pos(b)!).normalize() : null;
+      const parent = LAST[b];
+      const from = child
+        ? pos(child)!.clone().sub(pos(b)!).normalize()
+        : parent && pos(parent)
+          ? pos(b)!.clone().sub(pos(parent)!).normalize()
+          : null;
       const bvh = clip.restDirs.get(b);
       this.#world.set(b, new Quaternion());
       if (b === 'hips' || !from || !bvh) {
