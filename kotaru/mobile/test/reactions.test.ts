@@ -22,3 +22,10 @@ test('sin gesto, solo con emocion intensa y a veces; las de Nova solo para Nova'
 test('los reposos son solo los tranquilos', () => {
   assert.ok(MIXAMO.idle.every((c) => !/happy|side-to-side/.test(c.file)));
 });
+
+test('el reposo no inclina el tronco: queda la postura propia del personaje', async () => {
+  const { TORSO, TORSO_KEEP } = await import('../src/character-motion.ts');
+  assert.ok(TORSO_KEEP <= 0.35);
+  for (const b of ['hips', 'spine', 'chest', 'upperChest']) assert.ok(TORSO.has(b));
+  assert.ok(!TORSO.has('leftUpperArm'));
+});

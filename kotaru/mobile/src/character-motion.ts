@@ -93,6 +93,9 @@ export const ACTION_EVERY: readonly [number, number] = [22, 45];
 const AUTO_EXTRAS = false;
 /** Hablando, en cuantos turnos gesticula (en el resto habla tranquila). */
 const TALK_GESTURE_SHARE = 0.15;
+/** Huesos del tronco y cuanto de la postura del clip de reposo/charla se conserva (0-1). */
+export const TORSO = new Set(['hips', 'spine', 'chest', 'upperChest']);
+export const TORSO_KEEP = 0.3;
 /** Minimo entre dos reacciones (ms): no encadena gestos. */
 const REACTION_COOLDOWN_MS = 9000;
 
@@ -465,7 +468,10 @@ export class CharacterMotion {
       const node = this.#vrm.humanoid.getNormalizedBoneNode(name as VRMHumanBoneName);
       if (!node) continue;
       const w = armMask(name, W);
-      node.quaternion.slerp(q, w);
+      // Tronco: la postura propia del personaje (recta) manda; del clip solo queda un tercio
+      // de su inclinacion, lo justo para que respire y no se quede de palo (30-sep: Luna
+      // empezaba derecha y luego se echaba hacia delante).
+      node.quaternion.slerp(TORSO.has(name) ? this.#tmpQ.identity().slerp(q, TORSO_KEEP) : q, w);
       // Brazos algo separados del cuerpo (ver ARM_OUT), en el espacio del hombro. En una accion
       // no: la mano tiene que llegar a la boca o al pelo.
       const k = w * (1 - A);
@@ -482,7 +488,7 @@ export class CharacterMotion {
     }
     const hips = this.#vrm.humanoid.getNormalizedBoneNode('hips');
     if (hips && this.#hipsBase) {
-      hips.position.lerp(new THREE.Vector3().copy(this.#hipsBase).add(this.#player.hips), W);
+      hips.position.lerp(new THREE.Vector3().copy(this.#hipsBase).addScaledVector(this.#player.hips, TORSO_KEEP), W);
       if (A > 0.001) hips.position.lerp(new THREE.Vector3().copy(this.#hipsBase).add(this.#act.hips), A);
     }
     // Nova: la pose manda en brazos, torso y cabeza (salvo en el recado del agua y las acciones).
