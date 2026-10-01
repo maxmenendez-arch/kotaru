@@ -11,7 +11,7 @@ import type { VRM, VRMHumanBoneName } from '@pixiv/three-vrm';
 import { parseClip, Retarget, type MotionClip, type MotionClipJson, type RigRest } from './mocap.ts';
 import { MotionPlayer } from './motion-player.ts';
 import { errandAt, planErrand, type ErrandFrame, type ErrandPlan } from './errand.ts';
-import { twoBoneIK } from './ik.ts';
+import { NovaPoses } from './nova-poses.ts';
 
 interface ClipSpec {
   readonly file: string;
@@ -26,11 +26,9 @@ interface ClipSpec {
 // al otro. Solo tramos en los que la persona esta en su sitio (sin pasos ni giros grandes).
 export const LIBRARY: { idle: ClipSpec[]; talk: ClipSpec[]; walk: ClipSpec[]; actions: ActionSpec[] } = {
   // De pie esperando: peso en un pie, cambios de postura, manos que se acomodan (CMU 82_08, 40_11).
-  // Algo mas lentas que la captura: la persona real se movia mas de lo que parece natural
-  // en una pantalla tan cerca.
-  idle: [{ file: 'idle-82_08', rate: 0.8 }, { file: 'idle-82_08-m', rate: 0.8 }, { file: 'idle-40_11', rate: 0.75 }, { file: 'idle-40_11-m', rate: 0.75 }],
+  idle: [{ file: 'idle-82_08' }, { file: 'idle-82_08-m' }, { file: 'idle-40_11' }, { file: 'idle-40_11-m' }],
   // Explicando algo con las manos en una conversacion (CMU 18_08).
-  talk: [{ file: 'talk-18_08', rate: 0.85 }, { file: 'talk-18_08-m', rate: 0.85 }],
+  talk: [{ file: 'talk-18_08' }, { file: 'talk-18_08-m' }],
   // Caminar tranquilo (CMU 16_15), en el sitio: el avance lo pone el recado (errand.ts).
   walk: [{ file: 'walk-16_15' }],
   // Acciones sueltas de vez en cuando, estando tranquilo (CMU 79_38, 81_01, 79_24). Beber no
@@ -52,36 +50,11 @@ export interface ActionSpec extends ClipSpec {
   readonly hand?: 'leftHand' | 'rightHand';
 }
 
-const FINGERS = ['Index', 'Middle', 'Ring', 'Little'] as const;
-const SEGS = [['Proximal', 1], ['Intermediate', 1.1], ['Distal', 0.7]] as const;
-const smooth01 = (k: number) => k * k * (3 - 2 * k);
-/** Manos a la espalda (Nova): cuanto dura (s) y cada cuanto (s), normal y coqueteando. */
-export const BEHIND_HOLD: readonly [number, number] = [6, 12];
-export const BEHIND_EVERY: readonly [number, number] = [45, 90];
-export const BEHIND_EVERY_FLIRT: readonly [number, number] = [14, 30];
-/** Detras de la cadera (m) a donde van las manos. */
-export let BEHIND_BACK = 0.17;
-export function setBehindBack(v: number): void {
-  BEHIND_BACK = v;
-}
-
 /** Cuanto se cierran los dedos alrededor del vaso (rad por falange). */
 const GRIP = 0.95;
 
 /** Cada cuanto (s, estando tranquilo) hace una accion: al azar entre estos dos valores. */
-export const ACTION_EVERY: readonly [number, number] = [60, 120];
-/**
- * En reposo (escuchando, y la mayor parte del tiempo esperando): casi quieta. Una postura
- * real con el peso en una pierna (un instante de la captura de estar de pie), que pasa
- * despacio a la otra pierna cada tanto; solo respira y deriva muy poco.
- */
-export const REST_HOLD: readonly [number, number] = [7, 14];
-/** Fundido al pasar el peso de una pierna a la otra (s). */
-const REST_SHIFT = 3.2;
-/** Cuanto del tiempo esperando esta en reposo (el resto, la captura de estar de pie completa). */
-const REST_SHARE = 0.7;
-/** Hablando: cuanto del tiempo gesticula con las manos (el resto, habla en reposo). */
-const TALK_GESTURE_SHARE = 0.55;
+export const ACTION_EVERY: readonly [number, number] = [22, 45];
 /** Cada cuanto (s de calma acumulada) va a por un vaso de agua: es largo, asi que de tarde en tarde. */
 export const ERRAND_EVERY: readonly [number, number] = [110, 220];
 /**
@@ -177,29 +150,15 @@ export class CharacterMotion {
   readonly #rootYaw: number;
   #frame: ErrandFrame | null = null;
   readonly #eul = new THREE.Euler();
-  readonly #companion: string;
-  readonly #axes: { up: THREE.Vector3; left: THREE.Vector3; fwd: THREE.Vector3 };
-  #time = 0;
-  #talkLive = 0;
-  #pointing = 0;
-  #behind = 0;
-  #behindOn = false;
-  #behindClock = 8 + Math.random() * 10;
-  #behindTilt = 1;
+  /** Nova: poses naturales que mantiene y cambia despacio (nova-poses.ts). */
+  readonly #poses: NovaPoses | null;
   #action: (Loaded & { readonly spec: ActionSpec }) | null = null;
   #calm = 0;
   #nextAction = ACTION_EVERY[0] + Math.random() * (ACTION_EVERY[1] - ACTION_EVERY[0]);
   readonly #glass: THREE.Group;
   readonly #glassMaterials: THREE.Material[];
   readonly #hipsBase: THREE.Vector3 | null;
-  #mode: 'idle' | 'talk' | 'rest' | null = null;
-  #idleStyle: 'idle' | 'rest' = 'rest';
-  #talkStyle: 'talk' | 'rest' = 'talk';
-  #wasSpeaking = false;
-  #restLeft = 0;
-  #restSide = Math.random() < 0.5;
-  #restT = new Map<string, number>();
-  #listenLean = 0;
+  #mode: 'idle' | 'talk' | null = null;
   #current: string | null = null;
   #ready = false;
   #weight = 0;
@@ -215,8 +174,7 @@ export class CharacterMotion {
     const up = rest.positions.get('spine')!.clone().sub(rest.positions.get('hips')!).normalize();
     const left = rest.positions.get('leftUpperLeg')!.clone().sub(rest.positions.get('rightUpperLeg')!).normalize();
     const fwd = new THREE.Vector3().crossVectors(left, up).normalize();
-    this.#companion = companion;
-    this.#axes = { up, left, fwd };
+    this.#poses = companion === 'nova' ? new NovaPoses(vrm, { up, left, fwd }) : null;
     const a = ARM_OUT[companion] ?? 0.1;
     const f = ARM_FWD[companion] ?? 0.1;
     // Hacia delante: giro sobre el eje lateral (el mismo sentido para los dos brazos).
@@ -263,48 +221,15 @@ export class CharacterMotion {
     });
   }
 
-  /** Reposo: la postura de peso en una pierna (o en la otra, con el clip en espejo), casi quieta. */
-  #startRest(): void {
-    const file = this.#restSide ? 'idle-82_08' : 'idle-82_08-m';
-    const loaded = this.#idle.find((l) => l.spec.file === file) ?? this.#idle[0];
-    if (!loaded) return;
-    const t0 = this.#restPoint(loaded);
-    const key = `rest:${loaded.spec.file}`;
-    if (this.#current && this.#current !== key) this.#player.stop(this.#current);
-    this.#current = key;
-    // Casi congelada (una vigesima del tiempo real): deriva lo justo para no parecer estatua.
-    this.#player.play(key, loaded.retarget, loaded.clip.duration, { loop: true, fadeIn: REST_SHIFT, fadeOut: REST_SHIFT, from: t0, to: Math.min(loaded.clip.duration, t0 + 1.6), rate: 0.05 });
-    this.#restLeft = REST_HOLD[0] + Math.random() * (REST_HOLD[1] - REST_HOLD[0]);
-  }
-
-  /** El instante del clip con el peso mas cargado a un lado (cadera mas desplazada). */
-  #restPoint(l: Loaded): number {
-    const cached = this.#restT.get(l.spec.file);
-    if (cached !== undefined) return cached;
-    const pose = new Map<string, THREE.Quaternion>();
-    const hips = new THREE.Vector3();
-    let best = 0;
-    let at = 0;
-    const end = Math.max(0, l.clip.duration - 1.7);
-    for (let t = 0; t <= end; t += 0.1) {
-      l.retarget.pose(t, pose, hips);
-      const side = Math.abs(hips.dot(this.#axes.left));
-      if (side > best) {
-        best = side;
-        at = t;
-      }
-    }
-    this.#restT.set(l.spec.file, at);
-    return at;
+  /** Cuanto manda una pose de Nova (0-1): el choque de brazos la deja estar. */
+  get posed(): number {
+    return this.#poses?.weight ?? 0;
   }
 
   /** Hacer una accion ya (pruebas y shorts); por nombre de archivo o la primera que empiece asi. */
   act(prefix: string): boolean {
-    if (prefix === 'behind') {
-      this.#behindOn = true;
-      this.#behindClock = 30;
-      return true;
-    }
+    if (this.#poses && prefix.startsWith('pose-')) return this.#poses.force(prefix.slice(5));
+    if (this.#poses && prefix.startsWith('gesture-')) return this.#poses.force(prefix.slice(8));
     if (prefix === 'errand' || prefix === 'errand-left') return this.#startErrand(prefix === 'errand-left' ? -1 : 1);
     const found = this.#actions.find((a) => a.spec.file.startsWith(prefix));
     if (!found) return false;
@@ -355,7 +280,7 @@ export class CharacterMotion {
    */
   update(
     dt: number,
-    input: { speaking: boolean; still: boolean; arm: { side: 'left' | 'right' | null; weight: number }; busy?: boolean; noActions?: boolean; flirt?: boolean },
+    input: { speaking: boolean; still: boolean; arm: { side: 'left' | 'right' | null; weight: number }; busy?: boolean; noActions?: boolean },
   ): void {
     if (!this.#ready) return;
     // Acciones de vez en cuando, solo con el personaje tranquilo; hablar o escuchar las corta.
@@ -382,28 +307,12 @@ export class CharacterMotion {
     if (this.#action && !this.#act.isPlaying(this.#action.spec.file) && this.#act.weight < 0.001) this.#action = null;
     this.#weight += ((input.still ? 0 : 1) - this.#weight) * Math.min(1, dt * 2);
     if (this.#weight < 0.001) return;
-    // Hablando: a veces con gestos, a veces en reposo. Escuchando o pensando: en reposo, solo
-    // la inclinacion hacia quien habla. Esperando: casi siempre en reposo.
-    if (input.speaking && !this.#wasSpeaking) this.#talkStyle = Math.random() < TALK_GESTURE_SHARE ? 'talk' : 'rest';
-    this.#wasSpeaking = input.speaking;
-    const want: 'idle' | 'talk' | 'rest' = input.speaking && this.#talk.length ? this.#talkStyle : input.busy ? 'rest' : this.#idleStyle;
-    if (want === 'rest') {
-      this.#restLeft -= dt;
-      if (this.#mode !== 'rest' || this.#restLeft <= 0) {
-        if (this.#mode === 'rest') this.#restSide = !this.#restSide;
-        this.#mode = 'rest';
-        this.#startRest();
-        // Al acabar este reposo, a veces la postura de pie completa (si sigue esperando).
-        this.#idleStyle = Math.random() < REST_SHARE ? 'rest' : 'idle';
-      }
-    } else {
-      // Un clip tras otro (al azar, nunca el mismo dos veces seguidas), con fundido entre ellos.
-      const ending = this.#current !== null && this.#player.remaining(this.#current) < 1.2;
-      if (want !== this.#mode || ending) {
-        if (ending && want === 'idle') this.#idleStyle = Math.random() < REST_SHARE ? 'rest' : 'idle';
-        this.#mode = want;
-        this.#start(want === 'talk' ? this.#talk : this.#idle, want, false);
-      }
+    const want = input.speaking && this.#talk.length ? 'talk' : 'idle';
+    // Un clip tras otro (al azar, nunca el mismo dos veces seguidas), con fundido entre ellos.
+    const ending = this.#current !== null && this.#player.remaining(this.#current) < 1.2;
+    if (want !== this.#mode || ending) {
+      this.#mode = want;
+      this.#start(want === 'talk' ? this.#talk : this.#idle, want, false);
     }
     this.#player.update(dt);
     this.#act.update(dt);
@@ -424,20 +333,6 @@ export class CharacterMotion {
       if (name === 'leftUpperArm') node.quaternion.premultiply(this.#tmpQ.identity().slerp(this.#armOut[0], k));
       if (name === 'rightUpperArm') node.quaternion.premultiply(this.#tmpQ.identity().slerp(this.#armOut[1], k));
     }
-    // Respirar (la captura casi congelada no respira) y, escuchando, inclinarse un poco hacia
-    // quien habla. Todo lento: nada de movimientos rapidos.
-    this.#listenLean += ((input.busy ? 1 : 0) - this.#listenLean) * Math.min(1, dt * 0.8);
-    {
-      const breath = Math.sin(this.#time * 1.45) * 0.012 * this.#weight;
-      const lean = 0.045 * smooth01(this.#listenLean) * this.#weight;
-      const tilt = (name: string, a: number) => {
-        const node = this.#vrm.humanoid.getNormalizedBoneNode(name as VRMHumanBoneName);
-        if (node && a) node.quaternion.premultiply(this.#tmpQ.setFromAxisAngle(this.#axes.left, a));
-      };
-      tilt('spine', lean * 0.5);
-      tilt('chest', breath + lean * 0.5);
-      tilt('upperChest', breath * 0.6);
-    }
     if (A > 0.001) {
       for (const [name, q] of this.#act.pose) {
         const node = this.#vrm.humanoid.getNormalizedBoneNode(name as VRMHumanBoneName);
@@ -451,124 +346,29 @@ export class CharacterMotion {
       hips.position.lerp(new THREE.Vector3().copy(this.#hipsBase).add(this.#player.hips), W);
       if (A > 0.001) hips.position.lerp(new THREE.Vector3().copy(this.#hipsBase).add(this.#act.hips), A);
     }
-    this.#behindPose(dt, input);
+    // Nova: la pose manda en brazos, torso y cabeza (salvo en el recado del agua y las acciones).
+    this.#poses?.update(dt, !this.#errand && !this.#action && !input.still && !input.noActions);
     const errandGlass = this.#errandFrame(dt, W);
     // El vaso: aparece y se va con la accion de beber; los dedos de esa mano lo rodean.
     const holding = errandGlass ? 'rightHand' : this.#action?.spec.prop === 'glass' ? this.#action.spec.hand : null;
     if (holding) this.#grip = holding;
-    const gripAmount = this.#grip ? (errandGlass ? 1 : holding ? A : 0) : 0;
-    this.#hands(dt, input.speaking, this.#grip, gripAmount);
-    if (this.#grip && !holding && A < 0.001) this.#grip = null;
+    if (this.#grip) {
+      const side = this.#grip === 'leftHand' ? 'left' : 'right';
+      const sign = side === 'left' ? -1 : 1;
+      const g = errandGlass ? 1 : holding ? A : 0;
+      for (const f of ['Index', 'Middle', 'Ring', 'Little']) {
+        for (const [seg, k] of [['Proximal', 1], ['Intermediate', 1.1], ['Distal', 0.7]] as const) {
+          const node = this.#vrm.humanoid.getNormalizedBoneNode(`${side}${f}${seg}` as VRMHumanBoneName);
+          if (!node) continue;
+          if (!this.#fingerRest.has(node)) this.#fingerRest.set(node, node.rotation.z);
+          node.rotation.z = this.#fingerRest.get(node)! + sign * GRIP * k * g;
+        }
+      }
+      if (!holding && A < 0.001) this.#grip = null;
+    }
     const showGlass = errandGlass || (holding !== null && A > 0.02);
     this.#glass.visible = showGlass;
     if (showGlass) for (const m of this.#glassMaterials) m.opacity = (m.userData['base'] as number) * (errandGlass ? 1 : Math.min(1, A * 1.4));
-  }
-
-  /**
-   * Muñecas y dedos vivos: nadie tiene las manos rigidas. La muñeca se dobla y se ladea un
-   * poco, despacio (algo mas al hablar), y cada dedo se recoge y se abre por su cuenta. Encima,
-   * el vaso (los dedos lo rodean) y el gesto de «un momento» (indice arriba).
-   */
-  #hands(dt: number, speaking: boolean, grip: 'leftHand' | 'rightHand' | null, gripAmount: number): void {
-    this.#time += dt;
-    const t = this.#time;
-    const n = (f: number, ph: number) => Math.sin(t * f + ph) * 0.7 + Math.sin(t * f * 1.61 + ph * 1.7) * 0.3;
-    this.#talkLive += ((speaking ? 1 : 0) - this.#talkLive) * Math.min(1, dt * 2);
-    const amp = (0.6 + 0.4 * this.#talkLive) * this.#weight;
-    for (const side of ['left', 'right'] as const) {
-      const sign = side === 'left' ? -1 : 1;
-      const ph = side === 'left' ? 0 : 2.4;
-      const hand = this.#vrm.humanoid.getNormalizedBoneNode(`${side}Hand` as VRMHumanBoneName);
-      if (hand) {
-        // Flexion (hacia la palma) y ladeo, en radianes; mas vivo al hablar.
-        const flex = (0.07 * n(0.19, ph) + 0.05 * this.#talkLive * n(0.45, ph + 1)) * amp;
-        const dev = 0.04 * n(0.15, ph + 3) * amp;
-        this.#tmpQ.setFromEuler(this.#eul.set(0, dev, sign * flex));
-        hand.quaternion.multiply(this.#tmpQ);
-      }
-      const gripping = grip === `${side}Hand` ? gripAmount : 0;
-      const point = side === 'right' ? this.#pointing : 0;
-      FINGERS.forEach((f, fi) => {
-        const wiggle = 0.05 * n(0.12 + fi * 0.03, ph + fi * 1.3) * amp;
-        SEGS.forEach(([seg, k]) => {
-          const node = this.#vrm.humanoid.getNormalizedBoneNode(`${side}${f}${seg}` as VRMHumanBoneName);
-          if (!node) return;
-          if (!this.#fingerRest.has(node)) this.#fingerRest.set(node, node.rotation.z);
-          const rest = this.#fingerRest.get(node)!;
-          let z = rest + sign * wiggle * k;
-          z += (rest + sign * GRIP * k - z) * gripping;
-          // «Un momento»: el indice recto, los demas recogidos.
-          z += ((f === 'Index' ? 0 : rest + sign * 1.35 * k) - z) * point;
-          node.rotation.z = z;
-        });
-      });
-    }
-  }
-
-  /**
-   * Nova, a veces (mas en modo Coqueteo): las manos a la espalda, inclinada hacia delante y de
-   * puntillas, con la cabeza ladeada. Las manos se colocan con cinematica inversa detras de la
-   * cintura de cada personaje.
-   */
-  #behindPose(dt: number, input: { speaking: boolean; still: boolean; noActions?: boolean; flirt?: boolean }): void {
-    if (this.#companion !== 'nova' || input.still || input.noActions) {
-      this.#behindOn = false;
-    } else if (!this.#errand && !this.#action) {
-      this.#behindClock -= dt;
-      if (this.#behindClock <= 0) {
-        this.#behindOn = !this.#behindOn;
-        const [a, b] = this.#behindOn ? BEHIND_HOLD : input.flirt ? BEHIND_EVERY_FLIRT : BEHIND_EVERY;
-        this.#behindClock = a + Math.random() * (b - a);
-        if (this.#behindOn) this.#behindTilt = Math.random() < 0.5 ? -1 : 1;
-      }
-    } else this.#behindOn = false;
-    this.#behind += ((this.#behindOn ? 1 : 0) - this.#behind) * Math.min(1, dt * 1.6);
-    const B = smooth01(this.#behind) * this.#weight;
-    if (B < 0.001) return;
-    const bone = (name: string) => this.#vrm.humanoid.getNormalizedBoneNode(name as VRMHumanBoneName);
-    const scene = this.#vrm.scene;
-    // Inclinada hacia delante (con un leve vaiven), y la cabeza compensa para mirarte.
-    const lean = (0.2 + 0.035 * Math.sin(this.#time * 1.1)) * B;
-    const rot = (name: string, axis: THREE.Vector3, angle: number) => {
-      const node = bone(name);
-      if (node) node.quaternion.premultiply(this.#tmpQ.setFromAxisAngle(axis, angle));
-    };
-    rot('spine', this.#axes.left, lean * 0.45);
-    rot('chest', this.#axes.left, lean * 0.35);
-    rot('upperChest', this.#axes.left, lean * 0.2);
-    rot('neck', this.#axes.left, -lean * 0.55);
-    rot('head', this.#axes.fwd, this.#behindTilt * 0.15 * B);
-    // De puntillas: sube la cadera y los talones.
-    const hips = bone('hips');
-    if (hips) hips.position.addScaledVector(this.#axes.up, 0.022 * B);
-    // (Los dedos del pie no los mueve nadie cada cuadro: se quedan; basta con el pie.)
-    for (const side of ['left', 'right']) rot(`${side}Foot`, this.#axes.left, 0.2 * B);
-    // Las manos, juntas detras de la cintura; los codos hacia fuera y atras.
-    this.#vrm.humanoid.normalizedHumanBonesRoot.updateMatrixWorld(true);
-    const hipsNow = new THREE.Vector3();
-    (hips ?? scene).getWorldPosition(hipsNow);
-    scene.worldToLocal(hipsNow);
-    for (const side of ['left', 'right'] as const) {
-      const s = side === 'left' ? 1 : -1;
-      const upper = bone(`${side}UpperArm`);
-      const lower = bone(`${side}LowerArm`);
-      const hand = bone(`${side}Hand`);
-      if (!upper || !lower || !hand) continue;
-      const shoulder = scene.worldToLocal(upper.getWorldPosition(new THREE.Vector3()));
-      const target = hipsNow.clone().addScaledVector(this.#axes.up, 0.07).addScaledVector(this.#axes.fwd, -BEHIND_BACK).addScaledVector(this.#axes.left, s * 0.045);
-      const pole = shoulder.clone().addScaledVector(this.#axes.left, s * 0.4).addScaledVector(this.#axes.fwd, -0.35).addScaledVector(this.#axes.up, -0.25);
-      const before = [upper.quaternion.clone(), lower.quaternion.clone(), hand.quaternion.clone()];
-      twoBoneIK(upper, lower, hand, scene.localToWorld(target), scene.localToWorld(pole));
-      // Mano relajada, con la palma hacia atras (reposo del modelo).
-      hand.quaternion.identity();
-      const after = [upper.quaternion.clone(), lower.quaternion.clone(), hand.quaternion.clone()];
-      [upper, lower, hand].forEach((node, i) => node.quaternion.copy(before[i]!).slerp(after[i]!, B));
-    }
-  }
-
-  /** Cuanto tiene las manos a la espalda (0-1): el choque de brazos lo deja pasar por detras. */
-  get behind(): number {
-    return this.#behind * this.#weight;
   }
 
   #endErrand(): void {
@@ -646,8 +446,15 @@ export class CharacterMotion {
       set('rightUpperArm', WAIT_POSE.upper);
       set('rightLowerArm', WAIT_POSE.lower);
       set('rightHand', WAIT_POSE.hand);
+      for (const fg of ['Index', 'Middle', 'Ring', 'Little']) {
+        for (const [seg, k] of [['Proximal', 1], ['Intermediate', 1.1], ['Distal', 0.7]] as const) {
+          const node = bone(`right${fg}${seg}`);
+          if (node) node.rotation.z = node.rotation.z * (1 - g) + (fg === 'Index' ? 0 : 1.35 * k) * g;
+        }
+      }
+      const thumb = bone('rightThumbDistal');
+      if (thumb) thumb.rotation.y = thumb.rotation.y * (1 - g) + 0.6 * g;
     }
-    this.#pointing = f.gesture * this.#weight;
     // Donde esta: se mueve y se gira el personaje entero.
     void W;
     this.#vrm.scene.position.set(this.#rootPos.x + f.x, this.#rootPos.y, this.#rootPos.z + f.z);

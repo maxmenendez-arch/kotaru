@@ -291,7 +291,10 @@ export class ArmCollider {
    * `behind`: los brazos van a la espalda a proposito (Nova con las manos atras): el brazo
    * puede quedar por detras del cuerpo, no se empuja hacia su lado.
    */
-  update(behind = 0): void {
+  update(behind = 0, posed = 0): void {
+    // Una pose hecha a mano (las de Nova) ya pone las manos donde deben, sobre el cuerpo: aqui
+    // el choque solo estorbaria (las apartaria de la cadera o del muslo).
+    if (posed > 0.5) return;
     const root = this.#vrm.humanoid.normalizedHumanBonesRoot;
     const r = this.#profile.radius ?? { upperArm: 0.045, lowerArm: 0.035, hand: 0.018 };
     for (const side of ['left', 'right'] as const) {
@@ -310,11 +313,12 @@ export class ArmCollider {
         const armFree = behind < 0.3;
         // Del brazo, de media altura al codo: mas arriba, junto a la axila, el brazo toca el
         // costado (como en una persona) y empujarlo lo dejaria en cruz.
+        // Suave: el codo apenas (si el brazo se abre mucho parece un muñeco en cruz) y sobre
+        // todo antebrazo y mano, que son los que se meten en la falda o el short.
         const moved =
-          (armFree && this.#push(upper, upper, lower, 0.65, Math.min(r.upperArm, 0.04), lateral)) ||
-          (armFree && this.#push(upper, upper, lower, 1, Math.min(r.upperArm, 0.05), lateral)) ||
-          this.#push(lower, lower, hand, 0.5, Math.min(r.lowerArm, 0.045), 0) ||
-          this.#push(lower, lower, hand, 1, Math.min(r.lowerArm, 0.04), 0) ||
+          (armFree && this.#push(upper, upper, lower, 1, Math.min(r.upperArm, 0.02), lateral)) ||
+          this.#push(lower, lower, hand, 0.5, Math.min(r.lowerArm, 0.03), 0) ||
+          this.#push(lower, lower, hand, 1, Math.min(r.lowerArm, 0.03), 0) ||
           this.#push(hand, hand, tip, 1.6, r.hand, 0);
         if (!moved) break;
       }

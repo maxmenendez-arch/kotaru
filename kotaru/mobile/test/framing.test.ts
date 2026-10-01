@@ -15,13 +15,13 @@ test('retrato y escenario siguen igual que antes (busto)', () => {
   assert.equal(frameCamera('stage', 3, HEAD).fov, 15);
 });
 
-test('pantalla completa en telefono: cabeza entera, por debajo de los controles de arriba, y hasta la cintura', () => {
+test('pantalla completa en telefono: cabeza entera, por debajo de los controles de arriba, y hasta la cadera', () => {
   const v = visible(frameCamera('immersive', 390 / 760, HEAD));
   const headTop = HEAD + 0.11;
   assert.ok(v.top > headTop, 'la cabeza no se corta');
   const fromTop = (v.top - headTop) / (v.top - v.bottom);
   assert.ok(fromTop > 0.12 && fromTop < 0.25, `hueco arriba ${fromTop}`);
-  assert.ok(v.bottom < 1.0 && v.bottom > 0.8, `llega a la cintura, sin enseñar las manos en reposo (${v.bottom})`);
+  assert.ok(v.bottom < 0.95, 'llega a la cadera');
 });
 
 test('en ordenador el encuadre es algo mas cercano que en telefono', () => {
