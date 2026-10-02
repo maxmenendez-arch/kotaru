@@ -15,7 +15,7 @@ export type { AvatarProps } from './avatar-types';
  * - Con "reducir movimiento" no hay balanceo, respiracion ni gestos; si parpadeo y boca.
  * - El audio no se analiza: solo se lee el volumen del instante (AudioOutput.level).
  *
- * Los modelos se sirven desde mobile/public/avatars (aligerados con tools/vrm-optimize.py).
+ * Los modelos se sirven desde mobile/public/avatars (aligerados con tools/vrm-optimize.py y tools/vrm-slim.py --webp: ~1,5 MB por la red cada uno).
  */
 
 const MODEL_URL: Readonly<Record<string, string>> = {
@@ -25,6 +25,23 @@ const MODEL_URL: Readonly<Record<string, string>> = {
 };
 
 type Status = 'loading' | 'ready' | 'failed';
+
+let preloaded = false;
+/**
+ * Adelanta la descarga mientras la persona lee la bienvenida o inicia sesion: el motor 3D y
+ * los modelos (primero el del personaje con el que va a hablar, luego los demas, de uno en
+ * uno). Quedan en la cache del navegador y el personaje aparece mucho antes. Una sola vez.
+ */
+export function preloadAvatars(first?: string): void {
+  if (preloaded || typeof fetch === 'undefined' || !hasWebGL()) return;
+  preloaded = true;
+  const order = [first, ...Object.keys(MODEL_URL)].filter((c, i, all): c is string => !!c && !!MODEL_URL[c] && all.indexOf(c) === i);
+  void import('./avatar-viewer').catch(() => undefined);
+  void order.reduce<Promise<unknown>>(
+    (chain, c) => chain.then(() => fetch(MODEL_URL[c]!, { priority: 'low' } as RequestInit).then((r) => r.arrayBuffer()).catch(() => undefined)),
+    Promise.resolve(),
+  );
+}
 
 export function Avatar(props: AvatarProps) {
   const { companion, size, fallback } = props;

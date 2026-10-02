@@ -6,6 +6,7 @@ import { openAccount, SERVER_URL } from './src/auth';
 import type { Connection } from './src/connection';
 import type { Lang } from './src/i18n';
 import { t } from './src/i18n';
+import { preloadAvatars } from './src/avatar';
 import { Conversation, type AddressForm, type VoiceChoice } from './src/screens/Conversation';
 import { Memories } from './src/screens/Memories';
 import { Settings } from './src/screens/Settings';
@@ -53,6 +54,11 @@ export default function App() {
   const [auth, setAuth] = useState<AuthApi | null>(null);
   const s = t(lang);
   const showDevConnection = __DEV__ || !SERVER_URL;
+
+  // Los modelos 3D se empiezan a bajar ya, mientras se lee la bienvenida o se entra.
+  useEffect(() => {
+    if (Platform.OS === 'web') preloadAvatars();
+  }, []);
 
   useEffect(() => {
     if (!SERVER_URL) return;
