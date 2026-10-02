@@ -21,3 +21,18 @@ export function keepCallAudio(on: boolean): void {
     // Navegador que la tiene pero no deja cambiarla: se queda como estaba.
   }
 }
+
+/**
+ * Musica de la pantalla de elegir (Safari en iPhone): modo "reproduccion", para que suene por
+ * el altavoz a volumen de musica aunque el telefono este en silencio y aunque se venga de una
+ * conversacion (en modo llamada sonaba bajito, por el auricular). Al salir, vuelve a "auto".
+ */
+export function keepMusicAudio(on: boolean): void {
+  const session = (navigator as unknown as { audioSession?: { type: AudioSessionType } }).audioSession;
+  if (!session) return;
+  try {
+    session.type = on ? 'playback' : 'auto';
+  } catch {
+    // Navegador que no deja cambiarla.
+  }
+}

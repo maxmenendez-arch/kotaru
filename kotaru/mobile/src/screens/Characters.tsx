@@ -16,6 +16,7 @@ import {
 import { createSoundscape } from '../ambient';
 import { Avatar } from '../avatar';
 import { createIntroVoice } from '../intro-voice';
+import { keepMusicAudio } from '../call-audio';
 import { PROFILES } from '../character-profiles';
 import { REELS } from '../reel';
 import { COMPANIONS, companionById, type CompanionId } from '../companions';
@@ -68,7 +69,9 @@ export function Characters({
   const [connecting, setConnecting] = useState<CompanionId | null>(null);
   const scroll = useRef<ScrollView>(null);
   // Sonido del short: musica propia de cada personaje y, debajo, el sonido de su lugar.
-  const music = useRef(createSoundscape(MUSIC_BUILDERS, 0.65)).current;
+  // Mas alta que antes (0,65) y sin apagarse del todo mientras saluda (0,4): en el telefono
+  // apenas se oia.
+  const music = useRef(createSoundscape(MUSIC_BUILDERS, 0.9, 0.4)).current;
   const place = useRef(createSoundscape(SCENE_BUILDERS, 0.18)).current;
   // Saludo con risa en su voz, una vez por personaje mostrado, en el primer plano en que habla.
   const intro = useRef(createIntroVoice()).current;
@@ -91,6 +94,7 @@ export function Characters({
   const [soundOn, setSoundOnState] = useState(() => readFlag(SOUND_KEY, true));
   const playSound = (id: CompanionId, on = soundOn) => {
     if (!on || connecting) return;
+    keepMusicAudio(true);
     music.play(MUSIC_OF[id]);
     place.play(SCENE_OF[id]);
   };
@@ -115,6 +119,7 @@ export function Characters({
       music.dispose();
       place.dispose();
       intro.dispose();
+      keepMusicAudio(false);
     },
     [music, place],
   );

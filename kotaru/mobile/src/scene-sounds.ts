@@ -172,21 +172,31 @@ export const SONGS: Readonly<Record<ReelMusic, Song>> = {
   // R&B nocturno: Am9 - Fmaj7 - Dm9 - Esus4.
   'music-nova': { bpm: 82, chords: [[57, 60, 64, 67, 71], [53, 57, 60, 64], [50, 53, 57, 60, 64], [52, 57, 59, 64]], pad: 0.08, pluck: 0.05, density: 0.25, bass: 0.16, drums: 'soft', tone: 1100 },
   // Guitarra alegre de fogata: G - D - Em - C.
-  'music-rio': { bpm: 104, chords: [[55, 59, 62, 67], [50, 54, 57, 62], [52, 55, 59, 64], [48, 52, 55, 60]], pad: 0.035, pluck: 0.08, density: 0.85, bass: 0.12, drums: 'shaker', tone: 2200 },
+  'music-rio': { bpm: 104, chords: [[55, 59, 62, 67], [50, 54, 57, 62], [52, 55, 59, 64], [48, 52, 55, 60]], pad: 0.07, pluck: 0.2, density: 0.85, bass: 0.2, drums: 'shaker', tone: 2200 },
 };
 
 function makeSong(song: Song): Builder {
   return (ctx: AudioContext, n: Noises): Voice => {
     const out = gain(ctx, 0);
+    // Volumen de la musica (1-oct: en el telefono apenas se oia). Pasa por un compresor suave
+    // que la empasta y le da cuerpo sin picos.
+    const glue = ctx.createDynamicsCompressor();
+    glue.threshold.value = -20;
+    glue.knee.value = 10;
+    glue.ratio.value = 3;
+    glue.attack.value = 0.01;
+    glue.release.value = 0.25;
+    const makeup = gain(ctx, 2.4);
+    glue.connect(makeup).connect(out);
     // Un eco suave para que no suene seco.
     const echo = ctx.createDelay(1);
     echo.delayTime.value = (60 / song.bpm) * 0.75;
     const feedback = gain(ctx, 0.28);
     const echoTone = filter(ctx, 'lowpass', 2600);
     echo.connect(echoTone).connect(feedback).connect(echo);
-    echoTone.connect(gain(ctx, 0.5)).connect(out);
+    echoTone.connect(gain(ctx, 0.5)).connect(glue);
     const dry = gain(ctx, 1);
-    dry.connect(out);
+    dry.connect(glue);
     dry.connect(echo);
 
     const beat = 60 / song.bpm;
@@ -249,6 +259,19 @@ function makeSong(song: Song): Builder {
       osc.start(t);
       osc.stop(t + dur + 0.05);
       track(osc);
+      // El altavoz de un telefono no da graves de 50-80 Hz: la misma nota una octava arriba,
+      // mas suave, hace que el bajo se oiga (el oido completa la fundamental).
+      const up = ctx.createOscillator();
+      up.type = 'triangle';
+      up.frequency.value = NOTE(m);
+      const upEnv = gain(ctx, 0);
+      upEnv.gain.setValueAtTime(0, t);
+      upEnv.gain.linearRampToValueAtTime(song.bass * 0.45, t + 0.02);
+      upEnv.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      up.connect(upEnv).connect(dry);
+      up.start(t);
+      up.stop(t + dur + 0.05);
+      track(up);
     };
     const tick = (t: number, level: number, hp: number, len: number) => {
       const src = ctx.createBufferSource();
@@ -256,18 +279,19 @@ function makeSong(song: Song): Builder {
       const env = gain(ctx, 0);
       env.gain.setValueAtTime(level, t);
       env.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      src.connect(filter(ctx, 'highpass', hp)).connect(env).connect(out);
+      src.connect(filter(ctx, 'highpass', hp)).connect(env).connect(glue);
       src.start(t, Math.random() * 4, len + 0.02);
       track(src);
     };
     const kick = (t: number) => {
       const osc = ctx.createOscillator();
-      osc.frequency.setValueAtTime(110, t);
-      osc.frequency.exponentialRampToValueAtTime(45, t + 0.15);
+      // Arranca mas arriba (160 Hz): en el altavoz del telefono se oye el golpe.
+      osc.frequency.setValueAtTime(160, t);
+      osc.frequency.exponentialRampToValueAtTime(55, t + 0.15);
       const env = gain(ctx, 0);
       env.gain.setValueAtTime(0.22, t);
       env.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-      osc.connect(env).connect(out);
+      osc.connect(env).connect(glue);
       osc.start(t);
       osc.stop(t + 0.32);
       track(osc);

@@ -21,8 +21,9 @@ test('cada short mezcla planos cercanos y de cuerpo entero, habla y usa emocione
   const EMOTIONS = ['neutral', 'warm', 'happy', 'curious', 'thoughtful', 'concerned', 'playful', 'surprised'];
   for (const [id, shots] of Object.entries(REELS)) {
     const foci = new Set(shots.flatMap((s) => [s.from.focus, s.to.focus]));
-    assert.ok(foci.has('eyes') || foci.has('face'), `${id} sin primer plano`);
-    assert.ok(foci.has('full'), `${id} sin cuerpo entero`);
+    assert.ok(foci.has('eyes') || foci.has('face') || foci.has('selfie'), `${id} sin primer plano`);
+    // Nova se graba en selfie: sin planos de cuerpo entero.
+    if (id !== 'nova') assert.ok(foci.has('full'), `${id} sin cuerpo entero`);
     assert.ok(shots.some((s) => s.talk), `${id} no habla`);
     for (const s of shots) assert.ok(EMOTIONS.includes(s.emotion), `${id}: ${s.emotion}`);
   }
@@ -92,7 +93,8 @@ import { styleFor } from '../src/body-styles.ts';
 test('gestos de brazo del short: cada personaje el suyo, con un brazo libre', () => {
   const arms = (id: 'luna' | 'nova' | 'rio') => REELS[id].map((s) => s.arm).filter(Boolean);
   assert.ok(arms('luna').includes('chest'));
-  assert.ok(arms('nova').includes('chin'));
+  // Nova sostiene el movil del selfie todo el short.
+  assert.ok(REELS.nova.every((s) => s.arm === 'selfie' && s.from.focus === 'selfie'));
   // Rio: plano medio mirando el paisaje y un solo plano entero (el saludo): no se le muestra de mas.
   assert.equal(REELS.rio.filter((s) => s.from.focus === 'full').length, 1);
   assert.ok(REELS.rio.some((s) => s.wave));
@@ -113,5 +115,16 @@ test('fundido solo al volver a empezar el bucle: los cortes de dentro siguen sec
     assert.equal(reelFade(shots, shots[0]!.dur), 1);
     assert.ok(reelFade(shots, 0.2) > reelFade(shots, 0.05));
     assert.equal(reelFade(shots, 0.5), 1);
+  }
+});
+
+test('selfie de Nova: el movil a la distancia del brazo, por encima de los ojos, inclinado y sin saltos', () => {
+  for (let t = 0.1; t < reelDuration(REELS.nova); t += 0.25) {
+    const c = reelCamera(REELS.nova, t, A, 0.46);
+    const d = dist(c);
+    assert.ok(d > 0.4 && d < 0.85, `a ${d.toFixed(2)} m en ${t}`);
+    assert.ok(c.position[1] > A.eyeY, 'desde arriba');
+    assert.ok(c.fov > 50, 'gran angular de movil');
+    assert.ok(Math.abs(c.roll ?? 0) < 0.25);
   }
 });

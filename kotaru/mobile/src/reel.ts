@@ -11,7 +11,8 @@
 import type { CompanionId } from './companions';
 import type { ArmAction } from './idle-body.ts';
 
-export type Focus = 'eyes' | 'face' | 'bust' | 'waist' | 'full';
+/** `selfie`: el propio personaje sostiene el movil (Nova): cerca, desde arriba, gran angular. */
+export type Focus = 'eyes' | 'face' | 'bust' | 'waist' | 'full' | 'selfie';
 
 export interface CamKey {
   readonly focus: Focus;
@@ -19,6 +20,10 @@ export interface CamKey {
   readonly yaw: number;
   /** Altura de la camara respecto al punto mirado, por metro de distancia (+ = desde arriba). */
   readonly pitch?: number;
+  /** Solo selfie: distancia del movil a la cara (m; el brazo da ~0,35-0,6). */
+  readonly dist?: number;
+  /** Solo selfie: inclinacion del movil (radianes, + hacia su izquierda). */
+  readonly roll?: number;
 }
 
 export type Look = 'camera' | 'away' | 'up';
@@ -55,6 +60,8 @@ export interface Anchors {
 
 export interface ReelCamera {
   readonly fov: number;
+  /** Giro de la camara sobre su eje (radianes): el movil inclinado del selfie. */
+  readonly roll?: number;
   readonly position: readonly [number, number, number];
   readonly target: readonly [number, number, number];
 }
@@ -84,6 +91,9 @@ function focusFrame(focus: Focus, a: Anchors): { span: number; y: number; z: num
     case 'full':
       // De los pies a la cabeza con aire arriba y abajo.
       return { span: top * 1.12, y: top / 2, z: a.z };
+    case 'selfie':
+      // La camara la pone reelCamera (distancia del brazo); aqui solo el punto mirado: la cara.
+      return { span: 0.4, y: a.eyeY - 0.04, z: a.eyeZ };
   }
 }
 
@@ -95,7 +105,9 @@ function focusFrame(focus: Focus, a: Anchors): { span: number; y: number; z: num
 function distanceFor(span: number, aspect: number): number {
   const half = Math.tan(((FOV / 2) * Math.PI) / 180);
   const byHeight = span / 2 / half;
-  const byWidth = (span * 0.5) / 2 / (half * Math.max(0.3, aspect));
+  // Como minimo 18 cm de ancho: los dos ojos enteros (antes, en vertical, el plano de los
+  // ojos dejaba solo uno, la nariz y la boca).
+  const byWidth = Math.max(span * 0.5, 0.18) / 2 / (half * Math.max(0.3, aspect));
   return Math.max(byHeight, byWidth);
 }
 
@@ -157,6 +169,7 @@ export function reelFade(shots: readonly Shot[], t: number, width = 0.35): numbe
 export function reelCamera(shots: readonly Shot[], t: number, a: Anchors, aspect: number): ReelCamera {
   const { shot, age } = reelCue(shots, t);
   const k = smooth(age / shot.dur);
+  if (shot.from.focus === 'selfie') return selfieCamera(shot, k, t, a);
   const from = focusFrame(shot.from.focus, a);
   const to = focusFrame(shot.to.focus, a);
   const span = lerp(from.span, to.span, k);
@@ -169,6 +182,33 @@ export function reelCamera(shots: readonly Shot[], t: number, a: Anchors, aspect
     fov: FOV,
     position: [a.x + Math.sin(yaw) * d, y + pitch * d, z + Math.cos(yaw) * d],
     target: [a.x, y, z],
+  };
+}
+
+/** Angulo vertical de la camara frontal de un movil en vertical (~26 mm). */
+export const SELFIE_FOV = 60;
+
+/**
+ * Selfie: el movil en la mano del personaje, a la distancia del brazo, un poco por encima de
+ * los ojos y mirando hacia abajo, inclinado, con el pulso de una mano que lo sostiene.
+ */
+function selfieCamera(shot: Shot, k: number, t: number, a: Anchors): ReelCamera {
+  const d = lerp(shot.from.dist ?? 0.55, shot.to.dist ?? 0.55, k);
+  const yaw = lerp(shot.from.yaw, shot.to.yaw, k);
+  const pitch = lerp(shot.from.pitch ?? 0.3, shot.to.pitch ?? 0.3, k);
+  const roll = lerp(shot.from.roll ?? 0, shot.to.roll ?? 0, k);
+  // Pulso: unos milimetros y algo de giro, lento (la mano no tiembla, se mece).
+  const hx = 0.006 * Math.sin(t * 1.9) + 0.003 * Math.sin(t * 4.3 + 1.1);
+  const hy = 0.005 * Math.sin(t * 1.4 + 0.6) + 0.002 * Math.sin(t * 5.1);
+  const hr = 0.018 * Math.sin(t * 1.1 + 0.3);
+  // Se mira un poco por debajo de los ojos: la cara arriba del cuadro, con hombros y fondo.
+  const ty = a.eyeY - 0.1;
+  const tz = a.eyeZ;
+  return {
+    fov: SELFIE_FOV,
+    roll: roll + hr,
+    position: [a.x + Math.sin(yaw) * d + hx, ty + pitch * d + hy, tz + Math.cos(yaw) * d],
+    target: [a.x + hx * 0.5, ty, tz],
   };
 }
 
@@ -202,12 +242,14 @@ export const REELS: Readonly<Record<CompanionId, readonly Shot[]>> = {
     { dur: 3.0, from: { focus: 'bust', yaw: 0.02 }, to: { focus: 'bust', yaw: -0.06 }, talk: true, emotion: 'warm', gesture: 'tilt_head', arm: 'chest' },
     { dur: 2.8, from: { focus: 'full', yaw: -0.22 }, to: { focus: 'full', yaw: -0.06 }, emotion: 'happy', wave: true },
   ],
+  // Nova se graba a si misma con el movil (selfie): cerca, desde arriba, inclinado, mirando
+  // a la camara; el brazo izquierdo sostiene el movil. Cada plano cambia de distancia o lado.
   nova: [
-    { dur: 2.2, from: { focus: 'eyes', yaw: -0.18 }, to: { focus: 'eyes', yaw: -0.08 }, emotion: 'playful' },
-    { dur: 2.8, from: { focus: 'bust', yaw: 0.42, pitch: -0.12 }, to: { focus: 'bust', yaw: 0.26, pitch: -0.08 }, talk: true, emotion: 'playful', gesture: 'tilt_head' },
-    { dur: 3.2, from: { focus: 'full', yaw: -0.32 }, to: { focus: 'full', yaw: -0.16 }, emotion: 'playful', look: 'away', arm: 'chin' },
-    { dur: 2.6, from: { focus: 'face', yaw: 0.12 }, to: { focus: 'face', yaw: 0.02 }, emotion: 'happy', gesture: 'laugh_soft' },
-    { dur: 3.0, from: { focus: 'waist', yaw: 0.26, pitch: -0.06 }, to: { focus: 'bust', yaw: 0.06 }, talk: true, emotion: 'playful', gesture: 'lean_in' },
+    { dur: 3.0, from: { focus: 'selfie', yaw: 0.05, dist: 0.62, roll: 0.06 }, to: { focus: 'selfie', yaw: -0.02, dist: 0.58, roll: 0.03 }, talk: true, emotion: 'playful', arm: 'selfie' },
+    { dur: 2.8, from: { focus: 'selfie', yaw: 0.3, dist: 0.55, pitch: 0.38, roll: 0.12 }, to: { focus: 'selfie', yaw: 0.22, dist: 0.52, pitch: 0.36, roll: 0.1 }, emotion: 'playful', gesture: 'tilt_head', arm: 'selfie' },
+    { dur: 3.0, from: { focus: 'selfie', yaw: -0.08, dist: 0.72, pitch: 0.42, roll: -0.04 }, to: { focus: 'selfie', yaw: -0.14, dist: 0.75, pitch: 0.45, roll: -0.06 }, talk: true, emotion: 'happy', gesture: 'laugh_soft', arm: 'selfie' },
+    { dur: 2.6, from: { focus: 'selfie', yaw: -0.28, dist: 0.5, pitch: 0.24, roll: -0.1 }, to: { focus: 'selfie', yaw: -0.2, dist: 0.48, pitch: 0.22, roll: -0.08 }, emotion: 'warm', look: 'away', arm: 'selfie' },
+    { dur: 2.8, from: { focus: 'selfie', yaw: 0.12, dist: 0.6, roll: 0.05 }, to: { focus: 'selfie', yaw: 0.04, dist: 0.56, roll: 0.02 }, talk: true, emotion: 'playful', gesture: 'lean_in', arm: 'selfie' },
   ],
   rio: [
     // Plano medio mirando el paisaje (antes cuerpo entero señalando: lo mostraba demasiado).

@@ -17,7 +17,8 @@ test('la musica va con el caracter: Luna lenta y sin bateria, Nova nocturna, Rio
   for (const song of Object.values(SONGS)) {
     assert.ok(song.chords.length >= 4);
     for (const chord of song.chords) for (const m of chord) assert.ok(m >= 45 && m <= 76, `nota ${m} fuera de registro`);
-    // Nada sube mas que un susurro: la musica va debajo de todo.
-    assert.ok(song.pad <= 0.1 && song.pluck <= 0.1 && song.bass <= 0.2);
+    // Niveles de cada parte acotados (1-oct se subieron: en el telefono no se oia; el volumen
+    // final lo empasta el compresor de makeSong y lo frena el limitador de la salida).
+    assert.ok(song.pad <= 0.1 && song.pluck <= 0.2 && song.bass <= 0.2);
   }
 });

@@ -369,8 +369,9 @@ function animate(
       ? {
           ...live,
           state: cue.shot.talk || voice > 0.02 ? 'speaking' : 'idle',
-          affect: { emotion: cue.shot.emotion, intensity: 0.85, ...(cue.shot.gesture ? { gesture: cue.shot.gesture } : {}), at: now - cue.age * 1000 },
-          level: () => (voice > 0.02 ? voice : cue.shot.talk ? reelVoice(cue.age) : 0),
+          // Emocion suave: a 0,85 la sonrisa de VRoid cierra los ojos y abre la boca de par en par.
+          affect: { emotion: cue.shot.emotion, intensity: 0.45, ...(cue.shot.gesture ? { gesture: cue.shot.gesture } : {}), at: now - cue.age * 1000 },
+          level: () => (voice > 0.02 ? voice * 0.75 : cue.shot.talk ? reelVoice(cue.age) * 0.55 : 0),
         }
       : live;
     // Gesto de brazo: el del plano del short, o en la conversacion el que pide el servidor
@@ -383,7 +384,8 @@ function animate(
         motion?.ready
         ? null
         : (armForGesture(p.affect?.gesture) ?? (p.affect ? armForEmotion(p.companion, p.affect.emotion, p.affect.intensity ?? 0, p.affect.at) : null));
-    const armOn = !armAction || reduce ? 0 : cue ? armEnvelope(cue.age, cue.shot.dur - 0.65) : armEnvelope(p.affect ? (now - p.affect.at) / 1000 : -1);
+    // El selfie sostiene el movil todo el short (sin bajar el brazo entre planos).
+    const armOn = !armAction || reduce ? 0 : armAction === 'selfie' ? 1 : cue ? armEnvelope(cue.age, cue.shot.dur - 0.65) : armEnvelope(p.affect ? (now - p.affect.at) / 1000 : -1);
     const lookAway = cue?.shot.look === 'away' ? Math.min(1, cue.age / 0.6) * Math.min(1, Math.max(0, (cue.shot.dur - cue.age) / 0.8)) : 0;
 
     // Cara: emocion o reposo, con transiciones suaves.
@@ -445,6 +447,7 @@ function animate(
       camera.fov = cam.fov;
       camera.position.set(...cam.position);
       camera.lookAt(...cam.target);
+      if (cam.roll) camera.rotateZ(cam.roll);
       camera.updateProjectionMatrix();
     } else {
       post?.setFade(1);

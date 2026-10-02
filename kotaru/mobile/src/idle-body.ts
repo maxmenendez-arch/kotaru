@@ -46,7 +46,7 @@ export interface BodyInput {
   readonly arm?: { readonly action: ArmAction; readonly weight: number };
 }
 
-export type ArmAction = 'wave' | 'point' | 'chin' | 'chest';
+export type ArmAction = 'wave' | 'point' | 'chin' | 'chest' | 'selfie';
 
 /**
  * Poses de los gestos de brazo, en rotaciones absolutas de huesos normalizados (radianes)
@@ -71,6 +71,9 @@ export const ARM_POSES: Record<ArmAction, ArmPose> = {
   chin: { side: 'left', upper: [-0.7, 0.7, 0.65], lower: [0, 2.6, 0.2], hand: [0, 0, -0.6], shake: 0 },
   // Mano al pecho (Luna).
   chest: { side: 'right', upper: [-0.3, 1.0, 1.0], lower: [0, 1.9, -0.35], hand: [0, 0, 0], shake: 0 },
+  // Selfie (Nova, con la izquierda): brazo estirado hacia delante y arriba, sosteniendo el movil
+  // que hace de camara; la mano queda fuera del cuadro, en el borde.
+  selfie: { side: 'left', upper: [0.15, 1.15, -0.25], lower: [0, 0.35, 0], hand: [0, 0, 0.35], shake: 0 },
 };
 
 /** Gesto de brazo para un gesto del servidor en la conversacion (GESTURES de ai-contracts), si lo hay. */
