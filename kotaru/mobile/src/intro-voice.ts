@@ -7,9 +7,10 @@ export interface IntroVoice {
   stop(): void;
   playing(): boolean;
   level(): number;
+  visemes(): null;
   dispose(): void;
 }
 
 export function createIntroVoice(): IntroVoice {
-  return { play() {}, stop() {}, playing: () => false, level: () => 0, dispose() {} };
+  return { play() {}, stop() {}, playing: () => false, level: () => 0, visemes: () => null, dispose() {} };
 }

@@ -86,6 +86,10 @@ uniform float time;
 uniform vec2 aspect;
 uniform vec2 texel;
 uniform float wrap;
+uniform vec3 shadowTint;
+uniform vec3 highlightTint;
+uniform float matte;
+uniform float grain;
 varying vec2 vUv;
 
 vec3 shoulder(vec3 c) {
@@ -134,10 +138,20 @@ void main() {
   s = mix(vec3(luma), s, saturation);
   s = (s - 0.5) * contrast + 0.5;
   s += vec3(warmth, warmth * 0.3, -warmth);
+  // Etalonaje de cine: sombras hacia un tono (frio) y luces hacia otro (calido), mas fuerte en
+  // los extremos que en los medios (la piel queda casi intacta).
+  float tl = clamp(dot(s, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+  s += shadowTint * (1.0 - smoothstep(0.0, 0.55, tl)) + highlightTint * smoothstep(0.45, 1.0, tl);
+  // Curva en S suave de pelicula y negros levantados (mate): menos «render», mas foto.
+  s = mix(s, s * s * (3.0 - 2.0 * s), 0.22);
+  s = matte + s * (1.0 - matte * 1.4);
   vec2 d = (vUv - 0.5) * aspect;
   s *= 1.0 - vignette * smoothstep(0.35, 0.95, length(d));
   s *= fade;
   s += (hash(vUv * 997.0 + time) - 0.5) / 255.0 * 1.5;
+  // Grano de pelicula: mas en los medios tonos, cambia en cada cuadro (24 por segundo).
+  float g = hash(floor(vUv / texel / 1.5) + floor(time * 24.0) * 17.0) - 0.5;
+  s += g * grain * (0.5 + 0.5 * (1.0 - abs(tl * 2.0 - 1.0)));
   gl_FragColor = vec4(clamp(s, 0.0, 1.0), 1.0);
 }`;
 
@@ -194,6 +208,10 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
     aspect: { value: new THREE.Vector2(1, 1) },
     texel: { value: new THREE.Vector2(1, 1) },
     wrap: { value: 0.3 },
+    shadowTint: { value: new THREE.Vector3(...(grade.shadows ?? [0, 0, 0])) },
+    highlightTint: { value: new THREE.Vector3(...(grade.highlights ?? [0, 0, 0])) },
+    matte: { value: grade.matte ?? 0 },
+    grain: { value: grade.grain ?? 0 },
   });
   const materials = [blur, bright, composite];
 

@@ -1,3 +1,4 @@
+import { visemesFromSpectrum, type Visemes } from './avatar-motion';
 import type { CompanionId } from './companions';
 import type { Lang } from './i18n';
 import { sharedOutput } from './web-audio';
@@ -13,6 +14,8 @@ export interface IntroVoice {
   playing(): boolean;
   /** Volumen de lo que suena ahora (0 a ~1), para la boca. */
   level(): number;
+  /** Vocal que suena ahora (labios). */
+  visemes(): Visemes | null;
   dispose(): void;
 }
 
@@ -34,6 +37,15 @@ export function createIntroVoice(): IntroVoice {
       );
     }
     return cache.get(url)!;
+  };
+
+  // Funciones sueltas (sin this): la pantalla las pasa al visor tal cual.
+  const level = () => {
+    if (!source || !analyser) return 0;
+    analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (const v of buf) sum += v * v;
+    return Math.min(1, Math.sqrt(sum / buf.length) * 6);
   };
 
   const stop = () => {
@@ -71,12 +83,12 @@ export function createIntroVoice(): IntroVoice {
     },
     stop,
     playing: () => source !== null,
-    level() {
-      if (!source || !analyser) return 0;
-      analyser.getFloatTimeDomainData(buf);
-      let sum = 0;
-      for (const v of buf) sum += v * v;
-      return Math.min(1, Math.sqrt(sum / buf.length) * 6);
+    level,
+    visemes() {
+      if (!source || !analyser) return null;
+      const spec = new Float32Array(analyser.frequencyBinCount);
+      analyser.getFloatFrequencyData(spec);
+      return visemesFromSpectrum(spec, analyser.context.sampleRate / analyser.fftSize, Math.min(1, level() * 0.75));
     },
     dispose() {
       stop();

@@ -60,6 +60,14 @@ export interface SceneGrade {
    * bajarla un poco devuelve el sombreado sin oscurecer el escenario.
    */
   readonly exposure?: number;
+  /**
+   * Etalonaje de cine (2-oct): tinte de sombras y de luces (RGB, pequeño: ±0,05), cuanto se
+   * levantan los negros (mate, 0-0,08) y grano de pelicula (0-0,05).
+   */
+  readonly shadows?: readonly [number, number, number];
+  readonly highlights?: readonly [number, number, number];
+  readonly matte?: number;
+  readonly grain?: number;
 }
 
 export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
@@ -74,20 +82,21 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
     rimIntensity: 1.0,
     key: 0xfff6ea,
     keyIntensity: 0.85,
-    grade: { blur: 0.7, bloom: 0.25, bloomThreshold: 0.85, saturation: 1.05, contrast: 1.07, warmth: 0.02, vignette: 0.22 },
+    grade: { blur: 0.7, bloom: 0.25, bloomThreshold: 0.85, saturation: 1.05, contrast: 1.07, warmth: 0.01, vignette: 0.26, shadows: [-0.012, 0.006, 0.02], highlights: [0.03, 0.016, -0.012], matte: 0.035, grain: 0.022 },
   },
   'nova-room': {
     fog: 0x1c0f22,
     fogNear: 3.0,
     fogFar: 8,
-    sky: 0x6a3a7a,
-    ground: 0x2a1320,
-    hemiIntensity: 0.55,
+    // Relleno menos morado (2-oct): la piel se veia rosa entera; el neon queda en el contorno.
+    sky: 0x5c4a68,
+    ground: 0x261a20,
+    hemiIntensity: 0.5,
     rim: 0xff5fae,
     rimIntensity: 1.3,
     key: 0xfff2ea,
     keyIntensity: 1.6,
-    grade: { blur: 0.8, bloom: 1.0, bloomThreshold: 0.45, saturation: 1.12, contrast: 1.08, warmth: 0.0, vignette: 0.45, exposure: 0.85 },
+    grade: { blur: 0.8, bloom: 1.0, bloomThreshold: 0.45, saturation: 1.12, contrast: 1.08, warmth: 0.0, vignette: 0.48, exposure: 0.85, shadows: [0.006, -0.01, 0.03], highlights: [0.035, 0.008, 0.004], matte: 0.04, grain: 0.03 },
   },
   'rio-outdoors': {
     fog: 0xf0b98a,
@@ -100,7 +109,7 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
     rimIntensity: 3.0,
     key: 0xfff0dc,
     keyIntensity: 1.8,
-    grade: { blur: 0.6, bloom: 0.6, bloomThreshold: 0.7, saturation: 1.08, contrast: 1.05, warmth: 0.03, vignette: 0.3, exposure: 0.7 },
+    grade: { blur: 0.6, bloom: 0.6, bloomThreshold: 0.7, saturation: 1.08, contrast: 1.05, warmth: 0.015, vignette: 0.32, exposure: 0.7, shadows: [-0.015, 0.008, 0.028], highlights: [0.04, 0.018, -0.02], matte: 0.03, grain: 0.024 },
   },
 };
 

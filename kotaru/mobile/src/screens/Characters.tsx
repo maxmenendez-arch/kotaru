@@ -187,7 +187,7 @@ export function Characters({
           key={selected}
           companion={selected}
           size={height}
-          {...(Platform.OS === 'web' ? { width: stageWidth, background: true, immersive: true, reel: true, onReelShot, reelLevel: intro.level } : {})}
+          {...(Platform.OS === 'web' ? { width: stageWidth, background: true, immersive: true, reel: true, onReelShot, reelLevel: intro.level, reelVisemes: intro.visemes } : {})}
           state="idle"
           affect={null}
           level={() => 0}

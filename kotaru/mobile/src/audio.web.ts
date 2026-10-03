@@ -1,3 +1,4 @@
+import { visemesFromSpectrum, type Visemes } from './avatar-motion';
 import { INPUT_SAMPLE_RATE, type AppAudio, type AudioInput, type AudioOutput } from './audio-types';
 import { SilentSpeaker, SimulatedMicrophone } from './audio-sim';
 import { ChunkAssembler, pcm16ToFloat } from './pcm';
@@ -262,6 +263,16 @@ class WebSpeaker implements AudioOutput {
     this.#pan.pan.setTargetAtTime(p, at, 0.12);
     this.#muffle.frequency.setTargetAtTime(20000 * Math.pow(3000 / 20000, f), at, 0.15);
     this.#distance.gain.setTargetAtTime(1 - 0.5 * f, at, 0.15);
+  }
+
+  #spectrum: Float32Array<ArrayBuffer> | null = null;
+
+  visemes(): Visemes | null {
+    const analyser = this.#analyser;
+    if (!analyser || this.#sources.size === 0 || !this.#context) return null;
+    this.#spectrum ??= new Float32Array(analyser.frequencyBinCount);
+    analyser.getFloatFrequencyData(this.#spectrum);
+    return visemesFromSpectrum(this.#spectrum, this.#context.sampleRate / analyser.fftSize, this.level());
   }
 
   level(): number {

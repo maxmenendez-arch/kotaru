@@ -559,6 +559,7 @@ export function Conversation({
       state={shown}
       affect={affect}
       level={() => speaker.current.level?.() ?? 0}
+      visemes={() => speaker.current.visemes?.() ?? null}
       onPresence={(pan, far) => speaker.current.place?.(pan, far)}
       fallback={<Text style={[styles.initial, compact && !immersive && styles.initialCompact, { color: companion.accent }]}>{companion.name[0]}</Text>}
     />

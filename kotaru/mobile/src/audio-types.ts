@@ -32,6 +32,11 @@ export interface AudioOutput {
    */
   level?(): number;
   /**
+   * Vocal que suena ahora (labios, avatar-motion visemesFromSpectrum), de la energia por
+   * bandas del instante; como `level`, solo para la boca: no se guarda ni se analiza mas.
+   */
+  visemes?(): import('./avatar-motion').Visemes | null;
+  /**
    * De donde viene la voz: -1 (izquierda) a 1 (derecha) y lejania 0-1 (el personaje se fue al
    * otro lado del cuarto a por agua: errand.ts). Opcional; por defecto, delante y cerca.
    */

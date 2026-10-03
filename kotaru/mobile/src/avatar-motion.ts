@@ -153,6 +153,53 @@ export function stateOffset(state: string): HeadOffset {
  * Boca al hablar a partir del volumen (0-1) de lo que suena. Varia la forma de la vocal
  * con el tiempo para que no parezca una trampilla que abre y cierra.
  */
+/** Pesos de las vocales de la boca (expresiones del VRM). */
+export interface Visemes {
+  readonly aa: number;
+  readonly ih: number;
+  readonly ou: number;
+  readonly ee: number;
+  readonly oh: number;
+}
+
+/**
+ * Labios desde el sonido (2-oct): que vocal se esta diciendo, aproximada por donde cae la
+ * energia de la voz (los formantes). Mucha energia en 700-1200 Hz es boca abierta («a»); en
+ * 250-700 Hz sin agudos, labios redondos («o», «u»); en 2200-3800 Hz, labios estirados («e»,
+ * «i»). Las sibilantes (s, ch) cierran algo la boca (se ven los dientes, no la garganta).
+ * `db`: espectro del analizador (dB por banda), `binHz`: ancho de cada banda, `level`: 0-1.
+ */
+export function visemesFromSpectrum(db: ArrayLike<number>, binHz: number, level: number): Visemes {
+  const band = (lo: number, hi: number) => {
+    let sum = 0;
+    for (let i = Math.max(1, Math.floor(lo / binHz)); i <= Math.min(db.length - 1, Math.ceil(hi / binHz)); i++) sum += Math.pow(10, (db[i] ?? -140) / 10);
+    return sum;
+  };
+  const b1 = band(250, 700);
+  const b2 = band(700, 1200);
+  const b3 = band(1200, 2200);
+  const b4 = band(2200, 3800);
+  const sib = band(4500, 8000);
+  const total = b1 + b2 + b3 + b4 + 1e-12;
+  const r1 = b1 / total;
+  const r2 = b2 / total;
+  const r3 = b3 / total;
+  const r4 = b4 / total;
+  const hiss = sib / (total + sib);
+  const open = Math.min(1, Math.max(0, level)) * (1 - 0.55 * hiss);
+  const raw = {
+    aa: Math.max(0, r2 * 1.3 + r1 * 0.35),
+    oh: Math.max(0, r1 * 0.9 + r2 * 0.3 - r4 * 0.6),
+    ou: Math.max(0, r1 * 1.1 - r3 * 0.7 - r4 * 0.7),
+    ee: Math.max(0, r4 * 1.4 + r3 * 0.3 - r2 * 0.4),
+    ih: Math.max(0, r3 * 1.0 + r4 * 0.5 - r1 * 0.2),
+  };
+  const sum = raw.aa + raw.oh + raw.ou + raw.ee + raw.ih;
+  // Un fondo de «a» siempre: hablando, la mandibula se abre aunque la vocal no este clara.
+  const k = (name: keyof typeof raw) => (sum > 1e-6 ? raw[name] / sum : 0) * 0.75 + (name === 'aa' ? 0.25 : 0);
+  return { aa: open * k('aa'), ih: open * k('ih') * 0.8, ou: open * k('ou') * 0.9, ee: open * k('ee') * 0.8, oh: open * k('oh') * 0.9 };
+}
+
 export function mouthShapes(open: number, t: number): { aa: number; oh: number; ih: number } {
   const o = Math.min(1, Math.max(0, open));
   const wobble = (Math.sin(t * 11) + 1) / 2;

@@ -19,6 +19,10 @@ export interface AvatarProps {
    * un primer plano (close-ups.ts). false lo apaga.
    */
   readonly cinematic?: boolean;
+  /** Vocal que suena ahora (labios sincronizados con la voz); sin ella, solo el volumen. */
+  readonly visemes?: () => import('./avatar-motion').Visemes | null;
+  /** Short: vocal de la voz de presentacion que suena. */
+  readonly reelVisemes?: () => import('./avatar-motion').Visemes | null;
   /**
    * Intensidad del caracter en el cuerpo: 'flirt' (modo Coqueteo elegido), 'friend'
    * (modo Amigo) o sin valor (normal). Nova coqueta ondula mas y entorna los ojos.

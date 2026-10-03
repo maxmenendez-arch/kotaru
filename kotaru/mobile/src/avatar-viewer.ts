@@ -24,9 +24,10 @@ import { createHairWind } from './hair-wind';
 import { REELS, reelCamera, reelCue, reelFade, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
 import { CloseUpDirector, zoomFov } from './close-ups';
-import { cameraDrift, frameCamera, pixelRatio, type Framing } from './framing';
+import { cameraDrift, frameCamera, pixelRatio, type Drift, type Framing } from './framing';
 
 /** Primer plano del modo cinematico: punto mirado, alto visible (zoom), deslizamiento y peso. */
+const VISEMES = ['aa', 'ih', 'ou', 'ee', 'oh'] as const;
 type CloseShot = { target: [number, number, number]; span: number; slide: number; w: number };
 
 /**
@@ -59,7 +60,7 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   let goal: { fov: number; y: number; z: number; targetY: number } | null = null;
   // Camara viva solo en el escenario (no en el retrato redondo); ?drift=0 la apaga.
   const drifts = withBackground && new URLSearchParams(globalThis.location?.search ?? '').get('drift') !== '0';
-  let drift = { x: 0, y: 0, z: 0, tx: 0, ty: 0 };
+  let drift: Drift = { x: 0, y: 0, z: 0, tx: 0, ty: 0, roll: 0 };
   // Primer plano del camarografo (close-ups.ts), mezclado con el encuadre normal segun `w`.
   let close: CloseShot | null = null;
   const applyShot = () => {
@@ -87,6 +88,7 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
       const baseSpan = 2 * d * Math.tan((shot.fov * Math.PI) / 360);
       camera.fov = zoomFov(baseSpan + (close.span - baseSpan) * w, d);
     }
+    if (drift.roll) camera.rotateZ(drift.roll);
     camera.updateProjectionMatrix();
   };
   /** Acerca la camara al encuadre pedido (suave, ~0,4 s). Devuelve si se movio. */
@@ -252,7 +254,7 @@ function animate(
   props: () => AvatarProps,
   stage: Stage | null,
   post: StagePost | null,
-  easeShot: (dt: number, d?: { x: number; y: number; z: number; tx: number; ty: number }, c?: CloseShot | null) => boolean,
+  easeShot: (dt: number, d?: Drift, c?: CloseShot | null) => boolean,
   anchors: Anchors,
   look: LookHandle,
   motion: CharacterMotion | null,
@@ -266,6 +268,7 @@ function animate(
   const expressions = vrm.expressionManager;
   const face: Record<string, number> = { happy: 0, sad: 0, relaxed: 0, surprised: 0 };
   let mouth = 0;
+  const lips: Record<(typeof VISEMES)[number], number> = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
   let headX = 0;
   let headY = 0;
   let headZ = 0;
@@ -292,6 +295,8 @@ function animate(
   let lastPan = 0;
   let lastFar = 0;
   // Hacia donde mira el modelo en reposo respecto a su eje +Z (hacia la camara o al reves).
+  const follow = { x: 0, y: 0 };
+  const followTmp = new THREE.Vector3();
   const director = new CloseUpDirector();
   let seenReactions = 0;
   // Modo cinematico (Ajustes): encendido salvo que la persona lo apague.
@@ -372,6 +377,7 @@ function animate(
           // Emocion suave: a 0,85 la sonrisa de VRoid cierra los ojos y abre la boca de par en par.
           affect: { emotion: cue.shot.emotion, intensity: 0.45, ...(cue.shot.gesture ? { gesture: cue.shot.gesture } : {}), at: now - cue.age * 1000 },
           level: () => (voice > 0.02 ? voice * 0.75 : cue.shot.talk ? reelVoice(cue.age) * 0.55 : 0),
+          visemes: () => (voice > 0.02 ? (live.reelVisemes?.() ?? null) : null),
         }
       : live;
     // Gesto de brazo: el del plano del short, o en la conversacion el que pide el servidor
@@ -405,10 +411,15 @@ function animate(
     // Boca: solo mientras suena su voz.
     const speaking = p.state === 'speaking';
     mouth = approach(mouth, speaking ? p.level() * 1.3 : 0, dt, 18);
-    const shapes = mouthShapes(mouth, t);
-    expressions?.setValue('aa', shapes.aa);
-    expressions?.setValue('oh', shapes.oh);
-    expressions?.setValue('ih', shapes.ih);
+    // Labios: si hay espectro de la voz, la vocal que suena (abre rapido, cierra algo mas lento,
+    // como una boca de verdad); si no, el volumen con una variacion de vocales.
+    const heard = speaking ? (p.visemes?.() ?? null) : null;
+    const want = heard ?? { ...mouthShapes(mouth, t), ou: 0, ee: 0 };
+    for (const v of VISEMES) {
+      const goal = Math.min(1, (want[v] ?? 0) * (heard ? 1.35 : 1));
+      lips[v] = approach(lips[v], goal, dt, goal > lips[v] ? 28 : 14);
+      expressions?.setValue(v, lips[v]);
+    }
 
     // Cabeza: postura del estado + gesto + un balanceo muy leve.
     const pose = stateOffset(p.state);
@@ -467,7 +478,15 @@ function animate(
         shotNow = { target: [anchors.x - f.dx, anchors.headY + f.dy, (anchors.z + anchors.eyeZ) / 2], span: f.span, slide: cf.slide, w: cf.weight };
       }
       post?.setSoft(cf ? cf.soft * 0.8 : 0);
-      if (!reduce) easeShot(0, cameraDrift(t), shotNow);
+      // El operador sigue la cabeza con retraso (si se mece o se inclina, la camara la acompaña
+      // un poco, tarde, como una persona; nunca la clava en el centro).
+      if (head) {
+        head.getWorldPosition(followTmp);
+        follow.x += (followTmp.x - anchors.x - follow.x) * Math.min(1, dt * 0.9);
+        follow.y += (followTmp.y - anchors.headY - follow.y) * Math.min(1, dt * 0.9);
+      }
+      const d0 = cameraDrift(t);
+      if (!reduce) easeShot(0, { ...d0, tx: d0.tx + follow.x * 0.5, ty: d0.ty + follow.y * 0.4, x: d0.x + follow.x * 0.2 }, shotNow);
     }
     // Retrato: cuanto mas cerca la camara, mas desenfocado el fondo (primeros planos del short).
     // En un corte del short el enfoque salta con la camara (antes tardaba medio segundo en llegar).

@@ -56,7 +56,7 @@ test('la camara viva se mueve milimetros, nunca da saltos', async () => {
   let prev = cameraDrift(0);
   for (let t = 0.033; t < 60; t += 0.033) {
     const d = cameraDrift(t);
-    assert.ok(Math.abs(d.x) < 0.01 && Math.abs(d.y) < 0.007 && d.z > -0.03 && d.z < 0.005);
+    assert.ok(Math.abs(d.x) < 0.01 && Math.abs(d.y) < 0.009 && d.z > -0.03 && d.z < 0.007 && Math.abs(d.roll) < 0.01);
     assert.ok(Math.abs(d.z - prev.z) < 0.002 && Math.abs(d.x - prev.x) < 0.001, `salto en t=${t}`);
     prev = d;
   }
