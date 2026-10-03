@@ -25,8 +25,8 @@ export const FRAMINGS: readonly Framing[] = [
   { name: 'cara', span: 0.36, dx: 0, dy: 0.0, slide: [0.04, -0.04] },
   { name: 'detalle-izq', span: 0.2, dx: 0.035, dy: 0.0, slide: [0.08, 0.12] },
   { name: 'detalle-der', span: 0.2, dx: -0.035, dy: 0.0, slide: [-0.08, -0.12] },
-  { name: 'lado-izq', span: 0.62, dx: 0.11, dy: -0.17, slide: [0.12, 0.2] },
-  { name: 'lado-der', span: 0.62, dx: -0.11, dy: -0.17, slide: [-0.12, -0.2] },
+  { name: 'lado-izq', span: 0.62, dx: 0.11, dy: -0.12, slide: [0.12, 0.2] },
+  { name: 'lado-der', span: 0.62, dx: -0.11, dy: -0.12, slide: [-0.12, -0.2] },
 ];
 
 /** Segundos del zoom de entrada y de vuelta. */
