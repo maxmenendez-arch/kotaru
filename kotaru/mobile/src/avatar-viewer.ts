@@ -314,6 +314,8 @@ function animate(
   const followTmp = new THREE.Vector3();
   const director = new CloseUpDirector();
   let seenReactions = 0;
+  let lastClose = 0;
+  let nextBeauty = 30;
   // Modo cinematico (Ajustes): encendido salvo que la persona lo apague.
   const cinematic = () => props().cinematic !== false;
   const showcase = (() => {
@@ -536,7 +538,17 @@ function animate(
         seenReactions = motion.reactions;
         const name = motion.actionName ?? '';
         const want = /laugh|shrug|hip|greeting|yawn/.test(name) ? 'wide' : /bashful|kiss|nodding|thinking/.test(name) ? 'close' : undefined;
-        if (!reduce && stage && cinematic()) director.start(t, motion.actionLength, Math.random(), want);
+        if (!reduce && stage && cinematic()) {
+          director.start(t, motion.actionLength, Math.random(), want);
+          lastClose = t;
+        }
+      }
+      // Si pasa un rato sin reacciones, el camarografo busca solo un plano (lento y sin prisa),
+      // como en una pelicula cuando nada cambia: cada 35-50 s.
+      if (!reduce && stage && cinematic() && !director.active && t - lastClose > nextBeauty) {
+        director.start(t, 7, Math.random());
+        lastClose = t;
+        nextBeauty = 35 + Math.random() * 15;
       }
       if (!cinematic()) director.stop();
       const cf = director.frame(t);
