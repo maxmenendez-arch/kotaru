@@ -515,7 +515,7 @@ function animate(
     const sy = thinking || reduce ? 0 : saccade.y;
     gaze.position.set(
       camera.position.x + (thinking ? 0.25 : glance.x) + lookAway * 1.4 + sx + coy.away * 0.55,
-      camera.position.y + (thinking ? 0.2 : glance.y) + sy - coy.away * 0.12,
+      camera.position.y + (thinking ? 0.2 : glance.y) + sy - coy.away * 0.12 - selfieCheck(cue, t) * 0.07,
       camera.position.z,
     );
 
@@ -720,4 +720,14 @@ function listenNod(t: number, on: boolean): number {
   const gate = smoothNoise(t * 0.35, 51) > 0.15 ? 1 : 0;
   const beat = Math.pow(Math.max(0, Math.sin(t * 2.2)), 6);
   return 0.03 * gate * beat;
+}
+
+/**
+ * Selfie: de vez en cuando mira la pantalla del movil (un poco por debajo del objetivo), como
+ * quien se graba y se mira; luego vuelve al objetivo. 0-1.
+ */
+function selfieCheck(cue: { shot: { from: { focus: string } }; age: number } | null, t: number): number {
+  if (!cue || cue.shot.from.focus !== 'selfie') return 0;
+  const k = (t % 4.6) / 4.6;
+  return k > 0.55 && k < 0.78 ? Math.sin(((k - 0.55) / 0.23) * Math.PI) : 0;
 }
