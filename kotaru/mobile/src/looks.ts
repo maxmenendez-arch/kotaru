@@ -61,3 +61,29 @@ export const BLUSH: Readonly<Record<string, { readonly alpha: number; readonly r
   nova: { alpha: 0.11, rgb: '232,110,132' },
   rio: { alpha: 0.08, rgb: '214,120,110' },
 };
+
+/**
+ * Sombras suaves de la piel (skin-shade.ts), como las que deja la luz de arriba: bajo la
+ * barbilla en el cuello y en la frente junto al flequillo. `rgb` multiplica la piel en lo mas
+ * oscuro (1 = sin cambio).
+ */
+export const SKIN_SHADE: Readonly<Record<string, { readonly chin: readonly [number, number, number]; readonly brow: readonly [number, number, number] }>> = {
+  luna: { chin: [0.7, 0.56, 0.6], brow: [0.9, 0.84, 0.87] },
+  nova: { chin: [0.68, 0.52, 0.6], brow: [0.9, 0.83, 0.88] },
+  rio: { chin: [0.68, 0.54, 0.5], brow: [0.9, 0.83, 0.8] },
+};
+
+/**
+ * Peso de la sombra del cuello segun cuanto queda el punto por debajo de la barbilla (metros):
+ * llena justo debajo y se apaga en 3,5 cm; nada por encima de la barbilla.
+ */
+export function chinShade(below: number): number {
+  if (below < -0.004 || below > 0.035) return 0;
+  const k = 1 - Math.max(0, below) / 0.035;
+  return k * Math.sqrt(k);
+}
+
+/** Peso de la sombra de la frente segun cuanto sube el punto sobre las cejas (metros). */
+export function browShade(above: number): number {
+  return Math.min(1, Math.max(0, (above - 0.012) / 0.035));
+}
