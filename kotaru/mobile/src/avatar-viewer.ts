@@ -435,8 +435,11 @@ function animate(
               : {};
     for (const name of FACE_EXPRESSIONS) {
       // Al hablar, las cejas suben un poco en los acentos de la voz (expresividad natural).
-      const extra = (name === 'surprised' ? accent * 0.12 + Math.max(0, 1 - (t - attentionAt)) * 0.1 : 0) + (actFace[name] ?? 0) + (flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0) + (name === 'happy' ? coy.smile * 0.18 : name === 'relaxed' ? coy.away * 0.12 : 0);
-      face[name] = approach(face[name] ?? 0, Math.min(1, target[name] + extra), dt, 4);
+      // Microexpresiones: la cara nunca esta congelada; la sonrisa y la suavidad de la mirada
+      // varian un pelo, lento, como en una persona que escucha o piensa.
+      const micro = reduce ? 0 : name === 'happy' ? 0.05 * smoothNoise(t * 0.22, 61) : name === 'relaxed' ? 0.04 * smoothNoise(t * 0.17, 62) : 0;
+      const extra = micro + (name === 'surprised' ? accent * 0.12 + Math.max(0, 1 - (t - attentionAt)) * 0.1 : 0) + (actFace[name] ?? 0) + (flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0) + (name === 'happy' ? coy.smile * 0.18 : name === 'relaxed' ? coy.away * 0.12 : 0);
+      face[name] = approach(face[name] ?? 0, Math.max(0, Math.min(1, target[name] + extra)), dt, 4);
       expressions?.setValue(name, face[name]!);
     }
     const blink = blinker.weight(t) * (1 - (face['happy'] ?? 0) * 0.6);
