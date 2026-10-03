@@ -186,7 +186,11 @@ export function buildStage(companion: string, scene: THREE.Scene, focus: THREE.V
   const rimBase = palette.rimIntensity;
   kit.updaters.push((t) => {
     if (id === 'luna-office') key.intensity = keyBase * (1 + 0.07 * smoothNoise(t * 0.07, 31));
-    else if (id === 'nova-room') rim.intensity = rimBase * (1 + 0.07 * Math.sin(t * 0.8) + 0.03 * smoothNoise(t * 2.2, 32));
+    else if (id === 'nova-room') {
+      rim.intensity = rimBase * (1 + 0.07 * Math.sin(t * 0.8) + 0.03 * smoothNoise(t * 2.2, 32));
+      // Las velas cercanas hacen latir un poco la luz de su cara.
+      key.intensity = keyBase * (1 + 0.035 * smoothNoise(t * 3.1, 35) + 0.02 * smoothNoise(t * 7.3, 36));
+    }
     else rim.intensity = rimBase * (1 + 0.12 * smoothNoise(t * 2.4, 33) + 0.05 * smoothNoise(t * 7.5, 34));
   });
 
