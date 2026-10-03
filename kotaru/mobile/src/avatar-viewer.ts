@@ -24,7 +24,7 @@ import { createHairWind } from './hair-wind';
 import { REELS, reelCamera, reelCue, reelFade, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
 import { CloseUpDirector, zoomFov } from './close-ups';
-import { cameraDrift, frameCamera, pixelRatio, type Drift, type Framing } from './framing';
+import { cameraDrift, frameCamera, pixelRatio, smoothNoise, type Drift, type Framing } from './framing';
 
 /** Primer plano del modo cinematico: punto mirado, alto visible (zoom), deslizamiento y peso. */
 const VISEMES = ['aa', 'ih', 'ou', 'ee', 'oh'] as const;
@@ -494,7 +494,8 @@ function animate(
     // En un corte del short el enfoque salta con la camara (antes tardaba medio segundo en llegar).
     const closeness = Math.min(1, Math.max(0, (2.2 - camera.position.distanceTo(focusPoint.set(0, anchors.headY, anchors.z))) / 1.6));
     focusNow = cut ? closeness : focusNow + (closeness - focusNow) * Math.min(1, dt * 3);
-    post?.setFocus(focusNow);
+    // El foco respira un poco (el foquista nunca lo deja clavado).
+    post?.setFocus(Math.max(0, Math.min(1, focusNow + 0.05 * smoothNoise(t * 0.18, 21))));
     // Captura de movimiento real encima del de codigo (postura, peso, gestos al hablar).
     motion?.update(dt, { speaking, still: reduce, arm: body.arm, busy: p.state === 'listening' || p.state === 'thinking', noActions: !!cue, affect: cue ? null : p.affect });
     // Recado (ir a por agua): mira hacia donde anda, y su voz viene de donde esta.

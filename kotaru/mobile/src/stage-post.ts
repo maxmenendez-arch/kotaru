@@ -110,6 +110,12 @@ float hash(vec2 p) {
 void main() {
   vec3 bg = mix(texture2D(sharpBg, vUv).rgb, texture2D(blurBg, vUv).rgb, blurAmount);
   vec4 ch = texture2D(character, vUv);
+  // Aberracion cromatica de objetivo, solo hacia los bordes (1-2 px): el rojo y el azul se
+  // separan un pelo, como en una lente real. En el centro (la cara) no se nota.
+  vec2 fromCenter = vUv - 0.5;
+  vec2 ca = fromCenter * dot(fromCenter, fromCenter) * texel * 14.0;
+  ch.r = texture2D(character, vUv + ca).r;
+  ch.b = texture2D(character, vUv - ca).b;
   if (soft > 0.001) {
     // Desenfoque del personaje (9 muestras en dos anillos): solo durante el cambio de foco.
     vec2 r = texel * soft * 5.0;
@@ -131,7 +137,8 @@ void main() {
   float edge = ch.a * (1.0 - around);
   c += min(texture2D(blurBg, vUv).rgb, vec3(0.9)) * edge * wrap;
   // El halo del fondo apenas pasa por encima del personaje (lo dejaria lechoso).
-  c += texture2D(bloom, vUv).rgb * bloomAmount * (1.0 - ch.a * 0.75);
+  // Halo con el tinte calido de la pelicula (halacion): las luces sangran algo hacia el rojo.
+  c += texture2D(bloom, vUv).rgb * vec3(1.0, 0.86, 0.74) * bloomAmount * (1.0 - ch.a * 0.75);
   c = shoulder(c);
   vec3 s = toSRGB(c);
   float luma = dot(s, vec3(0.2126, 0.7152, 0.0722));
