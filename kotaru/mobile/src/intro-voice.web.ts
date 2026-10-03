@@ -24,6 +24,7 @@ export function createIntroVoice(): IntroVoice {
   let source: AudioBufferSourceNode | null = null;
   let analyser: AnalyserNode | null = null;
   const buf = new Float32Array(1024);
+  let spec: Float32Array<ArrayBuffer> | null = null;
   let token = 0;
 
   const load = (url: string, ctx: AudioContext) => {
@@ -86,7 +87,7 @@ export function createIntroVoice(): IntroVoice {
     level,
     visemes() {
       if (!source || !analyser) return null;
-      const spec = new Float32Array(analyser.frequencyBinCount);
+      if (!spec || spec.length !== analyser.frequencyBinCount) spec = new Float32Array(analyser.frequencyBinCount);
       analyser.getFloatFrequencyData(spec);
       return visemesFromSpectrum(spec, analyser.context.sampleRate / analyser.fftSize, Math.min(1, level() * 0.75));
     },

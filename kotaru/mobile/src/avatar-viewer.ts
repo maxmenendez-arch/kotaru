@@ -277,6 +277,8 @@ function animate(
   const face: Record<string, number> = { happy: 0, sad: 0, relaxed: 0, surprised: 0 };
   let mouth = 0;
   let lastMouth = 0;
+  let lastState = '';
+  let attentionAt = -10;
   let accent = 0;
   const lips: Record<(typeof VISEMES)[number], number> = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
   let headX = 0;
@@ -431,7 +433,7 @@ function animate(
               : {};
     for (const name of FACE_EXPRESSIONS) {
       // Al hablar, las cejas suben un poco en los acentos de la voz (expresividad natural).
-      const extra = (name === 'surprised' ? accent * 0.12 : 0) + (actFace[name] ?? 0) + (flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0) + (name === 'happy' ? coy.smile * 0.18 : name === 'relaxed' ? coy.away * 0.12 : 0);
+      const extra = (name === 'surprised' ? accent * 0.12 + Math.max(0, 1 - (t - attentionAt)) * 0.1 : 0) + (actFace[name] ?? 0) + (flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0) + (name === 'happy' ? coy.smile * 0.18 : name === 'relaxed' ? coy.away * 0.12 : 0);
       face[name] = approach(face[name] ?? 0, Math.min(1, target[name] + extra), dt, 4);
       expressions?.setValue(name, face[name]!);
     }
@@ -456,6 +458,9 @@ function animate(
     }
 
     // Cabeza: postura del estado + gesto + un balanceo muy leve.
+    // Atencion: cuando la persona empieza a hablar, los ojos se abren un pelo un segundo.
+    if (p.state === 'listening' && lastState !== 'listening') attentionAt = t;
+    lastState = p.state;
     const base = stateOffset(p.state);
     // Nova mira un poco desde abajo (barbilla baja, ojos a camara) con la cabeza ladeada.
     const pose = p.companion === 'nova' && !cue ? { x: base.x + 0.06, y: base.y, z: base.z + 0.05 } : base;
