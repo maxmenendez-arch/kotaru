@@ -46,6 +46,7 @@ export function applyLook(vrm: VRM, companion: CompanionId): LookHandle {
   });
 
   const dots: THREE.Mesh[] = [];
+  let shimmer = 0;
   const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: look.catchlight.strength, depthWrite: false, map: softDot() });
   const geometry = new THREE.CircleGeometry(1, 20);
   if (!hasHighlight && look.catchlight.size > 0) {
@@ -80,7 +81,10 @@ export function applyLook(vrm: VRM, companion: CompanionId): LookHandle {
 
   return {
     update(closed: number) {
-      material.opacity = look.catchlight.strength * catchlightOpacity(closed);
+      // Ojos humedos: el brillo late un pelo (la pelicula de lagrima nunca esta quieta).
+      shimmer += 0.04;
+      const wet = 0.93 + 0.07 * Math.sin(shimmer * 1.7) * Math.sin(shimmer * 0.63 + 1.1);
+      material.opacity = look.catchlight.strength * catchlightOpacity(closed) * wet;
     },
     dispose() {
       for (const dot of dots) dot.removeFromParent();
