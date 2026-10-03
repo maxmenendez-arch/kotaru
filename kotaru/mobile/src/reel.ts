@@ -178,10 +178,14 @@ export function reelCamera(shots: readonly Shot[], t: number, a: Anchors, aspect
   const yaw = lerp(shot.from.yaw, shot.to.yaw, k);
   const pitch = lerp(shot.from.pitch ?? 0.04, shot.to.pitch ?? 0.04, k);
   const d = distanceFor(span, aspect);
+  // Camara en mano tambien en Luna y Rio (2-oct): un pulso suave proporcional a la distancia.
+  const hx = d * (0.004 * Math.sin(t * 1.3) + 0.002 * Math.sin(t * 3.7 + 0.8));
+  const hy = d * (0.003 * Math.sin(t * 1.1 + 1.9) + 0.0015 * Math.sin(t * 4.1));
   return {
     fov: FOV,
-    position: [a.x + Math.sin(yaw) * d, y + pitch * d, z + Math.cos(yaw) * d],
-    target: [a.x, y, z],
+    roll: 0.006 * Math.sin(t * 0.9 + 0.4),
+    position: [a.x + Math.sin(yaw) * d + hx, y + pitch * d + hy, z + Math.cos(yaw) * d],
+    target: [a.x + hx * 0.3, y, z],
   };
 }
 
