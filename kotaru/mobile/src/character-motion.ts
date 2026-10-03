@@ -391,6 +391,11 @@ export class CharacterMotion {
     return this.#reactions;
   }
 
+  /** Cuanto manda ahora la accion (0-1, con sus fundidos). */
+  get actionWeight(): number {
+    return this.#act.weight;
+  }
+
   /** Archivo de la accion en curso (para elegir el plano del camarografo), o null. */
   get actionName(): string | null {
     return this.#action?.spec.file ?? null;

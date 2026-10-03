@@ -414,8 +414,23 @@ function animate(
     // Nova, en reposo, cada 14-22 s: mira de reojo a un lado y vuelve con media sonrisa
     // (coqueteo sutil, sin gestos de brazos). Ni hablando ni en el short.
     const coy = p.companion === 'nova' && !cue && !reduce && p.state !== 'speaking' ? coyGlance(t) : { away: 0, smile: 0 };
+    // La cara acompaña a la reaccion del cuerpo: reir con los ojos, timidez con la mirada
+    // entornada (antes la cara se quedaba igual mientras el cuerpo reia).
+    const act = motion && !cue ? motion.actionName : null;
+    const aw = act ? motion!.actionWeight : 0;
+    const actFace: Partial<Record<string, number>> = !act
+      ? {}
+      : /laugh/.test(act)
+        ? { happy: 0.45 * aw }
+        : /bashful/.test(act)
+          ? { relaxed: 0.35 * aw, happy: 0.15 * aw }
+          : /kiss|hips|hip/.test(act)
+            ? { relaxed: 0.2 * aw, happy: 0.12 * aw }
+            : /think|distance/.test(act)
+              ? { relaxed: 0.12 * aw }
+              : {};
     for (const name of FACE_EXPRESSIONS) {
-      const extra = (flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0) + (name === 'happy' ? coy.smile * 0.18 : name === 'relaxed' ? coy.away * 0.12 : 0);
+      const extra = (actFace[name] ?? 0) + (flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0) + (name === 'happy' ? coy.smile * 0.18 : name === 'relaxed' ? coy.away * 0.12 : 0);
       face[name] = approach(face[name] ?? 0, Math.min(1, target[name] + extra), dt, 4);
       expressions?.setValue(name, face[name]!);
     }
