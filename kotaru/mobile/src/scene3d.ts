@@ -794,7 +794,8 @@ function novaRoom(kit: Kit, focus: THREE.Vector3, plate: string | null): void {
   kit.mesh(new THREE.CircleGeometry(0.2, 32), kit.track(new THREE.MeshBasicMaterial({ map: mirrorTex })), -1.2, focus.y + 0.2, wallZ + 0.07);
 
   // Luz de relleno violeta desde abajo a la derecha (ambiente de noche).
-  const fill = new THREE.PointLight(0x9a5cff, 1.2, 4, 2);
+  // 0,7 (antes 1,2): tenia la piel de Nova violeta; el ambiente sigue de noche.
+  const fill = new THREE.PointLight(0x9a5cff, 0.7, 4, 2);
   fill.position.set(1.2, 0.6, -0.8);
   kit.group.add(fill);
 }

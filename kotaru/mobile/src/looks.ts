@@ -30,7 +30,7 @@ export const LOOKS: Readonly<Record<CompanionId, Look>> = {
   // Oficina de dia, luz de ventana fria y suave.
   luna: { rim: 0x5a6f96, rimPower: 4, hairEmissive: 0.45, skinShade: 0xf2c4c0, catchlight: { size: 1, strength: 0.9 } },
   // Cuarto de noche con neon rosa y velas.
-  nova: { rim: 0x9a3a78, rimPower: 3.2, hairEmissive: 0.4, skinShade: 0xf0bcc4, catchlight: { size: 0.9, strength: 0.8 } },
+  nova: { rim: 0x9a3a78, rimPower: 3.2, hairEmissive: 0.4, skinShade: 0xf2c4c2, catchlight: { size: 0.9, strength: 0.8 } },
   // Atardecer y fogata: contraluz naranja.
   rio: { rim: 0x9a5a28, rimPower: 3.5, hairEmissive: 0.5, skinShade: 0xf2c2aa, catchlight: { size: 0.9, strength: 0.75 } },
 };
