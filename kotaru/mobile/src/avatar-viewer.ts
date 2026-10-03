@@ -276,6 +276,8 @@ function animate(
   const expressions = vrm.expressionManager;
   const face: Record<string, number> = { happy: 0, sad: 0, relaxed: 0, surprised: 0 };
   let mouth = 0;
+  let lastMouth = 0;
+  let accent = 0;
   const lips: Record<(typeof VISEMES)[number], number> = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
   let headX = 0;
   let headY = 0;
@@ -304,6 +306,7 @@ function animate(
   let lastFar = 0;
   // Hacia donde mira el modelo en reposo respecto a su eje +Z (hacia la camara o al reves).
   const follow = { x: 0, y: 0 };
+  let push = 0;
   const saccade = { i: 0, x: 0, y: 0, next: 0 };
   let lastGlance = { x: 0, y: 0 };
   const followTmp = new THREE.Vector3();
@@ -443,7 +446,11 @@ function animate(
     const gesture = reduce || !p.affect || calmHead ? { x: 0, y: 0, z: 0 } : gestureOffset(p.affect.gesture, (now - p.affect.at) / 1000);
     const sway = reduce ? 0 : calmHead ? 0.35 : 1;
     const headLife = calmHead ? 0.3 : 1;
-    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x * headLife, dt, 6);
+    // Al hablar, la cabeza marca los acentos de la voz (pequeños asentimientos en los golpes
+    // de voz), como cualquiera que habla; no es un vaiven continuo.
+    accent = approach(accent, speaking && !reduce ? Math.min(1, Math.max(0, mouth - lastMouth) * 10) : 0, dt, 5);
+    lastMouth = mouth;
+    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x * headLife + accent * 0.035, dt, 6);
     headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway + body.head.y * headLife + lookAway * 0.45, dt, 6);
     headZ = approach(headZ, pose.z + gesture.z + Math.sin(t * 0.6) * 0.02 * sway + body.head.z * headLife, dt, 6);
     if (neck) neck.rotation.set(headX * 0.4, headY * 0.4, headZ * 0.4);
@@ -522,7 +529,10 @@ function animate(
         follow.y += (followTmp.y - anchors.headY - follow.y) * Math.min(1, dt * 0.9);
       }
       const d0 = cameraDrift(t);
-      if (!reduce) easeShot(0, { ...d0, tx: d0.tx + follow.x * 0.5, ty: d0.ty + follow.y * 0.4, x: d0.x + follow.x * 0.2 }, shotNow);
+      // Mientras habla el personaje, la camara se acerca despacio unos centimetros (como un
+      // travelling lento de cine hacia quien habla); al escuchar, vuelve.
+      push = approach(push, p.state === 'speaking' ? 1 : 0, dt, 0.35);
+      if (!reduce) easeShot(0, { ...d0, z: d0.z - 0.06 * push, tx: d0.tx + follow.x * 0.5, ty: d0.ty + follow.y * 0.4, x: d0.x + follow.x * 0.2 }, shotNow);
     }
     // Retrato: cuanto mas cerca la camara, mas desenfocado el fondo (primeros planos del short).
     // En un corte del short el enfoque salta con la camara (antes tardaba medio segundo en llegar).
