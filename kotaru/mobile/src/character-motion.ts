@@ -109,6 +109,17 @@ export const POSTURE: Readonly<Record<string, Readonly<Record<string, readonly [
     upperChest: [0, -0.02, -0.015],
     neck: [0.02, 0, 0.035],
   },
+  // Luna, timida y tranquila: la cabeza algo ladeada hacia el otro lado y el pecho recogido.
+  luna: {
+    chest: [0.015, 0, 0],
+    neck: [0.01, 0, -0.03],
+  },
+  // Rio, seguro: pecho arriba, hombros abiertos, la cadera apenas girada.
+  rio: {
+    hips: [0, 0.03, 0],
+    chest: [-0.025, 0, 0],
+    upperChest: [-0.015, 0, 0],
+  },
 };
 /** Minimo entre dos reacciones (ms): no encadena gestos. */
 const REACTION_COOLDOWN_MS = 6000;
