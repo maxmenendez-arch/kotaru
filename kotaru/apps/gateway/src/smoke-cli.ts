@@ -126,11 +126,11 @@ try {
       const heard = messages.filter((m) => m.type === 'transcript' && m.final).map((m) => (m as { text: string }).text).join(' ');
       const reply = messages.filter((m) => m.type === 'token').map((m) => (m as { text: string }).text).join('');
       if (process.argv.includes('--mostrar')) console.log(`\n${companionArg ?? 'rio'}${sensualArg ? ' (sensual)' : ''}${modeArg ? ` [${modeArg}]` : ''} responde: ${reply}\n`);
-      const affect = messages.find((m) => m.type === 'affect') as { emotion?: string } | undefined;
+      const affect = messages.find((m) => m.type === 'affect') as { emotion?: string; gesture?: string } | undefined;
       check('oyo la voz', heard.trim().length > 0, `"${heard.slice(0, 80)}"`);
       if (crisis) check('seguridad', true, 'crisis detectada: se muestran los recursos (988)');
       check('respuesta sin etiquetas de emocion', !/\[\[|\]\]/.test(reply), `"${reply.slice(0, 100)}"`);
-      check('emocion para el avatar', true, affect?.emotion ?? 'no llego (no es un fallo)');
+      check('emocion para el avatar', true, affect ? `${affect.emotion}${affect.gesture ? ` + gesto ${affect.gesture}` : ''}` : 'no llego (no es un fallo)');
       if (voiceArg && !crisis) {
         const used = (messages.find((m) => m.type === 'voice_used') as { voice?: string } | undefined)?.voice;
         check('voz elegida', used === voiceArg, `pedida ${voiceArg}, hablo ${used ?? 'sin aviso'}`);

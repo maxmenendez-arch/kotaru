@@ -313,6 +313,8 @@ export class CharacterMotion {
   readonly #tmpQ = new THREE.Quaternion();
   readonly #tmpE = new THREE.Euler();
   #clock = 0;
+  #breathAt = -10;
+  #breathSpeaking = false;
 
   readonly #armOut: readonly [THREE.Quaternion, THREE.Quaternion];
 
@@ -575,7 +577,12 @@ export class CharacterMotion {
     this.#clock += dt;
     {
       const b = Math.sin(this.#clock * ((2 * Math.PI) / 4.3));
-      const inhale = (b + 1) / 2;
+      // Antes de hablar se toma aire: al empezar a hablar, una inspiracion algo mas honda.
+      if (input.speaking && !this.#breathSpeaking) this.#breathAt = this.#clock;
+      this.#breathSpeaking = input.speaking;
+      const since = this.#clock - this.#breathAt;
+      const gasp = since >= 0 && since < 1.2 ? Math.sin((since / 1.2) * Math.PI) * 0.8 : 0;
+      const inhale = Math.min(1.6, (b + 1) / 2 + gasp);
       const k = W * (1 - A);
       const turn = (bone: string, x: number, z: number) => {
         const node = this.#vrm.humanoid.getNormalizedBoneNode(bone as VRMHumanBoneName);
