@@ -446,7 +446,9 @@ function animate(
     // Labios: si hay espectro de la voz, la vocal que suena (abre rapido, cierra algo mas lento,
     // como una boca de verdad); si no, el volumen con una variacion de vocales.
     const heard = speaking ? (p.visemes?.() ?? null) : null;
-    const want = heard ?? { ...mouthShapes(mouth, t), ou: 0, ee: 0 };
+    // Pensando la respuesta: labios apenas fruncidos, como un «mmm».
+    const hmm = p.state === 'thinking' && !speaking ? 0.14 : 0;
+    const want: Record<string, number> = heard ? { ...heard } : { ...mouthShapes(mouth, t), ou: hmm, ee: 0 };
     for (const v of VISEMES) {
       const goal = Math.min(1, (want[v] ?? 0) * (heard ? 1.35 : 1));
       lips[v] = approach(lips[v], goal, dt, goal > lips[v] ? 28 : 14);
