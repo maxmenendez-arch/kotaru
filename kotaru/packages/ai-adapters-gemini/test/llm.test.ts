@@ -181,6 +181,13 @@ describe('canal de emocion de Gemini', () => {
     expect(run(['  [[Concerned]]\nOye, ¿estás bien?'])).toEqual({ text: 'Oye, ¿estás bien?', affects: [{ emotion: 'concerned', intensity: 0.7 }] });
   });
 
+  it('con gesto tras la barra: emocion y gesto; un gesto raro se ignora y queda la emocion', () => {
+    expect(run(['[[happy|laugh', '_soft]] ¡Jaja!'])).toEqual({ text: '¡Jaja!', affects: [{ emotion: 'happy', intensity: 0.7, gesture: 'laugh_soft' }] });
+    expect(run(['[[warm | small_wave]] Hola'])).toEqual({ text: 'Hola', affects: [{ emotion: 'warm', intensity: 0.7, gesture: 'small_wave' }] });
+    expect(run(['[[curious|bailar]] ¿Y eso?'])).toEqual({ text: '¿Y eso?', affects: [{ emotion: 'curious', intensity: 0.7 }] });
+    expect(run(['[[happy]] vale [[warm|nod]] sí'])).toEqual({ text: 'vale sí', affects: [{ emotion: 'happy', intensity: 0.7 }] });
+  });
+
   it('sin etiqueta, el texto pasa intacto y sin emocion', () => {
     expect(run(['Hola, ', 'qué tal'])).toEqual({ text: 'Hola, qué tal', affects: [] });
     expect(run(['[nota] hola'])).toEqual({ text: '[nota] hola', affects: [] });

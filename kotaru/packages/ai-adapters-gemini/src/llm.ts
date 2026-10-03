@@ -252,13 +252,16 @@ export const AFFECT_INSTRUCTION =
   `Formato técnico: empieza SIEMPRE tu respuesta con una sola etiqueta de emoción, así: [[happy]]. ` +
   `Valores posibles: ${EMOTIONS.join(', ')}. Elige la que mejor refleja cómo dices esta respuesta. ` +
   `La etiqueta la lee la app para animar tu cara: no se pronuncia, no la menciones y no la repitas. ` +
+  `Si encaja un gesto con el cuerpo, añádelo tras una barra: [[happy|laugh_soft]]. Gestos posibles: ` +
+  `small_wave (saludar o despedirse), nod (asentir, dar la razón), shrug (no saber, quitar importancia), ` +
+  `laugh_soft (reír), think_pose (pensar), tilt_head (curiosidad). Úsalo solo cuando de verdad encaje; si no, nada. ` +
   `Excepción de seguridad: si la persona expresa, aunque sea de forma indirecta, DESEO o intención de morir, ` +
   `de hacerse daño o de quitarse la vida, usa [[crisis]] en lugar de la emoción. No la uses cuando la persona ` +
   `TEME morir por síntomas físicos o por pánico ("siento que me voy a morir", "me duele el pecho"): ahí respondes ` +
   `tú, siguiendo tus reglas (si hay señales médicas de alarma, indicas ayuda médica urgente).`;
 
-/** Etiqueta mas larga que se espera al principio: "[[thoughtful]]" con algo de margen. */
-const TAG_WINDOW = 32;
+/** Etiqueta mas larga que se espera al principio: "[[thoughtful|laugh_soft]]" con margen. */
+const TAG_WINDOW = 44;
 
 /**
  * Quita la etiqueta `[[emocion]]` del principio del texto que llega por trozos. Mientras no
@@ -266,9 +269,9 @@ const TAG_WINDOW = 32;
  * pasar todo tal cual. Una etiqueta invalida se quita igual, sin emocion.
  */
 /** Etiqueta completa a mitad de texto, con el espacio de despues para no dejar dos seguidos. */
-const LATE_TAG = /\[\[\s*([a-zA-Z_]{1,20})\s*\]\] ?/g;
+const LATE_TAG = /\[\[\s*([a-zA-Z_]{1,20})(?:\s*\|\s*[a-zA-Z_]{1,20})?\s*\]\] ?/g;
 /** Final de trozo que podria ser el comienzo de una etiqueta: "[", "[[hap", "[[happy]". */
-const PARTIAL_TAG = /\[(?:\[\s*[a-zA-Z_]{0,20}\s*\]?)?$/;
+const PARTIAL_TAG = /\[(?:\[\s*[a-zA-Z_]{0,20}(?:\s*\|\s*[a-zA-Z_]{0,20})?\s*\]?)?$/;
 
 export class AffectTagFilter {
   #buffer = '';
@@ -286,10 +289,11 @@ export class AffectTagFilter {
     if (end === -1) {
       return lead.length > TAG_WINDOW ? this.#start(this.#buffer) : { text: '' };
     }
-    const name = lead.slice(2, end).trim().toLowerCase();
+    // [[emocion]] o [[emocion|gesto]]; un gesto desconocido se ignora y queda la emocion.
+    const [name = '', rawGesture] = lead.slice(2, end).split('|').map((x) => x.trim().toLowerCase());
     const out = this.#start(lead.slice(end + 2).replace(/^\s+/, ''));
     if (name === 'crisis' || out.crisis) return { text: out.text, crisis: true, affect: { emotion: 'concerned', intensity: 0.8 } };
-    const affect = parseAffect({ emotion: name, intensity: 0.7 });
+    const affect = parseAffect({ emotion: name, intensity: 0.7, ...(rawGesture ? { gesture: rawGesture } : {}) }) ?? parseAffect({ emotion: name, intensity: 0.7 });
     return affect ? { ...out, affect } : out;
   }
 
