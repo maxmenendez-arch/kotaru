@@ -43,3 +43,9 @@ test('el parpado cierra rapido y abre despacio; al mover la mirada parpadea', ()
   b.nudge(10.5);
   assert.equal(w(10.5), 0, 'no repite enseguida');
 });
+
+import { BLUSH } from '../src/face-detail.ts';
+test('rubor suave: nunca opaco, apenas en Rio', () => {
+  for (const b of Object.values(BLUSH)) assert.ok(b.alpha > 0 && b.alpha <= 0.25);
+  assert.ok(BLUSH.rio!.alpha < BLUSH.luna!.alpha);
+});

@@ -157,7 +157,7 @@ function downInTexture(vrm: VRM, mesh: THREE.SkinnedMesh, vertex: number, up: TH
   return acc.lengthSq() > 1e-8 ? acc.normalize() : new THREE.Vector2(0, 1);
 }
 
-function materialOf(mesh: THREE.Mesh, vertex: number): THREE.Material | null {
+export function materialOf(mesh: THREE.Mesh, vertex: number): THREE.Material | null {
   const mats = ([] as THREE.Material[]).concat(mesh.material);
   if (mats.length === 1) return mats[0]!;
   const geo = mesh.geometry;
@@ -169,7 +169,7 @@ function materialOf(mesh: THREE.Mesh, vertex: number): THREE.Material | null {
 }
 
 /** Escala de la textura alrededor de un vertice: pixeles por metro (con los vecinos cercanos). */
-function pixelsPerMeter(mesh: THREE.SkinnedMesh, vertex: number): number {
+export function pixelsPerMeter(mesh: THREE.SkinnedMesh, vertex: number): number {
   const geo = mesh.geometry;
   const position = geo.getAttribute('position');
   const uv = geo.getAttribute('uv');

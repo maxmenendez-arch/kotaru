@@ -24,6 +24,7 @@ import { createHairWind } from './hair-wind';
 import { REELS, reelCamera, reelCue, reelFade, reelVoice, type Anchors } from './reel';
 import { styleFor } from './body-styles';
 import { CloseUpDirector, zoomFov } from './close-ups';
+import { applyBlush } from './face-detail';
 import { cameraDrift, frameCamera, pixelRatio, smoothNoise, type Drift, type Framing } from './framing';
 
 /** Primer plano del modo cinematico: punto mirado, alto visible (zoom), deslizamiento y peso. */
@@ -167,6 +168,7 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
   const collider = profile ? new ArmCollider(vrm, profile) : null;
   // Tela que se apoya en el cuerpo (fabric-detail.ts; solo Nova). ?fabric=0 lo apaga.
   if (flagOn('fabric')) applyFabricDetail(vrm, props().companion);
+  if (flagOn('blush')) applyBlush(vrm, props().companion);
   relaxPose(bone);
   vrm.update(0);
   // Acabado por personaje: luz de borde de su escenario, pelo con sombra, brillo en los ojos.
