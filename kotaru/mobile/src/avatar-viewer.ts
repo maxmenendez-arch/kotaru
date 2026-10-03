@@ -466,7 +466,9 @@ function animate(
     const pose = p.companion === 'nova' && !cue ? { x: base.x + 0.06, y: base.y, z: base.z + 0.05 } : base;
     // Con animaciones, la cabeza no añade gestos ni balanceos propios: tranquila.
     const calmHead = !!motion?.ready && !cue;
-    const gesture = reduce || !p.affect || calmHead ? { x: 0, y: 0, z: 0 } : gestureOffset(p.affect.gesture, (now - p.affect.at) / 1000);
+    // Con animaciones, solo el ladeo de cabeza (curiosidad) queda como gesto de codigo: es de
+    // cabeza y no choca con el cuerpo animado.
+    const gesture = reduce || !p.affect || (calmHead && p.affect.gesture !== 'tilt_head') ? { x: 0, y: 0, z: 0 } : gestureOffset(p.affect.gesture, (now - p.affect.at) / 1000);
     const sway = reduce ? 0 : calmHead ? 0.35 : 1;
     const headLife = calmHead ? 0.3 : 1;
     // Al hablar, la cabeza marca los acentos de la voz (pequeños asentimientos en los golpes
