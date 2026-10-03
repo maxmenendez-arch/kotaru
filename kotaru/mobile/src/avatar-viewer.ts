@@ -430,7 +430,8 @@ function animate(
               ? { relaxed: 0.12 * aw }
               : {};
     for (const name of FACE_EXPRESSIONS) {
-      const extra = (actFace[name] ?? 0) + (flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0) + (name === 'happy' ? coy.smile * 0.18 : name === 'relaxed' ? coy.away * 0.12 : 0);
+      // Al hablar, las cejas suben un poco en los acentos de la voz (expresividad natural).
+      const extra = (name === 'surprised' ? accent * 0.12 : 0) + (actFace[name] ?? 0) + (flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0) + (name === 'happy' ? coy.smile * 0.18 : name === 'relaxed' ? coy.away * 0.12 : 0);
       face[name] = approach(face[name] ?? 0, Math.min(1, target[name] + extra), dt, 4);
       expressions?.setValue(name, face[name]!);
     }
