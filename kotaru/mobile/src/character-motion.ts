@@ -549,9 +549,24 @@ export class CharacterMotion {
     }
     // Postura propia del personaje sobre el reposo: Nova en contrapposto (el peso en una
     // cadera, el torso compensando, un hombro algo adelantado), con un vaiven lento.
+    // Respiracion visible (2-oct): el pecho se abre y los hombros suben un pelo, ~14 veces por
+    // minuto; el reposo de Mixamo, amortiguado, casi no la mostraba.
+    this.#clock += dt;
+    {
+      const b = Math.sin(this.#clock * ((2 * Math.PI) / 4.3));
+      const inhale = (b + 1) / 2;
+      const k = W * (1 - A);
+      const turn = (bone: string, x: number, z: number) => {
+        const node = this.#vrm.humanoid.getNormalizedBoneNode(bone as VRMHumanBoneName);
+        if (node) node.quaternion.multiply(this.#tmpQ.setFromEuler(this.#tmpE.set(x * k, 0, z * k)));
+      };
+      turn('chest', -0.012 * inhale, 0);
+      turn('upperChest', -0.01 * inhale, 0);
+      turn('leftShoulder', 0, 0.018 * inhale);
+      turn('rightShoulder', 0, -0.018 * inhale);
+    }
     const lean = POSTURE[this.#companion];
     if (lean) {
-      this.#clock += dt;
       const sway = 1 + 0.25 * Math.sin(this.#clock * 0.55);
       const k = W * (1 - A) * sway;
       for (const [bone, [x, y, z]] of Object.entries(lean)) {
