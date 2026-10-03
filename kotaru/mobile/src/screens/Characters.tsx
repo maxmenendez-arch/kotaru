@@ -241,6 +241,7 @@ export function Characters({
               <Text style={styles.pickArrow}>→</Text>
             </Pressable>
           </View>
+          <View style={[styles.accentLine, { backgroundColor: companion.accent }]} />
           {profile.hook[lang].map((line) => (
             <Text key={line} style={styles.hook}>
               {line}
@@ -403,7 +404,9 @@ const styles = StyleSheet.create({
   tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   tagText: { fontSize: 12, lineHeight: 16, fontWeight: '800', color: '#0B1020', letterSpacing: 0.6, textTransform: 'uppercase' },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.m },
-  name: { flex: 1, fontSize: 46, lineHeight: 52, fontWeight: '800', color: color.cloud, letterSpacing: -0.5 },
+  // Titulo de cartel (2-oct): sombra suave para que se lea sobre el video como un titulo de cine.
+  name: { flex: 1, fontSize: 46, lineHeight: 52, fontWeight: '800', color: color.cloud, letterSpacing: 0.5, textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 14, textShadowOffset: { width: 0, height: 2 } },
+  accentLine: { width: 44, height: 3, borderRadius: 2, marginTop: -2, marginBottom: 2 },
   pick: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: color.cloud, paddingHorizontal: space.l, paddingVertical: 10, borderRadius: radius.pill, minHeight: 44 },
   pickText: { fontSize: 16, fontWeight: '700', color: color.ink },
   pickArrow: { fontSize: 18, fontWeight: '700', color: color.ink },
