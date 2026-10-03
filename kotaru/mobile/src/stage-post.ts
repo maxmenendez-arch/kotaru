@@ -142,6 +142,14 @@ void main() {
   // El halo del fondo apenas pasa por encima del personaje (lo dejaria lechoso).
   // Halo con el tinte calido de la pelicula (halacion): las luces sangran algo hacia el rojo.
   c += texture2D(bloom, vUv).rgb * vec3(1.0, 0.86, 0.74) * bloomAmount * (1.0 - ch.a * 0.75);
+  // Destello anamorfico de cine: las luces fuertes dejan una raya horizontal suave.
+  vec3 streak = vec3(0.0);
+  for (int i = 1; i <= 6; i++) {
+    float o = float(i) * 0.018;
+    float w = 1.0 - float(i) / 7.0;
+    streak += (texture2D(bloom, vUv + vec2(o, 0.0)).rgb + texture2D(bloom, vUv - vec2(o, 0.0)).rgb) * w;
+  }
+  c += streak * vec3(0.75, 0.85, 1.0) * 0.06 * bloomAmount * (1.0 - ch.a * 0.85);
   c = shoulder(c);
   vec3 s = toSRGB(c);
   float luma = dot(s, vec3(0.2126, 0.7152, 0.0722));
