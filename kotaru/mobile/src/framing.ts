@@ -63,7 +63,8 @@ export function frameCamera(framing: Framing, aspect: number, headY: number, fre
 export function pixelRatio(framing: Framing, width: number, height: number, device: number): number {
   const dpr = device > 0 ? device : 1;
   if (framing === 'portrait') return Math.min(dpr, 2);
-  const cap = Math.min(dpr, 1.5);
+  // 1,8 (antes 1,5): en el telefono la cara se ve nitida y sigue dentro del presupuesto.
+  const cap = Math.min(dpr, 1.8);
   const budget = Math.sqrt(1_600_000 / Math.max(1, width * height));
   return Math.max(Math.min(1, dpr), Math.min(cap, budget));
 }

@@ -32,7 +32,9 @@ test('en ordenador el encuadre es algo mas cercano que en telefono', () => {
 
 test('la densidad de pixeles se limita a pantalla completa', () => {
   assert.equal(pixelRatio('portrait', 188, 188, 3), 2);
-  assert.equal(pixelRatio('stage', 400, 250, 3), 1.5);
+  assert.equal(pixelRatio('stage', 400, 250, 3), 1.8);
+  // Telefono (390x844, densidad 3): 1,8 y por debajo del presupuesto de pixeles.
+  assert.equal(pixelRatio('immersive', 390, 844, 3), 1.8);
   const r = pixelRatio('immersive', 1440, 900, 2);
   assert.ok(1440 * 900 * r * r <= 1_600_000 * 1.01);
   assert.equal(pixelRatio('immersive', 2560, 1440, 1), 1);

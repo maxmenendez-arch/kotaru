@@ -1183,11 +1183,13 @@ const styles = StyleSheet.create({
   subtitle: {
     ...type.body,
     fontSize: 17,
-    color: '#FFFFFF',
+    // Subtitulo de cine (2-oct): blanco calido, un poco de aire entre letras, sombra amplia.
+    color: '#FFF8EE',
+    letterSpacing: 0.2,
     textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+    textShadowRadius: 8,
   },
   handsFreeLink: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: space.m },
   handsFreeLinkText: { ...type.micro, color: color.mist, textDecorationLine: 'underline' },
