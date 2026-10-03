@@ -29,7 +29,7 @@ import { cameraDrift, frameCamera, pixelRatio, smoothNoise, type Drift, type Fra
 
 /** Primer plano del modo cinematico: punto mirado, alto visible (zoom), deslizamiento y peso. */
 const VISEMES = ['aa', 'ih', 'ou', 'ee', 'oh'] as const;
-type CloseShot = { target: [number, number, number]; span: number; slide: number; w: number };
+type CloseShot = { target: [number, number, number]; span: number; slide: number; w: number; roll: number };
 
 /**
  * Motor del avatar 3D de la web (three.js + three-vrm). Solo lo importa avatar.web.tsx, con
@@ -89,7 +89,8 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
       const baseSpan = 2 * d * Math.tan((shot.fov * Math.PI) / 360);
       camera.fov = zoomFov(baseSpan + (close.span - baseSpan) * w, d);
     }
-    if (drift.roll) camera.rotateZ(drift.roll);
+    const dutch = close ? close.roll * close.w : 0;
+    if (drift.roll || dutch) camera.rotateZ(drift.roll + dutch);
     camera.updateProjectionMatrix();
   };
   /** Acerca la camara al encuadre pedido (suave, ~0,4 s). Devuelve si se movio. */
@@ -559,7 +560,9 @@ function animate(
       if (cf) {
         const f = cf.framing;
         // + a la izquierda de la pantalla = -x en el mundo (la camara mira hacia -z).
-        shotNow = { target: [anchors.x - f.dx, anchors.headY + f.dy, (anchors.z + anchors.eyeZ) / 2], span: f.span, slide: cf.slide, w: cf.weight };
+        shotNow = { target: [anchors.x - f.dx, anchors.headY + f.dy, (anchors.z + anchors.eyeZ) / 2], span: f.span, slide: cf.slide, w: cf.weight,
+          // Planos descentrados con el horizonte un poco ladeado (angulo holandes suave, ~2 grados).
+          roll: f.dx === 0 ? 0 : Math.sign(f.dx) * 0.035 };
       }
       post?.setSoft(cf ? cf.soft * 0.8 : 0);
       post?.setLetterbox(cf ? cf.weight : 0);
