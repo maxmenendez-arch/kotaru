@@ -488,6 +488,7 @@ function animate(
       const cam = reelCamera(REELS[live.companion], t, anchors, camera.aspect);
       post?.setFade(reelFade(REELS[live.companion], t));
       post?.setSoft(0);
+      post?.setLetterbox(0);
       camera.fov = cam.fov;
       camera.position.set(...cam.position);
       camera.lookAt(...cam.target);
@@ -512,6 +513,7 @@ function animate(
         shotNow = { target: [anchors.x - f.dx, anchors.headY + f.dy, (anchors.z + anchors.eyeZ) / 2], span: f.span, slide: cf.slide, w: cf.weight };
       }
       post?.setSoft(cf ? cf.soft * 0.8 : 0);
+      post?.setLetterbox(cf ? cf.weight : 0);
       // El operador sigue la cabeza con retraso (si se mece o se inclina, la camara la acompaña
       // un poco, tarde, como una persona; nunca la clava en el centro).
       if (head) {

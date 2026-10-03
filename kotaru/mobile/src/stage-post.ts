@@ -29,6 +29,8 @@ export interface StagePost {
   setFade(level: number): void;
   /** Cambio de foco del personaje (0 nitido, 1 blando): el foco se pierde y vuelve. */
   setSoft(level: number): void;
+  /** Franjas negras de cine arriba y abajo (0 nada, 1 del todo) en los primeros planos. */
+  setLetterbox(level: number): void;
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera, t: number): void;
   dispose(): void;
 }
@@ -75,6 +77,7 @@ uniform sampler2D bloom;
 uniform sampler2D character;
 uniform float blurAmount;
 uniform float soft;
+uniform float letterbox;
 uniform float bloomAmount;
 uniform float saturation;
 uniform float contrast;
@@ -155,6 +158,9 @@ void main() {
   vec2 d = (vUv - 0.5) * aspect;
   s *= 1.0 - vignette * smoothstep(0.35, 0.95, length(d));
   s *= fade;
+  // Franjas de cine: entran suaves con el primer plano (7 % arriba y abajo).
+  float bar = letterbox * 0.07;
+  s *= smoothstep(bar - 0.004, bar + 0.002, vUv.y) * smoothstep(bar - 0.004, bar + 0.002, 1.0 - vUv.y);
   s += (hash(vUv * 997.0 + time) - 0.5) / 255.0 * 1.5;
   // Grano de pelicula: mas en los medios tonos, cambia en cada cuadro (24 por segundo).
   float g = hash(floor(vUv / texel / 1.5) + floor(time * 24.0) * 17.0) - 0.5;
@@ -204,6 +210,7 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
     character: { value: character.texture },
     blurAmount: { value: grade.blur },
     soft: { value: 0 },
+    letterbox: { value: 0 },
     bloomAmount: { value: grade.bloom },
     saturation: { value: grade.saturation },
     contrast: { value: grade.contrast },
@@ -244,6 +251,9 @@ export function createStagePost(renderer: THREE.WebGLRenderer, grade: SceneGrade
   return {
     setFade(level) {
       composite.uniforms['fade']!.value = Math.min(1, Math.max(0, level));
+    },
+    setLetterbox(level) {
+      composite.uniforms['letterbox']!.value = Math.min(1, Math.max(0, level));
     },
     setSoft(level) {
       composite.uniforms['soft']!.value = Math.min(1, Math.max(0, level));
