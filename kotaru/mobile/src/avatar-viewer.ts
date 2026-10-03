@@ -189,9 +189,14 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
 
   // El lugar del personaje, con sus propias luces (sustituyen a las del retrato).
   let stage: Stage | null = null;
+  let contact: THREE.Mesh | null = null;
   if (withBackground) {
     stage = buildStage(props().companion, scene, focus);
     if (stage) {
+      // Sombra de contacto (2-oct): una mancha suave en el suelo bajo los pies, para que el
+      // personaje pise el suelo en vez de flotar sobre el escenario. Sigue a la cadera.
+      contact = contactShadow(vrm);
+      if (contact) scene.add(contact);
       scene.remove(key, ambient);
       renderer.setClearColor(0x000000, 1);
       // Acabado de camara: fondo desenfocado, halo y color. Se puede apagar con ?post=0.
@@ -595,3 +600,43 @@ function levelHead(neck: THREE.Object3D, head: THREE.Object3D, faceSign: number,
   neck.quaternion.premultiply(pw.clone().invert().multiply(q).multiply(pw));
 }
 
+/** Mancha de sombra bajo los pies: textura radial en un plano en el suelo. */
+function contactShadow(vrm: VRM): THREE.Mesh | null {
+  if (typeof document === 'undefined') return null;
+  vrm.scene.updateMatrixWorld(true);
+  const feet = (['leftFoot', 'rightFoot', 'leftToes', 'rightToes'] as const)
+    .map((b) => vrm.humanoid.getRawBoneNode(b)?.getWorldPosition(new THREE.Vector3()))
+    .filter((v): v is THREE.Vector3 => !!v);
+  if (!feet.length) return null;
+  const ground = Math.max(0, Math.min(...feet.map((f) => f.y)) - 0.012);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(0,0,0,0.5)');
+  g.addColorStop(0.45, 'rgba(0,0,0,0.28)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.62, 0.34),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }),
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(0, ground + 0.003, 0);
+  mesh.renderOrder = 1;
+  // Sigue el punto medio de los pies (no la cadera: al ladear el cuerpo la sombra se iba).
+  const bones = (['leftFoot', 'rightFoot', 'leftToes', 'rightToes'] as const).map((b) => vrm.humanoid.getRawBoneNode(b)).filter((b): b is THREE.Object3D => !!b);
+  const at = new THREE.Vector3();
+  const sum = new THREE.Vector3();
+  mesh.onBeforeRender = () => {
+    sum.set(0, 0, 0);
+    for (const b of bones) sum.add(b.getWorldPosition(at));
+    sum.divideScalar(bones.length);
+    mesh.position.x = sum.x;
+    mesh.position.z = sum.z;
+  };
+  return mesh;
+}
