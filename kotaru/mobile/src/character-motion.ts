@@ -380,6 +380,11 @@ export class CharacterMotion {
     return this.#reactions;
   }
 
+  /** Archivo de la accion en curso (para elegir el plano del camarografo), o null. */
+  get actionName(): string | null {
+    return this.#action?.spec.file ?? null;
+  }
+
   get actionLength(): number {
     return this.#action?.clip.duration ?? 0;
   }

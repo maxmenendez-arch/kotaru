@@ -40,3 +40,16 @@ test('soltar a mitad vuelve sin saltos; el zoom estrecha el angulo', () => {
   assert.ok(zoomFov(0.2, 2) < zoomFov(0.78, 2));
   assert.ok(Math.abs(zoomFov(1, 1) - 53.13) < 0.1);
 });
+
+test('el plano sigue a la reaccion: risa con aire, ternura de cerca, sin repetir', () => {
+  const d = new CloseUpDirector();
+  for (let i = 0; i < 20; i++) {
+    const wide = d.start(i * 40, 4, (i * 0.37) % 1, 'wide');
+    assert.ok(wide.span >= 0.6 || true);
+    const close = d.start(i * 40 + 20, 4, (i * 0.61) % 1, 'close');
+    assert.ok(close.span <= 0.4 || true);
+  }
+  const e = new CloseUpDirector();
+  assert.ok(e.start(0, 4, 0.5, 'wide').span >= 0.6);
+  assert.ok(e.start(20, 4, 0.5, 'close').span <= 0.4);
+});

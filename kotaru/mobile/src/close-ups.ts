@@ -57,12 +57,19 @@ export class CloseUpDirector {
   readonly #recent: string[] = [];
 
   /** Primer plano que dura lo que la reaccion (`length` s). `roll` 0-1 elige el encuadre. */
-  start(t: number, length: number, roll: number): Framing {
+  start(t: number, length: number, roll: number, want?: 'wide' | 'close'): Framing {
     const avoid = new Set(this.#recent.slice(-2));
     // El detalle y el lateral a un lado no se siguen del mismo a otro lado (se veria igual).
     const last = this.#recent[this.#recent.length - 1]?.split('-')[0];
     let options = FRAMINGS.filter((f) => !avoid.has(f.name) && f.name.split('-')[0] !== last);
     if (!options.length) options = FRAMINGS.filter((f) => !avoid.has(f.name));
+    // El plano segun la reaccion: una risa o un gesto de cuerpo piden aire (plano medio o
+    // lateral); la ternura o un beso, cerca (cara o detalle). Si no queda ninguno sin repetir,
+    // cualquiera de los permitidos.
+    if (want) {
+      const fit = options.filter((f) => (want === 'wide' ? f.span >= 0.6 : f.span <= 0.4));
+      if (fit.length) options = fit;
+    }
     const pick = options[Math.min(options.length - 1, Math.floor(roll * options.length))]!;
     this.#recent.push(pick.name);
     if (this.#recent.length > 4) this.#recent.shift();

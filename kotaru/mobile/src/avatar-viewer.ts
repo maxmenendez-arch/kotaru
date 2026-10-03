@@ -509,7 +509,9 @@ function animate(
       // que no se repite; el foco se pierde al acercarse y vuelve (close-ups.ts).
       if (motion && motion.reactions !== seenReactions) {
         seenReactions = motion.reactions;
-        if (!reduce && stage && cinematic()) director.start(t, motion.actionLength, Math.random());
+        const name = motion.actionName ?? '';
+        const want = /laugh|shrug|hip|greeting|yawn/.test(name) ? 'wide' : /bashful|kiss|nodding|thinking/.test(name) ? 'close' : undefined;
+        if (!reduce && stage && cinematic()) director.start(t, motion.actionLength, Math.random(), want);
       }
       if (!cinematic()) director.stop();
       const cf = director.frame(t);
