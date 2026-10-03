@@ -408,8 +408,11 @@ function animate(
     const target = targetFace(p.companion, p.affect, now);
     // Coqueteo: mirada algo entornada y sonrisa suave (sobre la emocion del momento).
     const flirtFace = p.mood === 'flirt' ? { relaxed: 0.22, happy: 0.1 } : null;
+    // Nova, en reposo, cada 14-22 s: mira de reojo a un lado y vuelve con media sonrisa
+    // (coqueteo sutil, sin gestos de brazos). Ni hablando ni en el short.
+    const coy = p.companion === 'nova' && !cue && !reduce && p.state !== 'speaking' ? coyGlance(t) : { away: 0, smile: 0 };
     for (const name of FACE_EXPRESSIONS) {
-      const extra = flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0;
+      const extra = (flirtFace ? ((flirtFace as Record<string, number>)[name] ?? 0) : 0) + (name === 'happy' ? coy.smile * 0.18 : name === 'relaxed' ? coy.away * 0.12 : 0);
       face[name] = approach(face[name] ?? 0, Math.min(1, target[name] + extra), dt, 4);
       expressions?.setValue(name, face[name]!);
     }
@@ -474,8 +477,8 @@ function animate(
     const sx = thinking || reduce ? 0 : saccade.x;
     const sy = thinking || reduce ? 0 : saccade.y;
     gaze.position.set(
-      camera.position.x + (thinking ? 0.25 : glance.x) + lookAway * 1.4 + sx,
-      camera.position.y + (thinking ? 0.2 : glance.y) + sy,
+      camera.position.x + (thinking ? 0.25 : glance.x) + lookAway * 1.4 + sx + coy.away * 0.55,
+      camera.position.y + (thinking ? 0.2 : glance.y) + sy - coy.away * 0.12,
       camera.position.z,
     );
 
@@ -641,4 +644,15 @@ function contactShadow(vrm: VRM): THREE.Mesh | null {
     mesh.position.z = sum.z;
   };
   return mesh;
+}
+
+/**
+ * Mirada de reojo de Nova: en ciclos de ~18 s, aparta la vista ~1,3 s (`away` 0-1, curva suave)
+ * y al volver sonrie un instante (`smile` 0-1). Determinista por el tiempo.
+ */
+function coyGlance(t: number): { away: number; smile: number } {
+  const period = 18;
+  const k = ((t + 7) % period) / period;
+  const bell = (a: number, b: number) => (k <= a || k >= b ? 0 : Math.sin(((k - a) / (b - a)) * Math.PI));
+  return { away: bell(0.0, 0.075), smile: bell(0.06, 0.16) };
 }
