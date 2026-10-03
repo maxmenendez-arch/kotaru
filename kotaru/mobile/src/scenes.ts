@@ -82,7 +82,7 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
     rimIntensity: 1.0,
     key: 0xfff6ea,
     keyIntensity: 0.85,
-    grade: { blur: 0.7, bloom: 0.25, bloomThreshold: 0.85, saturation: 1.05, contrast: 1.07, warmth: 0.01, vignette: 0.26, shadows: [-0.012, 0.006, 0.02], highlights: [0.03, 0.016, -0.012], matte: 0.035, grain: 0.022 },
+    grade: { blur: 0.7, bloom: 0.25, bloomThreshold: 0.85, saturation: 1.05, contrast: 1.07, warmth: 0.01, vignette: 0.28, exposure: 0.9, shadows: [-0.012, 0.006, 0.02], highlights: [0.03, 0.016, -0.012], matte: 0.035, grain: 0.022 },
   },
   'nova-room': {
     fog: 0x1c0f22,
