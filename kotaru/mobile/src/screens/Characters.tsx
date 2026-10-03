@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { createSoundscape } from '../ambient';
 import { Avatar } from '../avatar';
+import { AvatarPlaceholder } from '../ui/avatar-placeholder';
 import { createIntroVoice } from '../intro-voice';
 import { keepMusicAudio } from '../call-audio';
 import { PROFILES } from '../character-profiles';
@@ -197,11 +198,7 @@ export function Characters({
           state="idle"
           affect={null}
           level={() => 0}
-          fallback={
-            <View style={[styles.fallback, { backgroundColor: companion.tint }]}>
-              <Text style={[styles.initial, { color: companion.accent }]}>{companion.name[0]}</Text>
-            </View>
-          }
+          fallback={<AvatarPlaceholder companion={selected} tint={companion.tint} size={180} />}
         />
         <Scrim from={0.38} />
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(8,10,20,${veil})` }]} />

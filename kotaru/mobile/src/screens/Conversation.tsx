@@ -9,6 +9,7 @@ import { ReactionBurst } from '../ui/reaction-burst';
 import { SCENE_BUILDERS, SCENE_OF } from '../scene-sounds';
 import { createAudio } from '../audio';
 import { Avatar } from '../avatar';
+import { AvatarPlaceholder } from '../ui/avatar-placeholder';
 import type { AffectState } from '../avatar-motion';
 import { BreatheOverlay, CalmBar } from '../ui/calm';
 import { COMPANIONS, companionById, type Companion, type CompanionId } from '../companions';
@@ -561,7 +562,7 @@ export function Conversation({
       level={() => speaker.current.level?.() ?? 0}
       visemes={() => speaker.current.visemes?.() ?? null}
       onPresence={(pan, far) => speaker.current.place?.(pan, far)}
-      fallback={<Text style={[styles.initial, compact && !immersive && styles.initialCompact, { color: companion.accent }]}>{companion.name[0]}</Text>}
+      fallback={immersive ? <AvatarPlaceholder companion={companionId} tint={companion.tint} /> : <Text style={[styles.initial, compact && !immersive && styles.initialCompact, { color: companion.accent }]}>{companion.name[0]}</Text>}
     />
   );
 
