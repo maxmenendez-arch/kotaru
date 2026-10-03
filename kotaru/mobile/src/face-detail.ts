@@ -7,14 +7,9 @@
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
-import { materialKind } from './looks';
+import { BLUSH, materialKind } from './looks';
 import { materialOf, pixelsPerMeter } from './fabric-detail';
 
-export const BLUSH: Readonly<Record<string, { readonly alpha: number; readonly rgb: string }>> = {
-  luna: { alpha: 0.2, rgb: '236,128,136' },
-  nova: { alpha: 0.17, rgb: '232,110,132' },
-  rio: { alpha: 0.08, rgb: '214,120,110' },
-};
 
 export function applyBlush(vrm: VRM, companion: string): void {
   const blush = BLUSH[companion];

@@ -54,3 +54,10 @@ export function materialKind(name: string): 'hair' | 'skin' | 'eye-highlight' | 
 export function catchlightOpacity(closed: number): number {
   return Math.min(1, Math.max(0, (0.8 - closed) / 0.4));
 }
+
+/** Rubor de las mejillas (face-detail.ts): opacidad y color. */
+export const BLUSH: Readonly<Record<string, { readonly alpha: number; readonly rgb: string }>> = {
+  luna: { alpha: 0.2, rgb: '236,128,136' },
+  nova: { alpha: 0.17, rgb: '232,110,132' },
+  rio: { alpha: 0.08, rgb: '214,120,110' },
+};
