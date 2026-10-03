@@ -82,8 +82,12 @@ export class Blinker {
   #double = false;
   readonly #random: () => number;
 
-  constructor(random: () => number = Math.random, now = 0) {
+  /** `languid`: parpadeo mas lento y espaciado (mirada lánguida, Nova). */
+  readonly #slow: number;
+
+  constructor(random: () => number = Math.random, now = 0, languid = false) {
     this.#random = random;
+    this.#slow = languid ? 1.35 : 1;
     this.#next = now + 1 + random() * 2;
   }
 
@@ -103,12 +107,12 @@ export class Blinker {
       this.#double = this.#random() < 0.2;
     }
     if (this.#start < 0) return 0;
-    const length = this.#double ? 0.46 : 0.22;
+    const length = (this.#double ? 0.46 : 0.22) * this.#slow;
     const x = (t - this.#start) / length;
     if (x >= 1) {
       this.#start = -1;
       this.#lastEnd = t;
-      this.#next = t + 2.5 + this.#random() * 3.5;
+      this.#next = t + (2.5 + this.#random() * 3.5) * this.#slow;
       return 0;
     }
     // Cierre rapido y apertura mas lenta (como un parpado de verdad), una o dos veces.

@@ -271,7 +271,7 @@ function animate(
 ): () => void {
   const timer = new THREE.Timer();
   timer.connect(document);
-  const blinker = new Blinker();
+  const blinker = new Blinker(Math.random, 0, props().companion === 'nova');
   const reduce = prefersReducedMotion();
   const expressions = vrm.expressionManager;
   const face: Record<string, number> = { happy: 0, sad: 0, relaxed: 0, surprised: 0 };
