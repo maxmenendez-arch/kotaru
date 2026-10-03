@@ -117,8 +117,13 @@ void main() {
   // separan un pelo, como en una lente real. En el centro (la cara) no se nota.
   vec2 fromCenter = vUv - 0.5;
   vec2 ca = fromCenter * dot(fromCenter, fromCenter) * texel * 14.0;
-  ch.r = texture2D(character, vUv + ca).r;
-  ch.b = texture2D(character, vUv - ca).b;
+  vec4 chR = texture2D(character, vUv + ca);
+  vec4 chB = texture2D(character, vUv - ca);
+  ch.r = chR.r;
+  ch.b = chB.b;
+  // Cada canal con su propia opacidad: si no, en el contorno faltaria el rojo (raya cian) o
+  // sobraria (raya roja) al mezclar con el fondo.
+  vec3 cover = vec3(chR.a, ch.a, chB.a);
   if (soft > 0.001) {
     // Desenfoque del personaje (9 muestras en dos anillos): solo durante el cambio de foco.
     vec2 r = texel * soft * 5.0;
@@ -128,9 +133,10 @@ void main() {
     acc += texture2D(character, vUv + r * 0.7) + texture2D(character, vUv - r * 0.7);
     acc += texture2D(character, vUv + vec2(r.x, -r.y) * 0.7) + texture2D(character, vUv + vec2(-r.x, r.y) * 0.7);
     ch = acc / 9.0;
+    cover = vec3(ch.a);
   }
   // El personaje llega premultiplicado (se dibujo sobre transparente).
-  vec3 c = ch.rgb * exposure + bg * (1.0 - ch.a);
+  vec3 c = ch.rgb * exposure + bg * (1.0 - cover);
   // Luz envolvente: en el borde del personaje se cuela un poco la luz del fondo (como en
   // una foto real), y deja de parecer recortado y pegado encima.
   vec2 o = texel * 3.0;
