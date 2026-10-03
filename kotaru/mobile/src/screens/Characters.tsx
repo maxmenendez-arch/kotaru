@@ -67,6 +67,12 @@ export function Characters({
   const [heroHeight, setHeroHeight] = useState(0);
   const [scrolled, setScrolled] = useState(0);
   const [connecting, setConnecting] = useState<CompanionId | null>(null);
+  // Al cambiar de personaje, el video entra con un fundido (antes, corte seco).
+  const stageIn = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    stageIn.setValue(0);
+    Animated.timing(stageIn, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [selected, stageIn]);
   const scroll = useRef<ScrollView>(null);
   // Sonido del short: musica propia de cada personaje y, debajo, el sonido de su lugar.
   // Mas alta que antes (0,65) y sin apagarse del todo mientras saluda (0,4): en el telefono
@@ -178,8 +184,8 @@ export function Characters({
       }}
     >
       {/* El short, de fondo. */}
-      <View
-        style={[styles.stage, { width: stageWidth, left: stageLeft }]}
+      <Animated.View
+        style={[styles.stage, { width: stageWidth, left: stageLeft, opacity: stageIn }]}
         accessibilityRole="image"
         accessibilityLabel={`${companion.name}. ${profile.hook[lang].join(' ')}`}
       >
@@ -199,7 +205,7 @@ export function Characters({
         />
         <Scrim from={0.38} />
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(8,10,20,${veil})` }]} />
-      </View>
+      </Animated.View>
 
       {/* Encima: el nombre y, al deslizar, el perfil. */}
       <ScrollView
