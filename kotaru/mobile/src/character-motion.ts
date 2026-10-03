@@ -96,6 +96,20 @@ const TALK_GESTURE_SHARE = 0.15;
 /** Huesos del tronco y cuanto de la postura del clip de reposo/charla se conserva (0-1). */
 export const TORSO = new Set(['hips', 'spine', 'chest', 'upperChest']);
 export const TORSO_KEEP = 0.3;
+/**
+ * Postura de cada personaje encima del reposo (radianes por hueso, x/y/z locales). Nova (2-oct,
+ * mas sensual, con buen gusto): cadera ladeada y algo girada, el torso compensa y el cuello
+ * inclina la cabeza; la silueta en S de una pose relajada y segura.
+ */
+export const POSTURE: Readonly<Record<string, Readonly<Record<string, readonly [number, number, number]>>>> = {
+  nova: {
+    hips: [0, 0.07, 0.06],
+    spine: [0, -0.02, -0.035],
+    chest: [0.02, -0.03, -0.03],
+    upperChest: [0, -0.02, -0.015],
+    neck: [0.02, 0, 0.035],
+  },
+};
 /** Minimo entre dos reacciones (ms): no encadena gestos. */
 const REACTION_COOLDOWN_MS = 6000;
 
@@ -286,6 +300,8 @@ export class CharacterMotion {
   #grip: 'leftHand' | 'rightHand' | null = null;
   readonly #fingerRest = new Map<THREE.Object3D, number>();
   readonly #tmpQ = new THREE.Quaternion();
+  readonly #tmpE = new THREE.Euler();
+  #clock = 0;
 
   readonly #armOut: readonly [THREE.Quaternion, THREE.Quaternion];
 
@@ -530,6 +546,18 @@ export class CharacterMotion {
       const k = w * (1 - A);
       if (name === 'leftUpperArm') node.quaternion.premultiply(this.#tmpQ.identity().slerp(this.#armOut[0], k));
       if (name === 'rightUpperArm') node.quaternion.premultiply(this.#tmpQ.identity().slerp(this.#armOut[1], k));
+    }
+    // Postura propia del personaje sobre el reposo: Nova en contrapposto (el peso en una
+    // cadera, el torso compensando, un hombro algo adelantado), con un vaiven lento.
+    const lean = POSTURE[this.#companion];
+    if (lean) {
+      this.#clock += dt;
+      const sway = 1 + 0.25 * Math.sin(this.#clock * 0.55);
+      const k = W * (1 - A) * sway;
+      for (const [bone, [x, y, z]] of Object.entries(lean)) {
+        const node = this.#vrm.humanoid.getNormalizedBoneNode(bone as VRMHumanBoneName);
+        if (node) node.quaternion.multiply(this.#tmpQ.setFromEuler(this.#tmpE.set(x * k, y * k, z * k)));
+      }
     }
     if (A > 0.001) {
       for (const [name, q] of this.#act.pose) {

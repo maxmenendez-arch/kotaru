@@ -32,7 +32,8 @@ const FACES: Readonly<Record<string, Partial<Record<FaceExpression, number>>>> =
 /** Gesto de reposo de cada personaje: Luna serena, Nova y Rio con media sonrisa. */
 export const RESTING_FACE: Readonly<Record<string, Partial<Record<FaceExpression, number>>>> = {
   luna: { relaxed: 0.12, happy: 0.08 },
-  nova: { happy: 0.15 },
+  // Mirada entornada y media sonrisa (2-oct): mas sensual sin cerrar los ojos.
+  nova: { relaxed: 0.2, happy: 0.12 },
   rio: { happy: 0.18 },
 };
 

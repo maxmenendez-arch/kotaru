@@ -11,7 +11,7 @@ const spectrum = (peaks: number[], binHz = 93.75, n = 256) => {
   }
   return db;
 };
-const top = (v: Record<string, number>) => Object.entries(v).sort((a, b) => b[1] - a[1])[0]![0];
+const top = (v: object) => (Object.entries(v) as [string, number][]).sort((a, b) => b[1] - a[1])[0]![0];
 
 test('la vocal sale de donde cae la energia de la voz', () => {
   assert.equal(top(visemesFromSpectrum(spectrum([950]), 93.75, 0.8)), 'aa');

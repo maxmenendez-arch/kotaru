@@ -422,7 +422,9 @@ function animate(
     }
 
     // Cabeza: postura del estado + gesto + un balanceo muy leve.
-    const pose = stateOffset(p.state);
+    const base = stateOffset(p.state);
+    // Nova mira un poco desde abajo (barbilla baja, ojos a camara) con la cabeza ladeada.
+    const pose = p.companion === 'nova' && !cue ? { x: base.x + 0.06, y: base.y, z: base.z + 0.05 } : base;
     // Con animaciones, la cabeza no añade gestos ni balanceos propios: tranquila.
     const calmHead = !!motion?.ready && !cue;
     const gesture = reduce || !p.affect || calmHead ? { x: 0, y: 0, z: 0 } : gestureOffset(p.affect.gesture, (now - p.affect.at) / 1000);
