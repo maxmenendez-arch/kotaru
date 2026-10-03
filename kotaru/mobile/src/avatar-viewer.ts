@@ -296,6 +296,7 @@ function animate(
   let lastFar = 0;
   // Hacia donde mira el modelo en reposo respecto a su eje +Z (hacia la camara o al reves).
   const follow = { x: 0, y: 0 };
+  const saccade = { i: 0, x: 0, y: 0, next: 0 };
   const followTmp = new THREE.Vector3();
   const director = new CloseUpDirector();
   let seenReactions = 0;
@@ -445,9 +446,20 @@ function animate(
     // Mirada: a la camara con pequeños saltos naturales; al pensar, arriba y a un lado.
     const thinking = p.state === 'thinking';
     const glance = reduce ? { x: 0, y: 0 } : body.glance(t);
+    // Microsacadas (2-oct): al mirar a alguien los ojos saltan de un ojo suyo al otro y a veces
+    // a la boca, cada medio segundo o asi. Sin esto la mirada parece de muñeca.
+    if (t > saccade.next) {
+      saccade.i += 1;
+      const r = smoothNoise(saccade.i * 1.7, 41) * 0.5 + 0.5;
+      saccade.x = (saccade.i % 2 ? 1 : -1) * 0.022;
+      saccade.y = r > 0.8 ? -0.05 : 0;
+      saccade.next = t + 0.35 + r * 0.7;
+    }
+    const sx = thinking || reduce ? 0 : saccade.x;
+    const sy = thinking || reduce ? 0 : saccade.y;
     gaze.position.set(
-      camera.position.x + (thinking ? 0.25 : glance.x) + lookAway * 1.4,
-      camera.position.y + (thinking ? 0.2 : glance.y),
+      camera.position.x + (thinking ? 0.25 : glance.x) + lookAway * 1.4 + sx,
+      camera.position.y + (thinking ? 0.2 : glance.y) + sy,
       camera.position.z,
     );
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { smoothNoise } from './framing';
 import { candleFlicker, neonPulse, PALETTES, PLATES, SCENE_FOR, seeded, sway, type SceneId } from './scenes';
 
 /**
@@ -179,6 +180,15 @@ export function buildStage(companion: string, scene: THREE.Scene, focus: THREE.V
   rim.position.set(focus.x - 1.2, focus.y + 0.8, focus.z - 1.6);
   rim.target.position.copy(focus);
   kit.group.add(hemi, key, key.target, rim, rim.target);
+  // Luz viva (2-oct): en la oficina de Luna pasan nubes (la luz de la ventana baja y sube
+  // muy despacio); el neon de Nova respira; la fogata de Rio hace temblar el contorno calido.
+  const keyBase = palette.keyIntensity;
+  const rimBase = palette.rimIntensity;
+  kit.updaters.push((t) => {
+    if (id === 'luna-office') key.intensity = keyBase * (1 + 0.07 * smoothNoise(t * 0.07, 31));
+    else if (id === 'nova-room') rim.intensity = rimBase * (1 + 0.07 * Math.sin(t * 0.8) + 0.03 * smoothNoise(t * 2.2, 32));
+    else rim.intensity = rimBase * (1 + 0.12 * smoothNoise(t * 2.4, 33) + 0.05 * smoothNoise(t * 7.5, 34));
+  });
 
   BUILDERS[id](kit, focus, PLATES[id]);
   scene.add(kit.group);
