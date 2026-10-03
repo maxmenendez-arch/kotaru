@@ -466,7 +466,7 @@ function animate(
     // de voz), como cualquiera que habla; no es un vaiven continuo.
     accent = approach(accent, speaking && !reduce ? Math.min(1, Math.max(0, mouth - lastMouth) * 10) : 0, dt, 5);
     lastMouth = mouth;
-    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x * headLife + accent * 0.035, dt, 6);
+    headX = approach(headX, pose.x + gesture.x + Math.sin(t * 0.8) * 0.015 * sway + body.head.x * headLife + accent * 0.035 + listenNod(t, p.state === 'listening' && !reduce), dt, 6);
     headY = approach(headY, pose.y + gesture.y + Math.sin(t * 0.45) * 0.05 * sway + body.head.y * headLife + lookAway * 0.45, dt, 6);
     headZ = approach(headZ, pose.z + gesture.z + Math.sin(t * 0.6) * 0.02 * sway + body.head.z * headLife, dt, 6);
     if (neck) neck.rotation.set(headX * 0.4, headY * 0.4, headZ * 0.4);
@@ -685,4 +685,15 @@ function coyGlance(t: number): { away: number; smile: number } {
   const k = ((t + 7) % period) / period;
   const bell = (a: number, b: number) => (k <= a || k >= b ? 0 : Math.sin(((k - a) / (b - a)) * Math.PI));
   return { away: bell(0.0, 0.075), smile: bell(0.06, 0.16) };
+}
+
+/**
+ * Asentir mientras escucha (2-oct): pequeños «ajá» con la cabeza cada pocos segundos, no
+ * regulares (como quien escucha de verdad). Radianes hacia abajo.
+ */
+function listenNod(t: number, on: boolean): number {
+  if (!on) return 0;
+  const gate = smoothNoise(t * 0.35, 51) > 0.15 ? 1 : 0;
+  const beat = Math.pow(Math.max(0, Math.sin(t * 2.2)), 6);
+  return 0.03 * gate * beat;
 }
