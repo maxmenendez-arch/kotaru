@@ -124,7 +124,8 @@ export async function startViewer(canvas: HTMLCanvasElement, url: string, props:
     const setup = frameCamera(framing, camera.aspect, headY, p.freeBottom);
     // La primera vez, directo; despues la camara se desliza hasta el nuevo encuadre.
     if (!shot) {
-      shot = { ...setup };
+      // La primera vez la camara empieza un poco mas atras y se acerca (un leve travelling).
+      shot = { ...setup, z: setup.z + (framing === 'immersive' ? 0.35 : 0) };
       applyShot();
     }
     goal = setup;
@@ -490,7 +491,8 @@ function animate(
       if (cam.roll) camera.rotateZ(cam.roll);
       camera.updateProjectionMatrix();
     } else {
-      post?.setFade(1);
+      // Entrada de cine: la escena aparece desde negro en el primer segundo y medio.
+      post?.setFade(reduce ? 1 : Math.min(1, 0.05 + t / 1.5));
       // Camara viva (framing.ts): solo en el escenario, nunca con «reducir movimiento».
       // Camarografo: cuando empieza una reaccion, primer plano de cara o torso desde un angulo
       // que no se repite; el foco se pierde al acercarse y vuelve (close-ups.ts).
