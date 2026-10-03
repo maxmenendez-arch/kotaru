@@ -96,7 +96,7 @@ export const PALETTES: Readonly<Record<SceneId, ScenePalette>> = {
     rimIntensity: 1.3,
     key: 0xfff2ea,
     keyIntensity: 1.6,
-    grade: { blur: 0.8, bloom: 1.0, bloomThreshold: 0.45, saturation: 1.12, contrast: 1.08, warmth: 0.0, vignette: 0.48, exposure: 0.85, shadows: [0.006, -0.01, 0.03], highlights: [0.035, 0.008, 0.004], matte: 0.04, grain: 0.03 },
+    grade: { blur: 0.8, bloom: 0.75, bloomThreshold: 0.55, saturation: 1.12, contrast: 1.1, warmth: 0.0, vignette: 0.5, exposure: 0.8, shadows: [0.006, -0.01, 0.03], highlights: [0.035, 0.008, 0.004], matte: 0.04, grain: 0.03 },
   },
   'rio-outdoors': {
     fog: 0xf0b98a,
