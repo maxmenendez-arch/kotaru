@@ -58,6 +58,6 @@ export function catchlightOpacity(closed: number): number {
 /** Rubor de las mejillas (face-detail.ts): opacidad y color. */
 export const BLUSH: Readonly<Record<string, { readonly alpha: number; readonly rgb: string }>> = {
   luna: { alpha: 0.2, rgb: '236,128,136' },
-  nova: { alpha: 0.17, rgb: '232,110,132' },
+  nova: { alpha: 0.11, rgb: '232,110,132' },
   rio: { alpha: 0.08, rgb: '214,120,110' },
 };

@@ -33,7 +33,7 @@ const FACES: Readonly<Record<string, Partial<Record<FaceExpression, number>>>> =
 export const RESTING_FACE: Readonly<Record<string, Partial<Record<FaceExpression, number>>>> = {
   luna: { relaxed: 0.12, happy: 0.08 },
   // Mirada entornada y media sonrisa (2-oct): mas sensual sin cerrar los ojos.
-  nova: { relaxed: 0.2, happy: 0.12 },
+  nova: { relaxed: 0.14, happy: 0.12 },
   rio: { happy: 0.18 },
 };
 

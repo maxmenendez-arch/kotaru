@@ -262,6 +262,6 @@ export const REELS: Readonly<Record<CompanionId, readonly Shot[]>> = {
     // El unico plano entero: el saludo (con la postura capturada ya no parece un muñeco).
     { dur: 2.4, from: { focus: 'full', yaw: -0.16 }, to: { focus: 'full', yaw: -0.28 }, emotion: 'happy', wave: true },
     { dur: 2.8, from: { focus: 'bust', yaw: 0.32, pitch: -0.1 }, to: { focus: 'bust', yaw: 0.18 }, talk: true, emotion: 'playful', gesture: 'nod' },
-    { dur: 2.2, from: { focus: 'eyes', yaw: 0.08 }, to: { focus: 'eyes', yaw: 0 }, emotion: 'happy' },
+    { dur: 2.2, from: { focus: 'face', yaw: 0.1 }, to: { focus: 'face', yaw: 0.02 }, emotion: 'happy' },
   ],
 };
