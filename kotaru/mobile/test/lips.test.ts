@@ -29,3 +29,17 @@ test('en silencio la boca cierra; las sibilantes la abren menos', () => {
   const sum = (v: typeof vowel) => v.aa + v.ih + v.ou + v.ee + v.oh;
   assert.ok(sum(hiss) < sum(vowel));
 });
+
+import { Blinker } from '../src/avatar-motion.ts';
+
+test('el parpado cierra rapido y abre despacio; al mover la mirada parpadea', () => {
+  const b = new Blinker(() => 0.5, 0);
+  b.nudge(10);
+  const w = (t: number) => b.weight(t);
+  assert.equal(w(10), 0);
+  assert.ok(w(10.066) > 0.95, 'cerrado a los 66 ms');
+  assert.ok(w(10.15) > 0.3, 'aun entreabierto al abrir');
+  assert.equal(w(10.25), 0);
+  b.nudge(10.5);
+  assert.equal(w(10.5), 0, 'no repite enseguida');
+});

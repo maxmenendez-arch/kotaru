@@ -87,22 +87,34 @@ export class Blinker {
     this.#next = now + 1 + random() * 2;
   }
 
+  #lastEnd = -10;
+
+  /**
+   * Parpadear ahora (si no lo hizo hace nada): las personas parpadean al mover la mirada de un
+   * sitio a otro. Lo llama el visor al cambiar de punto de mirada.
+   */
+  nudge(t: number): void {
+    if (this.#start < 0 && t - this.#lastEnd > 1.2) this.#next = t;
+  }
+
   weight(t: number): number {
     if (this.#start < 0 && t >= this.#next) {
       this.#start = t;
       this.#double = this.#random() < 0.2;
     }
     if (this.#start < 0) return 0;
-    const length = this.#double ? 0.42 : 0.16;
+    const length = this.#double ? 0.46 : 0.22;
     const x = (t - this.#start) / length;
     if (x >= 1) {
       this.#start = -1;
+      this.#lastEnd = t;
       this.#next = t + 2.5 + this.#random() * 3.5;
       return 0;
     }
-    // Uno o dos cierres rapidos (medio seno por cierre).
+    // Cierre rapido y apertura mas lenta (como un parpado de verdad), una o dos veces.
     const closes = this.#double ? 2 : 1;
-    return Math.abs(Math.sin(x * Math.PI * closes));
+    const y = (x * closes) % 1;
+    return y < 0.3 ? Math.sin((y / 0.3) * (Math.PI / 2)) : 1 - Math.pow((y - 0.3) / 0.7, 0.7);
   }
 }
 
